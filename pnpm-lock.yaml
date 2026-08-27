@@ -70,7 +70,7 @@ importers:
         version: 5.6.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@jxi/comparison-table':
         specifier: workspace:*
-        version: link:../../packages/comparision-table
+        version: link:../../packages/comparison-table
       antd:
         specifier: ^5.26.7
         version: 5.29.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -81,7 +81,7 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
 
-  packages/comparision-table:
+  packages/comparison-table:
     dependencies:
       '@ant-design/icons':
         specifier: '>=5 <6'
