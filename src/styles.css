@@ -87,11 +87,11 @@ main {
 .comparison-difference-badge {
   position: relative;
   display: inline-flex;
-  min-height: 20px;
+  min-height: 18px;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: 0 7px;
+  padding: 0 5px;
   border: 1px solid #f79009;
   border-radius: 5px;
   color: #b54708;
@@ -100,7 +100,7 @@ main {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  line-height: 18px;
+  line-height: 16px;
 }
 .comparison-difference-badge-direct {
   border-color: #f79009;
@@ -114,20 +114,20 @@ main {
 }
 .comparison-difference-badge sup {
   position: absolute;
-  right: -8px;
-  top: -8px;
-  min-width: 14px;
-  min-height: 14px;
+  right: -6px;
+  top: -6px;
+  min-width: 12px;
+  min-height: 12px;
   box-sizing: border-box;
-  padding: 0 3px;
+  padding: 0 2px;
   border: 1px solid #fff;
   color: #fff;
   background: #b54708;
   border-radius: 999px;
   box-shadow: 0 1px 2px rgb(16 24 40 / 18%);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
-  line-height: 12px;
+  line-height: 10px;
   text-align: center;
 }
 .ant-table-wrapper .ant-table-tbody > tr.comparison-row-difference > td {
