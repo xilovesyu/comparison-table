@@ -638,5 +638,8 @@ const diffSource = `<RecursiveComparisonTable
       const prices = values.map(Number);
       return Math.max(...prices) - Math.min(...prices) > 10;
     },
+    // 可选：替换默认 Diff 方块
+    differenceIndicator: info =>
+      info.isDirectDifference ? '字段已变更' : \`含 \${info.descendantDifferenceCount} 项变更\`,
   }}
 />`;
