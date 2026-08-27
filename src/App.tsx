@@ -128,6 +128,136 @@ const flattenedLineDefinitions = [
     ],
   },
 ] satisfies PropertyDefinition[];
+const advancedVersions = [
+  {
+    id: 'baseline',
+    label: '初始版',
+    data: {
+      customer: { name: 'Mia Chen', tier: 'GOLD', secret: 'baseline-only' },
+      billing: {
+        money: { amount: 980, currency: 'USD' },
+        summaryMoney: { amount: 1200, currency: 'USD' },
+      },
+      lines: [
+        { sku: 'P-100', quantity: 1 },
+        { sku: 'P-200', quantity: 2 },
+      ],
+      note: null,
+      internal: { auditId: 'initial-audit' },
+    },
+  },
+  {
+    id: 'review',
+    label: '复核版',
+    data: {
+      customer: { name: 'Mia Chen', tier: 'PLATINUM', secret: 'review-only' },
+      billing: {
+        money: { amount: 1100, currency: 'USD' },
+        summaryMoney: { amount: 1500, currency: 'USD' },
+      },
+      lines: [
+        { sku: 'P-100', quantity: 2 },
+        { sku: 'P-300', quantity: 1 },
+      ],
+      note: 'priority shipment',
+      availability: 'available in review',
+      internal: { auditId: 'review-audit' },
+    },
+  },
+  {
+    id: 'final',
+    label: '最终版',
+    data: {
+      customer: { name: 'Mia Chen', tier: 'PLATINUM', secret: 'final-only' },
+      billing: {
+        money: { amount: 1280, currency: 'USD' },
+        summaryMoney: { amount: 1680, currency: 'USD' },
+      },
+      lines: [
+        { sku: 'P-100', quantity: 2 },
+        { sku: 'P-300', quantity: 3 },
+      ],
+      note: 'priority shipment',
+      availability: 'available in review',
+      internal: { auditId: 'final-audit' },
+    },
+  },
+] satisfies ComparisonVersion[];
+const advancedDefinitions = [
+  {
+    key: 'customer',
+    label: '客户信息',
+    path: ['customer'],
+    level: 0,
+    type: 'object',
+    children: [
+      {
+        key: 'name',
+        label: '客户名称',
+        path: ['customer', 'name'],
+        level: 1,
+        type: 'string',
+        renderValue: (value) => String(value).toUpperCase(),
+      },
+      { key: 'tier', label: '客户等级', path: ['customer', 'tier'], level: 1, type: 'string' },
+      { key: 'secret', label: 'secret', path: ['customer', 'secret'], level: 1, type: 'string' },
+    ],
+  },
+  {
+    key: 'billingMoney',
+    label: '结算金额（可展开）',
+    path: ['billing', 'money'],
+    level: 0,
+    type: 'object',
+    children: [
+      {
+        key: 'amount',
+        label: '金额',
+        path: ['billing', 'money', 'amount'],
+        level: 1,
+        type: 'number',
+      },
+      {
+        key: 'currency',
+        label: '币种',
+        path: ['billing', 'money', 'currency'],
+        level: 1,
+        type: 'string',
+      },
+    ],
+  },
+  {
+    key: 'summaryMoney',
+    label: '总计（仅一级）',
+    path: ['billing', 'summaryMoney'],
+    level: 0,
+    type: 'object',
+  },
+  {
+    key: 'line0',
+    label: 'lines[0]',
+    path: ['lines', 0],
+    level: 0,
+    type: 'object',
+    children: [
+      { key: 'sku', label: 'SKU', path: ['lines', 0, 'sku'], level: 1, type: 'string' },
+      { key: 'quantity', label: '数量', path: ['lines', 0, 'quantity'], level: 1, type: 'number' },
+    ],
+  },
+  { key: 'note', label: '备注', path: ['note'], level: 0, type: 'string' },
+  {
+    key: 'line1',
+    label: 'lines[1]',
+    path: ['lines', 1],
+    level: 0,
+    type: 'object',
+    children: [
+      { key: 'sku', label: 'SKU', path: ['lines', 1, 'sku'], level: 1, type: 'string' },
+      { key: 'quantity', label: '数量', path: ['lines', 1, 'quantity'], level: 1, type: 'number' },
+    ],
+  },
+  { key: 'availability', label: '新增字段', path: ['availability'], level: 0, type: 'string' },
+] satisfies PropertyDefinition[];
 
 export function App() {
   return (
@@ -222,6 +352,7 @@ export function App() {
               propertyDefinitions={flattenedLineDefinitions}
             />
           </Example>
+          <AdvancedExample />
         </Space>
       </main>
     </ConfigProvider>
@@ -237,6 +368,35 @@ function ControlledExample() {
     >
       <RecursiveComparisonTable
         versions={arrayVersions}
+        expandedKeys={expandedKeys}
+        onExpandedChange={setExpandedKeys}
+      />
+    </Example>
+  );
+}
+function AdvancedExample() {
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([
+    '["customer"]',
+    '["billing","money"]',
+    '["lines",0]',
+  ]);
+  return (
+    <Example
+      title="综合高级配置"
+      description="组合字段筛选、受控展开、路径规则、金额渲染、扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
+      code={advancedSource}
+    >
+      <RecursiveComparisonTable
+        versions={advancedVersions}
+        propertyDefinitions={advancedDefinitions}
+        selection={{
+          include: ['customer', 'customer.*', 'billing.*', 'lines.*', 'note', 'availability'],
+          exclude: ['customer.secret', 'internal.*'],
+        }}
+        rules={[
+          { path: 'billing.money', renderer: 'money' },
+          { path: 'billing.summaryMoney', renderer: 'money', expand: false },
+        ]}
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
       />
@@ -324,4 +484,24 @@ const flattenedSource = `const propertyDefinitions = [
 <RecursiveComparisonTable
   versions={versions}
   propertyDefinitions={propertyDefinitions}
+/>`;
+const advancedSource = `const [expandedKeys, setExpandedKeys] = useState([
+  '["customer"]',
+  '["billing","money"]',
+  '["lines",0]',
+]);
+
+<RecursiveComparisonTable
+  versions={versions}
+  propertyDefinitions={propertyDefinitions}
+  selection={{
+    include: ['customer', 'customer.*', 'billing.*', 'lines.*', 'note', 'availability'],
+    exclude: ['customer.secret', 'internal.*'],
+  }}
+  rules={[
+    { path: 'billing.money', renderer: 'money' },
+    { path: 'billing.summaryMoney', renderer: 'money', expand: false },
+  ]}
+  expandedKeys={expandedKeys}
+  onExpandedChange={setExpandedKeys}
 />`;

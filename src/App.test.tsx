@@ -10,6 +10,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '自定义渲染器' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '受控展开、数组与缺失值' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '自定义顺序与扁平层级' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '综合高级配置' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {
@@ -35,5 +36,16 @@ describe('documentation examples', () => {
     expect(within(card).getByText('备注')).toBeInTheDocument();
     expect(within(card).getByText('lines[1]')).toBeInTheDocument();
     expect(within(card).queryByText(/^lines$/)).not.toBeInTheDocument();
+  });
+
+  it('combines flattened rows, money renderers and sensitive-field filtering', () => {
+    render(<App />);
+    const card = screen
+      .getByRole('heading', { name: '综合高级配置' })
+      .closest('.ant-card') as HTMLElement;
+    expect(within(card).getByText('结算金额（可展开）')).toBeInTheDocument();
+    expect(within(card).getByText('总计（仅一级）')).toBeInTheDocument();
+    expect(within(card).getByText('lines[0]')).toBeInTheDocument();
+    expect(within(card).queryByText('secret')).not.toBeInTheDocument();
   });
 });
