@@ -25,4 +25,9 @@ describe('buildComparisonRows', () => {
     const rows = buildComparisonRows([{ id: 'v1', label: 'V1', data: { money: { currency: 'USD', amount: 100 } } }]);
     expect(filterComparisonRows(rows, 'usd')).toMatchObject([{ property: { key: 'money' }, children: [{ property: { key: 'currency' } }] }]);
   });
+
+  it('carries a path-level renderer to the presentation property', () => {
+    const rows = buildComparisonRows([{ id: 'v1', label: 'V1', data: { money: { amount: 100, currency: 'USD' } } }], { rules: [{ path: 'money', renderer: 'money' }] });
+    expect(rows[0].property.renderer).toBe('money');
+  });
 });

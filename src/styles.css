@@ -10,3 +10,9 @@ main { max-width: 1100px; margin: 48px auto; padding: 0 24px; }
 .ant-input { margin-bottom: 16px; }
 .comparison-property-cell { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .comparison-property-cell .ant-input { flex-basis: 100%; margin: 4px 0 0; }
+.ant-table-wrapper .ant-table-thead > tr > th { background: #f8fafc; color: #334155; font-weight: 600; }
+.ant-table-wrapper .ant-table-tbody > tr > td { padding-top: 10px; padding-bottom: 10px; }
+.ant-table-wrapper .ant-table-tbody > tr > td:not(:first-child) { color: #334155; text-align: center; }
+.comparison-property-cell { min-height: 24px; font-weight: 500; }
+.comparison-property-cell .ant-btn { color: #64748b; }
+.source-actions { border-top: 1px solid #f0f0f0; padding-top: 8px; }

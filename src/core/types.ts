@@ -28,6 +28,7 @@ export interface PropertyDefinition {
   renderValue?: ValueRenderer;
   expandable?: boolean;
   defaultExpanded?: boolean;
+  renderer?: string;
 }
 
 export interface PropertyContext { key: string; path: PropertyPath; value: unknown; parent?: unknown; level: number; type: PropertyType; }
