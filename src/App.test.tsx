@@ -9,6 +9,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '属性选择与路径覆盖' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '自定义渲染器' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '受控展开、数组与缺失值' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '自定义顺序与扁平层级' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {
@@ -23,5 +24,16 @@ describe('documentation examples', () => {
     const row = screen.getByText('汇总金额（仅一级）').closest('tr')!;
     expect(within(row).getByText('$1,200.00')).toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: /row/i })).not.toBeInTheDocument();
+  });
+
+  it('shows array items as top-level presentation rows without their lines parent', () => {
+    render(<App />);
+    const card = screen
+      .getByRole('heading', { name: '自定义顺序与扁平层级' })
+      .closest('.ant-card') as HTMLElement;
+    expect(within(card).getByText('lines[0]')).toBeInTheDocument();
+    expect(within(card).getByText('备注')).toBeInTheDocument();
+    expect(within(card).getByText('lines[1]')).toBeInTheDocument();
+    expect(within(card).queryByText(/^lines$/)).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,7 @@
 import { Button, Card, ConfigProvider, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { RecursiveComparisonTable } from './components/RecursiveComparisonTable';
-import type { ComparisonVersion } from './core/comparison';
+import type { ComparisonVersion, PropertyDefinition } from './core/comparison';
 
 const peopleVersions = [
   {
@@ -103,6 +103,31 @@ const arrayVersions = [
     },
   },
 ] satisfies ComparisonVersion[];
+const flattenedLineDefinitions = [
+  {
+    key: 'line0',
+    label: 'lines[0]',
+    path: ['lines', 0],
+    level: 0,
+    type: 'object',
+    children: [
+      { key: 'sku', label: 'SKU', path: ['lines', 0, 'sku'], level: 1, type: 'string' },
+      { key: 'quantity', label: '数量', path: ['lines', 0, 'quantity'], level: 1, type: 'number' },
+    ],
+  },
+  { key: 'note', label: '备注', path: ['note'], level: 0, type: 'string' },
+  {
+    key: 'line1',
+    label: 'lines[1]',
+    path: ['lines', 1],
+    level: 0,
+    type: 'object',
+    children: [
+      { key: 'sku', label: 'SKU', path: ['lines', 1, 'sku'], level: 1, type: 'string' },
+      { key: 'quantity', label: '数量', path: ['lines', 1, 'quantity'], level: 1, type: 'number' },
+    ],
+  },
+] satisfies PropertyDefinition[];
 
 export function App() {
   return (
@@ -187,6 +212,16 @@ export function App() {
             />
           </Example>
           <ControlledExample />
+          <Example
+            title="自定义顺序与扁平层级"
+            description="展示定义决定顺序与层级：数组父级 lines 被移除，数组项和备注提升为顶层。"
+            code={flattenedSource}
+          >
+            <RecursiveComparisonTable
+              versions={arrayVersions}
+              propertyDefinitions={flattenedLineDefinitions}
+            />
+          </Example>
         </Space>
       </main>
     </ConfigProvider>
@@ -273,4 +308,20 @@ const controlledSource = `const [expandedKeys, setExpandedKeys] = useState(['["l
   versions={versions}
   expandedKeys={expandedKeys}
   onExpandedChange={setExpandedKeys}
+/>`;
+const flattenedSource = `const propertyDefinitions = [
+  {
+    key: 'line0', label: 'lines[0]', path: ['lines', 0], level: 0, type: 'object',
+    children: [
+      { key: 'sku', label: 'SKU', path: ['lines', 0, 'sku'], level: 1, type: 'string' },
+      { key: 'quantity', label: '数量', path: ['lines', 0, 'quantity'], level: 1, type: 'number' },
+    ],
+  },
+  { key: 'note', label: '备注', path: ['note'], level: 0, type: 'string' },
+  { key: 'line1', label: 'lines[1]', path: ['lines', 1], level: 0, type: 'object' },
+];
+
+<RecursiveComparisonTable
+  versions={versions}
+  propertyDefinitions={propertyDefinitions}
 />`;
