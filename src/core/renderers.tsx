@@ -14,6 +14,8 @@ export const builtInRenderers = new RendererRegistry()
   .register('percentage', (value) => typeof value === 'number' ? new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 2 }).format(value) : text(value, {} as never))
   .register('boolean', (value) => value === true ? 'Yes' : value === false ? 'No' : text(value, {} as never))
   .register('date', (value) => value instanceof Date ? value.toLocaleString() : text(value, {} as never))
+  .register('object', (value) => value && typeof value === 'object' ? `{ ${Object.keys(value).length} fields }` : text(value, {} as never))
+  .register('array', (value) => Array.isArray(value) ? `[ ${value.length} items ]` : text(value, {} as never))
   .register('money', (value) => {
     if (typeof value === 'object' && value !== null && 'amount' in value && 'currency' in value) {
       const money = value as { amount: number; currency: string };

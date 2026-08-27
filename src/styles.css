@@ -1,3 +1,8 @@
 body { margin: 0; background: #f5f7fb; color: #172b4d; font-family: Inter, "Microsoft YaHei", sans-serif; }
 main { max-width: 1100px; margin: 48px auto; padding: 0 24px; }
+.example-list { width: 100%; }
+.example-card { width: 100%; }
+.example-card h2 { margin-top: 0; }
 .ant-input { margin-bottom: 16px; }
+.comparison-property-cell { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.comparison-property-cell .ant-input { flex-basis: 100%; margin: 4px 0 0; }

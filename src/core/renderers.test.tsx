@@ -12,4 +12,9 @@ describe('builtInRenderers', () => {
     expect(clone.get('custom')!(null, {} as never)).toBe('Custom');
     expect(builtInRenderers.get('custom')).toBeUndefined();
   });
+
+  it('summarizes compound values without stringifying them as objects', () => {
+    expect(builtInRenderers.get('object')!({ amount: 100, currency: 'USD' }, {} as never)).toBe('{ 2 fields }');
+    expect(builtInRenderers.get('array')!(['a', 'b'], {} as never)).toBe('[ 2 items ]');
+  });
 });
