@@ -9,9 +9,7 @@
 `renderers` 支持 `RendererRegistry` 与普通对象两种输入：
 
 ```tsx
-<RecursiveComparisonTable
-  renderers={{ statusBadge: renderStatus, money: renderCompactMoney }}
-/>
+<RecursiveComparisonTable renderers={{ statusBadge: renderStatus, money: renderCompactMoney }} />
 ```
 
 `RendererRegistry` 保留链式注册与复用能力。对象键映射到 renderer 名称。

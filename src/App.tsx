@@ -258,6 +258,28 @@ const advancedDefinitions = [
   },
   { key: 'availability', label: '新增字段', path: ['availability'], level: 0, type: 'string' },
 ] satisfies PropertyDefinition[];
+const registryVersions = [
+  {
+    id: 'draft',
+    label: '草稿',
+    data: { status: 'ACTIVE', money: { amount: 1250, currency: 'USD' } },
+  },
+  {
+    id: 'final',
+    label: '最终版',
+    data: { status: 'SUSPENDED', money: { amount: 1480, currency: 'USD' } },
+  },
+] satisfies ComparisonVersion[];
+const localRendererDefinitions = {
+  statusBadge: (value: unknown) => `状态标记：${String(value)}`,
+  money: (value: unknown) => {
+    if (typeof value === 'object' && value !== null && 'amount' in value && 'currency' in value) {
+      const money = value as { amount: number; currency: string };
+      return `本地金额：${money.currency} ${money.amount.toFixed(0)}`;
+    }
+    return '—';
+  },
+};
 
 export function App() {
   return (
@@ -353,6 +375,7 @@ export function App() {
             />
           </Example>
           <AdvancedExample />
+          <RegistryExample />
         </Space>
       </main>
     </ConfigProvider>
@@ -400,6 +423,34 @@ function AdvancedExample() {
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
       />
+    </Example>
+  );
+}
+function RegistryExample() {
+  return (
+    <Example
+      title="局部 Renderer Registry"
+      description="每张表创建独立的 renderer 视图：可新增 statusBadge，也可局部重写 money；右侧默认表继续使用内置 money。"
+      code={registrySource}
+    >
+      <Space direction="vertical" size="middle" className="registry-example">
+        <Typography.Text type="secondary">局部配置：新增状态标记并重写金额</Typography.Text>
+        <RecursiveComparisonTable
+          versions={registryVersions}
+          searchable={false}
+          renderers={localRendererDefinitions}
+          rules={[
+            { path: 'status', renderer: 'statusBadge', label: '状态' },
+            { path: 'money', renderer: 'money', label: '金额' },
+          ]}
+        />
+        <Typography.Text type="secondary">未传入配置：仍使用内置 money</Typography.Text>
+        <RecursiveComparisonTable
+          versions={registryVersions}
+          searchable={false}
+          rules={[{ path: 'money', renderer: 'money', label: '金额' }]}
+        />
+      </Space>
     </Example>
   );
 }
@@ -505,3 +556,20 @@ const advancedSource = `const [expandedKeys, setExpandedKeys] = useState([
   expandedKeys={expandedKeys}
   onExpandedChange={setExpandedKeys}
 />`;
+const registrySource = `const localRenderers = {
+  statusBadge: value => \`状态标记：\${String(value)}\`,
+  money: value => formatCompactMoney(value), // 仅覆盖当前表格的 money
+};
+
+<RecursiveComparisonTable
+  versions={versions}
+  renderers={localRenderers}
+  rules={[
+    { path: 'status', renderer: 'statusBadge' },
+    { path: 'money', renderer: 'money' },
+  ]}
+/>;
+
+// 也可复用链式注册表：
+const renderers = new RendererRegistry().register('statusBadge', renderStatus);
+<RecursiveComparisonTable versions={versions} renderers={renderers} />;`;

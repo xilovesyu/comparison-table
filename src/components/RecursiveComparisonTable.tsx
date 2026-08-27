@@ -10,11 +10,15 @@ import {
   type ComparisonVersion,
   type SearchOptions,
 } from '../core/comparison';
-import { builtInRenderers, RendererRegistry } from '../core/renderers';
+import {
+  createRendererRegistry,
+  type RendererOverrides,
+  RendererRegistry,
+} from '../core/renderers';
 
 export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
   versions: readonly ComparisonVersion[];
-  renderers?: RendererRegistry;
+  renderers?: RendererOverrides;
   searchable?: boolean;
   searchOptions?: SearchOptions;
   expandAll?: boolean;
@@ -53,7 +57,7 @@ export function RecursiveComparisonTable({
     query || Object.values(nodeQueries).some(Boolean)
       ? allKeys
       : (expandedKeys ?? internalExpanded);
-  const registry = renderers ?? builtInRenderers;
+  const registry = useMemo(() => createRendererRegistry(renderers), [renderers]);
   const columns: ColumnsType<ComparisonRow> = [
     {
       title: 'Property',

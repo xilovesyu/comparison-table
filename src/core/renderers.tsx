@@ -1,5 +1,8 @@
 import type { ValueRenderer } from './types';
 
+export type RendererDefinitions = Readonly<Record<string, ValueRenderer>>;
+export type RendererOverrides = RendererRegistry | RendererDefinitions;
+
 export class RendererRegistry {
   private readonly renderers = new Map<string, ValueRenderer>();
   register(name: string, renderer: ValueRenderer): this {
@@ -8,6 +11,9 @@ export class RendererRegistry {
   }
   get(name: string): ValueRenderer | undefined {
     return this.renderers.get(name);
+  }
+  entries(): IterableIterator<[string, ValueRenderer]> {
+    return this.renderers.entries();
   }
   clone(): RendererRegistry {
     const copy = new RendererRegistry();
@@ -54,3 +60,12 @@ export const builtInRenderers = new RendererRegistry()
     }
     return text(value, {} as never);
   });
+
+export function createRendererRegistry(overrides?: RendererOverrides): RendererRegistry {
+  const registry = builtInRenderers.clone();
+  if (!overrides) return registry;
+  const entries =
+    overrides instanceof RendererRegistry ? overrides.entries() : Object.entries(overrides);
+  Array.from(entries).forEach(([name, renderer]) => registry.register(name, renderer));
+  return registry;
+}

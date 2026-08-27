@@ -27,6 +27,45 @@ describe('RecursiveComparisonTable', () => {
     );
     expect(screen.getByText('$100.00')).toBeInTheDocument();
   });
+  it('uses an object renderer only for the current table instance', () => {
+    const versions = [
+      { id: 'v1', label: 'Custom', data: { state: 'ACTIVE' } },
+      { id: 'v2', label: 'Builtin', data: { state: 'ACTIVE' } },
+    ];
+    render(
+      <>
+        <RecursiveComparisonTable
+          versions={[versions[0]]}
+          renderers={{ badge: (value) => `Badge: ${value}` }}
+          rules={[{ path: 'state', renderer: 'badge' }]}
+        />
+        <RecursiveComparisonTable
+          versions={[versions[1]]}
+          rules={[{ path: 'state', renderer: 'badge' }]}
+        />
+      </>,
+    );
+    expect(screen.getByText('Badge: ACTIVE')).toBeInTheDocument();
+    expect(screen.getByText('ACTIVE')).toBeInTheDocument();
+  });
+  it('overrides a builtin renderer only for the configured table instance', () => {
+    const money = { amount: 100, currency: 'USD' };
+    render(
+      <>
+        <RecursiveComparisonTable
+          versions={[{ id: 'custom', label: 'Custom', data: { money } }]}
+          renderers={{ money: () => 'Custom money' }}
+          rules={[{ path: 'money', renderer: 'money' }]}
+        />
+        <RecursiveComparisonTable
+          versions={[{ id: 'builtin', label: 'Builtin', data: { money } }]}
+          rules={[{ path: 'money', renderer: 'money' }]}
+        />
+      </>,
+    );
+    expect(screen.getByText('Custom money')).toBeInTheDocument();
+    expect(screen.getByText('$100.00')).toBeInTheDocument();
+  });
   it('filters only one expandable node from its local search input', () => {
     render(<RecursiveComparisonTable versions={versions} />);
     fireEvent.click(screen.getByRole('button', { name: 'Search within user' }));
