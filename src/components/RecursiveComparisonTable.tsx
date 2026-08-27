@@ -193,7 +193,14 @@ function DifferenceIndicator({
   };
   if (typeof indicator === 'function') return <>{indicator(info)}</>;
   return (
-    <span className="comparison-difference-badge" aria-label="Diff">
+    <span
+      className={`comparison-difference-badge ${
+        info.isDirectDifference
+          ? 'comparison-difference-badge-direct'
+          : 'comparison-difference-badge-parent'
+      }`}
+      aria-label="Diff"
+    >
       Diff
       {info.descendantDifferenceCount > 0 && <sup>{info.descendantDifferenceCount}</sup>}
     </span>
