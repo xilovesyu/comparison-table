@@ -4,7 +4,7 @@ import {
   RecursiveComparisonTable,
   type ComparisonVersion,
   type PropertyDefinition,
-} from '@jxi/comparision-table';
+} from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const advancedVersions = [
@@ -199,3 +199,4 @@ export function AdvancedExample() {
     </ExampleCard>
   );
 }
+

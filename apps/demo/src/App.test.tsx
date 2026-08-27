@@ -107,3 +107,4 @@ describe('documentation examples', () => {
     expect(within(advancedCard).getByText(/<RecursiveComparisonTable/)).toBeInTheDocument();
   });
 });
+

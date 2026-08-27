@@ -1,6 +1,6 @@
 import source from './RegistryExample.tsx?raw';
 import { Space, Typography } from 'antd';
-import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const registryVersions = [
@@ -54,3 +54,4 @@ export function RegistryExample() {
     </ExampleCard>
   );
 }
+

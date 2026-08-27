@@ -4,13 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm --filter @jxi/comparision-table build && pnpm --filter @jxi/comparision-table-demo build",
+    "build": "pnpm --filter @jxi/comparison-table build && pnpm --filter @jxi/comparison-table-demo build",
     "test": "pnpm -r --if-present test",
     "test:watch": "pnpm -r --if-present test:watch",
     "lint": "pnpm -r --if-present lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "pack:check": "pnpm --filter @jxi/comparision-table pack --pack-destination ../../artifacts",
+    "pack:check": "pnpm --filter @jxi/comparison-table pack --pack-destination ../../artifacts",
     "release:check": "npm run format:check && npm run build && npm test && npm run pack:check"
   },
   "devDependencies": {
@@ -34,3 +34,4 @@
     "vitest": "^3.2.4"
   }
 }
+

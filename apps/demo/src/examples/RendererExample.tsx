@@ -3,7 +3,7 @@ import {
   RecursiveComparisonTable,
   type ComparisonVersion,
   type PropertyDefinition,
-} from '@jxi/comparision-table';
+} from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const orderVersions = [
@@ -69,3 +69,4 @@ export function RendererExample() {
     </ExampleCard>
   );
 }
+

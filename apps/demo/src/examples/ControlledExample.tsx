@@ -1,6 +1,6 @@
 import source from './ControlledExample.tsx?raw';
 import { useState } from 'react';
-import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const arrayVersions = [
@@ -44,3 +44,4 @@ export function ControlledExample() {
     </ExampleCard>
   );
 }
+

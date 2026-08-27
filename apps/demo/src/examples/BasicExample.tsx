@@ -1,5 +1,5 @@
 import source from './BasicExample.tsx?raw';
-import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const peopleVersions = [
@@ -53,3 +53,4 @@ export function BasicExample() {
     </ExampleCard>
   );
 }
+

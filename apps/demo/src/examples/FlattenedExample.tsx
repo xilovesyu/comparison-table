@@ -3,7 +3,7 @@ import {
   RecursiveComparisonTable,
   type ComparisonVersion,
   type PropertyDefinition,
-} from '@jxi/comparision-table';
+} from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const arrayVersions = [
@@ -70,3 +70,4 @@ export function FlattenedExample() {
     </ExampleCard>
   );
 }
+

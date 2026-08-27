@@ -1,5 +1,5 @@
 import source from './DiffExample.tsx?raw';
-import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const diffVersions = [
@@ -42,3 +42,4 @@ export function DiffExample() {
     </ExampleCard>
   );
 }
+

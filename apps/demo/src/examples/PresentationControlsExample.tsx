@@ -1,5 +1,5 @@
 import source from './PresentationControlsExample.tsx?raw';
-import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
 const controlVersions = [
@@ -38,3 +38,4 @@ export function PresentationControlsExample() {
     </ExampleCard>
   );
 }
+
