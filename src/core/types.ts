@@ -21,6 +21,8 @@ export interface PropertyDefinition {
   expandable?: boolean;
   defaultExpanded?: boolean;
   renderer?: string;
+  differenceIndicator?: DifferenceIndicatorSetting;
+  nodeSearchable?: boolean;
 }
 
 export interface PropertyContext {
@@ -43,6 +45,8 @@ export interface DisplayRule {
   expand?: boolean;
   label?: string;
   renderer?: string;
+  differenceIndicator?: DifferenceIndicatorSetting;
+  nodeSearchable?: boolean;
 }
 export interface ValueRenderContext extends PropertyContext {
   version: ComparisonVersion;
@@ -58,6 +62,8 @@ export interface ComparisonRow {
   hasDifference?: boolean;
   hasOwnDifference?: boolean;
   descendantDifferenceCount?: number;
+  differenceIndicator?: DifferenceIndicatorSetting;
+  nodeSearchable?: boolean;
 }
 
 export interface DifferenceIndicatorContext {
@@ -66,6 +72,8 @@ export interface DifferenceIndicatorContext {
   isDirectDifference: boolean;
   descendantDifferenceCount: number;
 }
+export type DifferenceIndicatorSetting =
+  boolean | ((context: DifferenceIndicatorContext) => React.ReactNode);
 
 export type DifferenceComparator = (
   values: readonly unknown[],
@@ -75,10 +83,11 @@ export type DifferenceComparator = (
 export interface DifferenceOptions {
   onlyDifferences?: boolean;
   baseVersionId?: string;
+  showBaselineBadge?: boolean;
   baselineHeaderClassName?: string;
   baselineCellClassName?: string;
   comparator?: DifferenceComparator;
-  differenceIndicator?: false | ((context: DifferenceIndicatorContext) => React.ReactNode);
+  differenceIndicator?: DifferenceIndicatorSetting;
 }
 
 export interface BuildComparisonConfig {
@@ -86,6 +95,7 @@ export interface BuildComparisonConfig {
   rules?: DisplayRule[];
   propertyDefinitions?: PropertyDefinition[];
   comparison?: DifferenceOptions;
+  nodeSearchable?: boolean;
 }
 export interface SearchOptions {
   searchLabels?: boolean;

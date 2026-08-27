@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { RecursiveComparisonTable } from './RecursiveComparisonTable';
 
@@ -132,6 +132,42 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByLabelText('Base')).not.toBeInTheDocument();
     expect(document.querySelector('.comparison-baseline-header')).not.toBeInTheDocument();
     expect(document.querySelector('.comparison-baseline-cell')).not.toBeInTheDocument();
+  });
+  it('inherits display controls while allowing a child to re-enable Diff and node search', () => {
+    const versions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: { profile: { contact: { city: 'Beijing' }, name: 'Ava' } },
+      },
+      {
+        id: 'next',
+        label: 'Next',
+        data: { profile: { contact: { city: 'Shanghai' }, name: 'Mia' } },
+      },
+    ];
+
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        comparison={{ baseVersionId: 'base', showBaselineBadge: false }}
+        rules={[
+          { path: 'profile', differenceIndicator: false, nodeSearchable: false },
+          { path: 'profile.contact', differenceIndicator: true, nodeSearchable: true },
+        ]}
+      />,
+    );
+
+    const profileCell = screen
+      .getByText('profile')
+      .closest('.comparison-property-cell') as HTMLElement;
+    expect(within(profileCell).queryByLabelText('Diff')).not.toBeInTheDocument();
+    expect(
+      within(profileCell).queryByRole('button', { name: 'Search within profile' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('Diff')).not.toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Search within contact' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Base')).not.toBeInTheDocument();
   });
   it('filters only one expandable node from its local search input', () => {
     render(<RecursiveComparisonTable versions={versions} />);

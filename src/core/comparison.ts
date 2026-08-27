@@ -2,6 +2,7 @@ import type {
   BuildComparisonConfig,
   ComparisonRow,
   ComparisonVersion,
+  DifferenceIndicatorSetting,
   DifferenceOptions,
   DisplayRule,
   PropertyContext,
@@ -74,23 +75,41 @@ function visit(
   path: (string | number)[],
   config: BuildComparisonConfig,
   ancestors: readonly object[],
+  inheritedControls?: RowDisplayControls,
 ): ComparisonRow[] {
   return unionKeys(values).flatMap((key) => {
     const nodeValues = values.map((value) => child(value, key));
     const nodePath = [...path, key];
     const context = ctx(String(key), nodePath, nodeValues[0], values[0]);
     const rule = ruleFor(context, config.rules);
+    const controls = resolveRowDisplayControls(config, inheritedControls, rule);
     const expandable =
       nodeValues.some(container) && !nodeValues.some((v) => container(v) && ancestors.includes(v));
     const children =
       expandable && rule?.expand !== false
-        ? visit(nodeValues, versions, nodePath, config, [
-            ...ancestors,
-            ...nodeValues.filter(container),
-          ])
+        ? visit(
+            nodeValues,
+            versions,
+            nodePath,
+            config,
+            [...ancestors, ...nodeValues.filter(container)],
+            controls,
+          )
         : undefined;
     if (!selected(context, config.selection) && !children?.length) return [];
-    return [row(String(key), nodePath, nodeValues, versions, context, children, rule)];
+    return [
+      row(
+        String(key),
+        nodePath,
+        nodeValues,
+        versions,
+        context,
+        children,
+        rule,
+        undefined,
+        controls,
+      ),
+    ];
   });
 }
 function fromDefinitions(
@@ -98,18 +117,20 @@ function fromDefinitions(
   versions: readonly ComparisonVersion[],
   config: BuildComparisonConfig,
   parentPath: (string | number)[] = [],
+  inheritedControls?: RowDisplayControls,
 ): ComparisonRow[] {
   return defs.flatMap((def) => {
     const path = def.path.length ? [...def.path] : [...parentPath, def.key];
     const values = versions.map((v) => path.reduce(child, v.data));
     const context = ctx(def.key, path, values[0], undefined);
     const rule = ruleFor(context, config.rules);
+    const controls = resolveRowDisplayControls(config, inheritedControls, rule, def);
     if (!selected(context, config.selection)) return [];
     const children =
       def.children && rule?.expand !== false
-        ? fromDefinitions(def.children, versions, config, path)
+        ? fromDefinitions(def.children, versions, config, path, controls)
         : undefined;
-    return [row(def.key, path, values, versions, context, children, rule, def)];
+    return [row(def.key, path, values, versions, context, children, rule, def, controls)];
   });
 }
 function row(
@@ -121,6 +142,7 @@ function row(
   children?: ComparisonRow[],
   displayRule?: DisplayRule,
   def?: PropertyDefinition,
+  controls?: RowDisplayControls,
 ): ComparisonRow {
   const property: PropertyDefinition = {
     key,
@@ -136,6 +158,33 @@ function row(
     property,
     values: Object.fromEntries(versions.map((v, i) => [v.id, values[i]])),
     children: children?.length ? children : undefined,
+    differenceIndicator: controls?.differenceIndicator ?? true,
+    nodeSearchable: controls?.nodeSearchable ?? true,
+  };
+}
+interface RowDisplayControls {
+  differenceIndicator: DifferenceOptions['differenceIndicator'];
+  nodeSearchable: boolean;
+}
+function resolveRowDisplayControls(
+  config: BuildComparisonConfig,
+  inherited: RowDisplayControls | undefined,
+  rule?: DisplayRule,
+  definition?: PropertyDefinition,
+): RowDisplayControls {
+  return {
+    differenceIndicator:
+      definition?.differenceIndicator ??
+      rule?.differenceIndicator ??
+      inherited?.differenceIndicator ??
+      config.comparison?.differenceIndicator ??
+      true,
+    nodeSearchable:
+      definition?.nodeSearchable ??
+      rule?.nodeSearchable ??
+      inherited?.nodeSearchable ??
+      config.nodeSearchable ??
+      true,
   };
 }
 function displayLabel(key: string, path: PropertyPath): string {
@@ -277,6 +326,7 @@ export type {
   ComparisonVersion,
   DifferenceComparator,
   DifferenceIndicatorContext,
+  DifferenceIndicatorSetting,
   DifferenceOptions,
   DisplayRule,
   PropertyDefinition,

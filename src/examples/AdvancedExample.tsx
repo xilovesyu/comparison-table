@@ -67,6 +67,8 @@ const advancedDefinitions = [
     path: ['customer'],
     level: 0,
     type: 'object',
+    differenceIndicator: false,
+    nodeSearchable: false,
     children: [
       {
         key: 'name',
@@ -76,7 +78,14 @@ const advancedDefinitions = [
         type: 'string',
         renderValue: (value: unknown) => String(value).toUpperCase(),
       },
-      { key: 'tier', label: '客户等级', path: ['customer', 'tier'], level: 1, type: 'string' },
+      {
+        key: 'tier',
+        label: '客户等级',
+        path: ['customer', 'tier'],
+        level: 1,
+        type: 'string',
+        differenceIndicator: true,
+      },
       { key: 'secret', label: 'secret', path: ['customer', 'secret'], level: 1, type: 'string' },
     ],
   },
@@ -172,6 +181,7 @@ export function AdvancedExample() {
         ]}
         comparison={{
           baseVersionId: 'baseline',
+          showBaselineBadge: true,
           comparator: (values, context) => {
             if (context.path.join('.') === 'billing.money.amount') {
               const amounts = values.map(Number);

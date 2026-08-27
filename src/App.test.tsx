@@ -14,6 +14,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '局部 Renderer Registry' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '自动 Diff 与自定义比较' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '基准列高亮' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '显示控制与层级继承' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {
@@ -75,6 +76,21 @@ describe('documentation examples', () => {
       diffHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(within(advancedCard).getAllByLabelText('Diff').length).toBeGreaterThan(0);
+  });
+
+  it('places hierarchical display controls before the advanced example and integrates them', () => {
+    render(<App />);
+    const controlsHeading = screen.getByRole('heading', { name: '显示控制与层级继承' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+
+    expect(
+      controlsHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(advancedCard).queryByRole('button', { name: 'Search within 客户信息' }),
+    ).not.toBeInTheDocument();
+    expect(within(advancedCard).getByLabelText('Base')).toBeInTheDocument();
   });
 
   it('shows complete data, configuration and JSX in the advanced source panel', () => {

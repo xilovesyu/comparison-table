@@ -75,7 +75,6 @@ export function RecursiveComparisonTable({
           row={row}
           open={openNodeSearches.includes(row.id)}
           query={nodeQueries[row.id] ?? ''}
-          differenceIndicator={config.comparison?.differenceIndicator}
           onToggle={() =>
             setOpenNodeSearches((ids) =>
               ids.includes(row.id) ? ids.filter((id) => id !== row.id) : [...ids, row.id],
@@ -94,7 +93,7 @@ export function RecursiveComparisonTable({
         title: (
           <span className="comparison-version-header">
             <span className={headerClassName}>{version.label}</span>
-            {isBaseline && (
+            {isBaseline && config.comparison?.showBaselineBadge !== false && (
               <span className="comparison-baseline-badge" aria-label="Base">
                 Base
               </span>
@@ -160,21 +159,19 @@ function PropertyCell({
   query,
   onToggle,
   onQuery,
-  differenceIndicator,
 }: {
   row: ComparisonRow;
   open: boolean;
   query: string;
   onToggle: () => void;
   onQuery: (value: string) => void;
-  differenceIndicator: DifferenceOptions['differenceIndicator'];
 }) {
   const expandable = Boolean(row.children?.length);
   return (
     <div className="comparison-property-cell">
       <span>{row.property.label}</span>
-      <DifferenceIndicator row={row} indicator={differenceIndicator} />
-      {expandable && (
+      <DifferenceIndicator row={row} indicator={row.differenceIndicator} />
+      {expandable && row.nodeSearchable && (
         <Button
           aria-label={`Search within ${row.property.label}`}
           type="text"
