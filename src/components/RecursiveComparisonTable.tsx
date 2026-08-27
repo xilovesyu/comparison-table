@@ -1,10 +1,11 @@
-import { Button, Input, Table } from 'antd';
+import { Button, Input, Space, Switch, Table, Typography } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useState } from 'react';
 import {
   buildComparisonRows,
   filterComparisonRows,
+  filterDifferenceRows,
   type BuildComparisonConfig,
   type ComparisonRow,
   type ComparisonVersion,
@@ -38,12 +39,16 @@ export function RecursiveComparisonTable({
   ...config
 }: RecursiveComparisonTableProps) {
   const [query, setQuery] = useState('');
+  const [onlyDifferences, setOnlyDifferences] = useState(
+    config.comparison?.onlyDifferences ?? false,
+  );
   const [openNodeSearches, setOpenNodeSearches] = useState<React.Key[]>([]);
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
   const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
+  const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
-    () => applyNodeFilters(rows, nodeQueries),
-    [rows, nodeQueries],
+    () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
+    [onlyDifferences, differenceRows, rows, nodeQueries],
   );
   const visibleRows = useMemo(
     () => filterComparisonRows(locallyFilteredRows, query, searchOptions),
@@ -85,20 +90,31 @@ export function RecursiveComparisonTable({
   ];
   return (
     <section aria-label="Recursive comparison table">
-      {searchable && (
-        <Input
-          aria-label="Search comparison"
-          allowClear
-          placeholder="Search properties and values"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      )}
+      <div className="comparison-toolbar">
+        {searchable && (
+          <Input
+            aria-label="Search comparison"
+            allowClear
+            placeholder="Search properties and values"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        )}
+        <Space className="comparison-difference-control">
+          <Switch
+            aria-label="Only show differences"
+            checked={onlyDifferences}
+            onChange={setOnlyDifferences}
+          />
+          <Typography.Text>仅显示差异（{countRows(differenceRows)}）</Typography.Text>
+        </Space>
+      </div>
       <Table<ComparisonRow>
         rowKey="id"
         columns={columns}
         dataSource={visibleRows}
         pagination={false}
+        rowClassName={(row) => (row.hasDifference ? 'comparison-row-difference' : '')}
         expandable={{
           expandedRowKeys: activeExpanded,
           onExpandedRowsChange: (keys) => {
@@ -128,6 +144,7 @@ function PropertyCell({
   return (
     <div className="comparison-property-cell">
       <span>{row.property.label}</span>
+      {row.hasDifference && <span className="comparison-difference-badge">差异</span>}
       {expandable && (
         <Button
           aria-label={`Search within ${row.property.label}`}
@@ -184,4 +201,7 @@ function applyNodeFilters(
       children: ownQuery ? filterComparisonRows(children ?? [], ownQuery) : children,
     };
   });
+}
+function countRows(rows: readonly ComparisonRow[]): number {
+  return rows.reduce((count, row) => count + 1 + countRows(row.children ?? []), 0);
 }

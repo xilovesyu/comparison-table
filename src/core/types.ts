@@ -55,12 +55,25 @@ export interface ComparisonRow {
   property: PropertyDefinition;
   values: Record<string, unknown>;
   children?: ComparisonRow[];
+  hasDifference?: boolean;
+}
+
+export type DifferenceComparator = (
+  values: readonly unknown[],
+  context: PropertyContext,
+) => boolean;
+
+export interface DifferenceOptions {
+  onlyDifferences?: boolean;
+  baseVersionId?: string;
+  comparator?: DifferenceComparator;
 }
 
 export interface BuildComparisonConfig {
   selection?: PropertySelection;
   rules?: DisplayRule[];
   propertyDefinitions?: PropertyDefinition[];
+  comparison?: DifferenceOptions;
 }
 export interface SearchOptions {
   searchLabels?: boolean;

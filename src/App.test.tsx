@@ -12,6 +12,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '自定义顺序与扁平层级' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '综合高级配置' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '局部 Renderer Registry' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '自动 Diff 与自定义比较' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {

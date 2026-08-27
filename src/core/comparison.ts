@@ -2,6 +2,7 @@ import type {
   BuildComparisonConfig,
   ComparisonRow,
   ComparisonVersion,
+  DifferenceOptions,
   DisplayRule,
   PropertyContext,
   PropertyDefinition,
@@ -27,7 +28,7 @@ export function buildComparisonRows(
   config: BuildComparisonConfig = {},
 ): ComparisonRow[] {
   validateVersions(versions);
-  return config.propertyDefinitions
+  const rows = config.propertyDefinitions
     ? fromDefinitions(config.propertyDefinitions, versions, config)
     : visit(
         versions.map((v) => v.data),
@@ -36,6 +37,7 @@ export function buildComparisonRows(
         config,
         [],
       );
+  return markDifferences(rows, versions, config.comparison);
 }
 export function filterComparisonRows(
   rows: readonly ComparisonRow[],
@@ -58,6 +60,12 @@ export function filterComparisonRows(
     return label || value || children.length
       ? [{ ...row, children: children.length ? children : row.children }]
       : [];
+  });
+}
+export function filterDifferenceRows(rows: readonly ComparisonRow[]): ComparisonRow[] {
+  return rows.flatMap((row) => {
+    const children = filterDifferenceRows(row.children ?? []);
+    return row.hasDifference ? [{ ...row, children: children.length ? children : undefined }] : [];
   });
 }
 function visit(
@@ -175,6 +183,47 @@ function validateVersions(versions: readonly ComparisonVersion[]): void {
     ids.add(v.id);
   });
 }
+function markDifferences(
+  rows: readonly ComparisonRow[],
+  versions: readonly ComparisonVersion[],
+  options?: DifferenceOptions,
+): ComparisonRow[] {
+  const baseIndex = options?.baseVersionId
+    ? versions.findIndex((version) => version.id === options.baseVersionId)
+    : undefined;
+  if (baseIndex === -1) throw new Error(`Unknown base version id: ${options?.baseVersionId}`);
+  return rows.map((row) => {
+    const children = markDifferences(row.children ?? [], versions, options);
+    const values = versions.map((version) => row.values[version.id]);
+    const context = ctx(row.property.key, row.property.path, values[0], undefined);
+    const ownDifference = options?.comparator
+      ? options.comparator(values, context)
+      : values.some((value) => !deepEqual(value, values[baseIndex ?? 0]));
+    return {
+      ...row,
+      children: children.length ? children : undefined,
+      hasDifference: ownDifference || children.some((child) => child.hasDifference),
+    };
+  });
+}
+function deepEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (left instanceof Date && right instanceof Date) return left.getTime() === right.getTime();
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return (
+      left.length === right.length && left.every((value, index) => deepEqual(value, right[index]))
+    );
+  }
+  if (record(left) && record(right)) {
+    const leftKeys = Object.keys(left);
+    const rightKeys = Object.keys(right);
+    return (
+      leftKeys.length === rightKeys.length &&
+      leftKeys.every((key) => key in right && deepEqual(left[key], right[key]))
+    );
+  }
+  return false;
+}
 function match(m: PropertyMatcher, c: PropertyContext): boolean {
   if (typeof m === 'function') return m(c);
   const p = c.path.join('.');
@@ -218,6 +267,8 @@ export type {
   BuildComparisonConfig,
   ComparisonRow,
   ComparisonVersion,
+  DifferenceComparator,
+  DifferenceOptions,
   DisplayRule,
   PropertyDefinition,
   PropertyMatcher,

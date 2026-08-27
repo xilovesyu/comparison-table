@@ -66,6 +66,30 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getByText('Custom money')).toBeInTheDocument();
     expect(screen.getByText('$100.00')).toBeInTheDocument();
   });
+  it('filters equal rows while retaining the ancestor of a difference', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'before',
+            label: 'Before',
+            data: { profile: { name: 'Ava', age: 20 }, stable: 'same' },
+          },
+          {
+            id: 'after',
+            label: 'After',
+            data: { profile: { name: 'Mia', age: 20 }, stable: 'same' },
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Only show differences' }));
+    expect(screen.getByText('profile')).toBeInTheDocument();
+    expect(screen.getByText('name')).toBeInTheDocument();
+    expect(screen.queryByText('age')).not.toBeInTheDocument();
+    expect(screen.queryByText('stable')).not.toBeInTheDocument();
+  });
   it('filters only one expandable node from its local search input', () => {
     render(<RecursiveComparisonTable versions={versions} />);
     fireEvent.click(screen.getByRole('button', { name: 'Search within user' }));

@@ -270,6 +270,23 @@ const registryVersions = [
     data: { status: 'SUSPENDED', money: { amount: 1480, currency: 'USD' } },
   },
 ] satisfies ComparisonVersion[];
+const diffVersions = [
+  {
+    id: 'baseline',
+    label: '基准版',
+    data: { product: { name: 'Starter', price: 100, currency: 'USD' }, stable: 'unchanged' },
+  },
+  {
+    id: 'review',
+    label: '复核版',
+    data: { product: { name: 'Starter', price: 103, currency: 'USD' }, stable: 'unchanged' },
+  },
+  {
+    id: 'final',
+    label: '最终版',
+    data: { product: { name: 'Starter Plus', price: 135, currency: 'USD' }, stable: 'unchanged' },
+  },
+] satisfies ComparisonVersion[];
 const localRendererDefinitions = {
   statusBadge: (value: unknown) => `状态标记：${String(value)}`,
   money: (value: unknown) => {
@@ -385,6 +402,7 @@ export function App() {
           </Example>
           <RegistryExample />
           <AdvancedExample />
+          <DiffExample />
         </Space>
       </main>
     </ConfigProvider>
@@ -461,6 +479,28 @@ function RegistryExample() {
           rules={[{ path: 'money', renderer: 'money', label: '金额' }]}
         />
       </Space>
+    </Example>
+  );
+}
+function DiffExample() {
+  return (
+    <Example
+      title="自动 Diff 与自定义比较"
+      description="自动标记差异、保留父级上下文并隐藏相同字段。此处以基准版比较，价格差异小于 10 时由业务 comparator 视为相同。"
+      code={diffSource}
+    >
+      <RecursiveComparisonTable
+        versions={diffVersions}
+        comparison={{
+          onlyDifferences: true,
+          baseVersionId: 'baseline',
+          comparator: (values, context) => {
+            if (context.path.join('.') !== 'product.price') return false;
+            const prices = values.map(Number);
+            return Math.max(...prices) - Math.min(...prices) > 10;
+          },
+        }}
+      />
     </Example>
   );
 }
@@ -588,3 +628,15 @@ const registrySource = `const localRenderers = {
 // 也可复用链式注册表：
 const renderers = new RendererRegistry().register('statusBadge', renderStatus);
 <RecursiveComparisonTable versions={versions} renderers={renderers} />;`;
+const diffSource = `<RecursiveComparisonTable
+  versions={versions}
+  comparison={{
+    onlyDifferences: true,
+    baseVersionId: 'baseline',
+    comparator: (values, context) => {
+      if (context.path.join('.') !== 'product.price') return false;
+      const prices = values.map(Number);
+      return Math.max(...prices) - Math.min(...prices) > 10;
+    },
+  }}
+/>`;

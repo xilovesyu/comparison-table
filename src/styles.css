@@ -41,8 +41,18 @@ main {
   font-size: 12px;
   line-height: 1.55;
 }
-.ant-input {
+.comparison-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 16px;
+}
+.comparison-toolbar .ant-input {
+  margin: 0;
+}
+.comparison-difference-control {
+  flex: none;
+  white-space: nowrap;
 }
 .comparison-property-cell {
   display: flex;
@@ -73,6 +83,17 @@ main {
 }
 .comparison-property-cell .ant-btn {
   color: #64748b;
+}
+.comparison-difference-badge {
+  padding: 0 5px;
+  color: #b54708;
+  background: #fffaeb;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ant-table-wrapper .ant-table-tbody > tr.comparison-row-difference > td {
+  background: #fffcf5;
 }
 .source-actions {
   border-top: 1px solid #f0f0f0;

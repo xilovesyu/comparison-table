@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildComparisonRows, filterComparisonRows } from './comparison';
+import { buildComparisonRows, filterComparisonRows, filterDifferenceRows } from './comparison';
 
 describe('buildComparisonRows', () => {
   it('creates a property row with one value per version', () => {
@@ -49,5 +49,43 @@ describe('buildComparisonRows', () => {
       { id: 'v1', label: 'V1', data: { lines: [{ sku: 'A-1' }, { sku: 'B-2' }] } },
     ]);
     expect(rows[0].children?.map((row) => row.property.label)).toEqual(['lines[0]', 'lines[1]']);
+  });
+
+  it('marks deep differences and retains their parent while filtering equal rows', () => {
+    const rows = buildComparisonRows([
+      { id: 'before', label: 'Before', data: { user: { name: 'Ava', age: 20 }, stable: 'same' } },
+      { id: 'after', label: 'After', data: { user: { name: 'Mia', age: 20 }, stable: 'same' } },
+    ]);
+
+    const differences = filterDifferenceRows(rows);
+    expect(differences.map((row) => row.property.key)).toEqual(['user']);
+    expect(differences[0].children?.map((row) => row.property.key)).toEqual(['name']);
+    expect(differences[0].hasDifference).toBe(true);
+  });
+
+  it('supports a base version and a custom difference comparator', () => {
+    const versions = [
+      { id: 'base', label: 'Base', data: { amount: 100 } },
+      { id: 'near', label: 'Near', data: { amount: 103 } },
+      { id: 'changed', label: 'Changed', data: { amount: 140 } },
+    ];
+    const rows = buildComparisonRows(versions, {
+      comparison: {
+        baseVersionId: 'base',
+        comparator: (values) =>
+          Math.max(...(values as number[])) - Math.min(...(values as number[])) > 5,
+      },
+    });
+
+    expect(rows[0].hasDifference).toBe(true);
+    expect(
+      buildComparisonRows(versions.slice(0, 2), {
+        comparison: {
+          baseVersionId: 'base',
+          comparator: (values) =>
+            Math.max(...(values as number[])) - Math.min(...(values as number[])) > 5,
+        },
+      })[0].hasDifference,
+    ).toBe(false);
   });
 });
