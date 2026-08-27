@@ -63,4 +63,16 @@ describe('documentation examples', () => {
     expect(within(advancedCard).getByText('本地金额：USD 980')).toBeInTheDocument();
     expect(within(advancedCard).getByText('$1,200.00')).toBeInTheDocument();
   });
+
+  it('places automatic diff before the advanced example and integrates its diff indicator', () => {
+    render(<App />);
+    const diffHeading = screen.getByRole('heading', { name: '自动 Diff 与自定义比较' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+
+    expect(
+      diffHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(advancedCard).getAllByLabelText('Diff').length).toBeGreaterThan(0);
+  });
 });

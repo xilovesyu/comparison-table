@@ -401,8 +401,8 @@ export function App() {
             />
           </Example>
           <RegistryExample />
-          <AdvancedExample />
           <DiffExample />
+          <AdvancedExample />
         </Space>
       </main>
     </ConfigProvider>
@@ -448,6 +448,16 @@ function AdvancedExample() {
           { path: 'billing.money', renderer: 'localMoney' },
           { path: 'billing.summaryMoney', renderer: 'money', expand: false },
         ]}
+        comparison={{
+          baseVersionId: 'baseline',
+          comparator: (values, context) => {
+            if (context.path.join('.') === 'billing.money.amount') {
+              const amounts = values.map(Number);
+              return Math.max(...amounts) - Math.min(...amounts) > 50;
+            }
+            return values.some((value, index) => index > 0 && value !== values[0]);
+          },
+        }}
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
       />
@@ -608,6 +618,16 @@ const [expandedKeys, setExpandedKeys] = useState([
     { path: 'billing.money', renderer: 'localMoney' },
     { path: 'billing.summaryMoney', renderer: 'money', expand: false },
   ]}
+  comparison={{
+    baseVersionId: 'baseline',
+    comparator: (values, context) => {
+      if (context.path.join('.') === 'billing.money.amount') {
+        const amounts = values.map(Number);
+        return Math.max(...amounts) - Math.min(...amounts) > 50;
+      }
+      return values.some((value, index) => index > 0 && value !== values[0]);
+    },
+  }}
   expandedKeys={expandedKeys}
   onExpandedChange={setExpandedKeys}
 />`;
