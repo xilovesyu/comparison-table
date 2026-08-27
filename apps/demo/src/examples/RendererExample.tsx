@@ -1,5 +1,9 @@
 import source from './RendererExample.tsx?raw';
-import { RecursiveComparisonTable, type ComparisonVersion, type PropertyDefinition } from '@jxi/comparision-table';
+import {
+  RecursiveComparisonTable,
+  type ComparisonVersion,
+  type PropertyDefinition,
+} from '@jxi/comparision-table';
 import { ExampleCard } from './ExampleCard';
 
 const orderVersions = [

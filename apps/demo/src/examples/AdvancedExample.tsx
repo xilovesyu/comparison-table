@@ -1,6 +1,10 @@
 import source from './AdvancedExample.tsx?raw';
 import { useState } from 'react';
-import { RecursiveComparisonTable, type ComparisonVersion, type PropertyDefinition } from '@jxi/comparision-table';
+import {
+  RecursiveComparisonTable,
+  type ComparisonVersion,
+  type PropertyDefinition,
+} from '@jxi/comparision-table';
 import { ExampleCard } from './ExampleCard';
 
 const advancedVersions = [
