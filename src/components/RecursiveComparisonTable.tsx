@@ -91,7 +91,16 @@ export function RecursiveComparisonTable({
         ? (config.comparison?.baselineHeaderClassName ?? 'comparison-baseline-header')
         : undefined;
       return {
-        title: <span className={headerClassName}>{version.label}</span>,
+        title: (
+          <span className="comparison-version-header">
+            <span className={headerClassName}>{version.label}</span>
+            {isBaseline && (
+              <span className="comparison-baseline-badge" aria-label="Base">
+                Base
+              </span>
+            )}
+          </span>
+        ),
         key: version.id,
         className: isBaseline
           ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')

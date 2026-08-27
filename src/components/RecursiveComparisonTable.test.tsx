@@ -124,12 +124,12 @@ describe('RecursiveComparisonTable', () => {
       />,
     );
 
-    expect(screen.getByRole('columnheader', { name: 'Base' })).toContainElement(
-      document.querySelector('.custom-baseline-header'),
-    );
+    expect(document.querySelector('.custom-baseline-header')).toBeInTheDocument();
+    expect(screen.getByLabelText('Base')).toHaveTextContent('Base');
     expect(document.querySelectorAll('.custom-baseline-cell')).toHaveLength(2);
 
     rerender(<RecursiveComparisonTable versions={versions} />);
+    expect(screen.queryByLabelText('Base')).not.toBeInTheDocument();
     expect(document.querySelector('.comparison-baseline-header')).not.toBeInTheDocument();
     expect(document.querySelector('.comparison-baseline-cell')).not.toBeInTheDocument();
   });

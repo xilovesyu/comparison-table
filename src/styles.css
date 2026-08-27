@@ -69,6 +69,11 @@ main {
   color: #334155;
   font-weight: 600;
 }
+.comparison-version-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .comparison-baseline-header {
   display: inline-flex;
   align-items: center;
@@ -78,6 +83,23 @@ main {
   color: #175cd3;
   background: #eff8ff;
   font-weight: 700;
+}
+.comparison-baseline-badge {
+  display: inline-flex;
+  min-height: 18px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border: 1px solid #2e90fa;
+  border-radius: 5px;
+  color: #175cd3;
+  background: #eff8ff;
+  box-shadow: 0 1px 1px rgb(16 24 40 / 4%);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 16px;
 }
 .ant-table-wrapper .ant-table-thead > tr > th.comparison-baseline-cell,
 .ant-table-wrapper .ant-table-tbody > tr > td.comparison-baseline-cell {

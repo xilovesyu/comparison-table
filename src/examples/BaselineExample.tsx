@@ -25,7 +25,7 @@ export function BaselineExample() {
   return (
     <ExampleCard
       title="基准列高亮"
-      description="指定 baseVersionId 后突出基准列；表头与单元格 className 均可按业务主题覆盖。"
+      description="指定 baseVersionId 后突出基准列并显示 Base 标签；表头与单元格 className 均可按业务主题覆盖。"
       code={source}
     >
       <RecursiveComparisonTable
