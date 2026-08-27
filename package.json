@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @jxi/comparison-table build && pnpm --filter @jxi/comparison-table-demo build",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm -r --if-present test && pnpm run test:release-contract",
+    "test:release-contract": "node --test scripts/release-contract.test.mjs",
     "test:watch": "pnpm -r --if-present test:watch",
     "lint": "pnpm -r --if-present lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pack:check": "pnpm --filter @jxi/comparison-table pack --pack-destination ../../artifacts",
-    "release:check": "npm run format:check && npm run build && npm test && npm run pack:check"
+    "release:check": "pnpm run format:check && pnpm run build && pnpm test && pnpm run pack:check",
+    "release:dry-run": "pnpm run release:check && pnpm --filter @jxi/comparison-table exec npm publish --dry-run --access public",
+    "release:publish": "pnpm run release:check && pnpm --filter @jxi/comparison-table exec npm publish --provenance --access public"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
@@ -34,4 +37,3 @@
     "vitest": "^3.2.4"
   }
 }
-

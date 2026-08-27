@@ -1,0 +1,52 @@
+name: Publish package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version from packages/comparison-table/package.json (for example 0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @jxi/comparison-table
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify requested release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+        run: |
+          package_version=$(node -p "require('./packages/comparison-table/package.json').version")
+          requested_version=${RELEASE_VERSION#v}
+          test "$requested_version" = "$package_version"
+
+      - name: Verify package
+        run: pnpm run release:check
+
+      - name: Publish with npm trusted publishing
+        run: pnpm --filter @jxi/comparison-table exec npm publish --provenance --access public

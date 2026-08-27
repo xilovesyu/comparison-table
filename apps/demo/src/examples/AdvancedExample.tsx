@@ -199,4 +199,3 @@ export function AdvancedExample() {
     </ExampleCard>
   );
 }
-
