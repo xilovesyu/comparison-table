@@ -30,4 +30,9 @@ describe('buildComparisonRows', () => {
     const rows = buildComparisonRows([{ id: 'v1', label: 'V1', data: { money: { amount: 100, currency: 'USD' } } }], { rules: [{ path: 'money', renderer: 'money' }] });
     expect(rows[0].property.renderer).toBe('money');
   });
+
+  it('uses the parent path to label array index properties', () => {
+    const rows = buildComparisonRows([{ id: 'v1', label: 'V1', data: { lines: [{ sku: 'A-1' }, { sku: 'B-2' }] } }]);
+    expect(rows[0].children?.map((row) => row.property.label)).toEqual(['lines[0]', 'lines[1]']);
+  });
 });
