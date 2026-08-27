@@ -56,6 +56,15 @@ export interface ComparisonRow {
   values: Record<string, unknown>;
   children?: ComparisonRow[];
   hasDifference?: boolean;
+  hasOwnDifference?: boolean;
+  descendantDifferenceCount?: number;
+}
+
+export interface DifferenceIndicatorContext {
+  row: ComparisonRow;
+  values: readonly unknown[];
+  isDirectDifference: boolean;
+  descendantDifferenceCount: number;
 }
 
 export type DifferenceComparator = (
@@ -67,6 +76,7 @@ export interface DifferenceOptions {
   onlyDifferences?: boolean;
   baseVersionId?: string;
   comparator?: DifferenceComparator;
+  differenceIndicator?: false | ((context: DifferenceIndicatorContext) => React.ReactNode);
 }
 
 export interface BuildComparisonConfig {

@@ -9,6 +9,7 @@ import {
   type BuildComparisonConfig,
   type ComparisonRow,
   type ComparisonVersion,
+  type DifferenceOptions,
   type SearchOptions,
 } from '../core/comparison';
 import {
@@ -73,6 +74,7 @@ export function RecursiveComparisonTable({
           row={row}
           open={openNodeSearches.includes(row.id)}
           query={nodeQueries[row.id] ?? ''}
+          differenceIndicator={config.comparison?.differenceIndicator}
           onToggle={() =>
             setOpenNodeSearches((ids) =>
               ids.includes(row.id) ? ids.filter((id) => id !== row.id) : [...ids, row.id],
@@ -114,7 +116,13 @@ export function RecursiveComparisonTable({
         columns={columns}
         dataSource={visibleRows}
         pagination={false}
-        rowClassName={(row) => (row.hasDifference ? 'comparison-row-difference' : '')}
+        rowClassName={(row) =>
+          row.hasOwnDifference
+            ? 'comparison-row-difference'
+            : row.hasDifference
+              ? 'comparison-row-difference-parent'
+              : ''
+        }
         expandable={{
           expandedRowKeys: activeExpanded,
           onExpandedRowsChange: (keys) => {
@@ -133,18 +141,20 @@ function PropertyCell({
   query,
   onToggle,
   onQuery,
+  differenceIndicator,
 }: {
   row: ComparisonRow;
   open: boolean;
   query: string;
   onToggle: () => void;
   onQuery: (value: string) => void;
+  differenceIndicator: DifferenceOptions['differenceIndicator'];
 }) {
   const expandable = Boolean(row.children?.length);
   return (
     <div className="comparison-property-cell">
       <span>{row.property.label}</span>
-      {row.hasDifference && <span className="comparison-difference-badge">差异</span>}
+      <DifferenceIndicator row={row} indicator={differenceIndicator} />
       {expandable && (
         <Button
           aria-label={`Search within ${row.property.label}`}
@@ -165,6 +175,28 @@ function PropertyCell({
         />
       )}
     </div>
+  );
+}
+function DifferenceIndicator({
+  row,
+  indicator,
+}: {
+  row: ComparisonRow;
+  indicator: DifferenceOptions['differenceIndicator'];
+}) {
+  if (!row.hasDifference || indicator === false) return null;
+  const info = {
+    row,
+    values: Object.values(row.values),
+    isDirectDifference: Boolean(row.hasOwnDifference),
+    descendantDifferenceCount: row.descendantDifferenceCount ?? 0,
+  };
+  if (typeof indicator === 'function') return <>{indicator(info)}</>;
+  return (
+    <span className="comparison-difference-badge" aria-label="Diff">
+      Diff
+      {info.descendantDifferenceCount > 0 && <sup>{info.descendantDifferenceCount}</sup>}
+    </span>
   );
 }
 function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: RendererRegistry) {

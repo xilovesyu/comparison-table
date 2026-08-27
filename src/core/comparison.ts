@@ -196,13 +196,21 @@ function markDifferences(
     const children = markDifferences(row.children ?? [], versions, options);
     const values = versions.map((version) => row.values[version.id]);
     const context = ctx(row.property.key, row.property.path, values[0], undefined);
-    const ownDifference = options?.comparator
+    const detectedDifference = options?.comparator
       ? options.comparator(values, context)
       : values.some((value) => !deepEqual(value, values[baseIndex ?? 0]));
+    const ownDifference = children.length ? false : detectedDifference;
+    const descendantDifferenceCount = children.reduce(
+      (count, child) =>
+        count + Number(child.hasOwnDifference) + (child.descendantDifferenceCount ?? 0),
+      0,
+    );
     return {
       ...row,
       children: children.length ? children : undefined,
       hasDifference: ownDifference || children.some((child) => child.hasDifference),
+      hasOwnDifference: ownDifference,
+      descendantDifferenceCount,
     };
   });
 }
@@ -268,6 +276,7 @@ export type {
   ComparisonRow,
   ComparisonVersion,
   DifferenceComparator,
+  DifferenceIndicatorContext,
   DifferenceOptions,
   DisplayRule,
   PropertyDefinition,

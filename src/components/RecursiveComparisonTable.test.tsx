@@ -90,6 +90,24 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('age')).not.toBeInTheDocument();
     expect(screen.queryByText('stable')).not.toBeInTheDocument();
   });
+  it('shows a Diff block with a descendant count and allows a custom indicator', () => {
+    const versions = [
+      { id: 'before', label: 'Before', data: { user: { name: 'Ava', age: 20 } } },
+      { id: 'after', label: 'After', data: { user: { name: 'Mia', age: 21 } } },
+    ];
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} />);
+
+    expect(screen.getAllByText('Diff')).toHaveLength(3);
+    expect(screen.getByText('2')).toBeInTheDocument();
+
+    rerender(
+      <RecursiveComparisonTable
+        versions={versions}
+        comparison={{ differenceIndicator: (info) => `Changed ${info.descendantDifferenceCount}` }}
+      />,
+    );
+    expect(screen.getByText('Changed 2')).toBeInTheDocument();
+  });
   it('filters only one expandable node from its local search input', () => {
     render(<RecursiveComparisonTable versions={versions} />);
     fireEvent.click(screen.getByRole('button', { name: 'Search within user' }));
