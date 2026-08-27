@@ -1,4 +1,4 @@
-import { Card, ConfigProvider, Space, Typography } from 'antd';
+import { Button, Card, ConfigProvider, Space, Typography } from 'antd';
 import { useState } from 'react';
 import { RecursiveComparisonTable } from './components/RecursiveComparisonTable';
 import type { ComparisonVersion } from './core/comparison';
@@ -26,12 +26,39 @@ export function App() {
     <Typography.Title>递归多版本数据对比表</Typography.Title>
     <Typography.Paragraph>面向 Ant Design 风格的组件示例。每个可展开属性旁都有搜索按钮，可仅筛选该属性的子树。</Typography.Paragraph>
     <Space direction="vertical" size="large" className="example-list">
-      <Example title="基础递归对比" description="任意版本数量、递归对象、全局搜索和节点级子树搜索。"><RecursiveComparisonTable versions={peopleVersions} rules={[{ path: 'money', expand: false, label: '金额' }, { path: 'user', label: '用户信息' }]} /></Example>
-      <Example title="属性选择与路径覆盖" description="只保留 customer 与 status；排除密码和内部追踪字段。"><RecursiveComparisonTable versions={restrictedVersions} selection={{ include: ['customer.*', 'status'], exclude: ['customer.password', 'internal.*'] }} rules={[{ path: 'customer', label: '客户资料' }]} /></Example>
-      <Example title="自定义渲染器" description="Property Definition 可独立控制每个字段的展示。"><RecursiveComparisonTable versions={orderVersions} propertyDefinitions={[{ key: 'money', label: '订单金额', path: ['order', 'money'], level: 1, type: 'object', renderValue: (value) => { const money = value as { amount: number; currency: string }; return new Intl.NumberFormat('en-US', { style: 'currency', currency: money.currency }).format(money.amount); } }, { key: 'ratio', label: '完成率', path: ['order', 'ratio'], level: 1, type: 'number', renderValue: (value) => `${Number(value) * 100}%` }, { key: 'placedAt', label: '下单时间', path: ['order', 'placedAt'], level: 1, type: 'date' }]} /></Example>
+      <Example title="基础递归对比" description="任意版本数量、递归对象、全局搜索和节点级子树搜索。" code={basicSource}><RecursiveComparisonTable versions={peopleVersions} rules={[{ path: 'money', expand: false, label: '金额' }, { path: 'user', label: '用户信息' }]} /></Example>
+      <Example title="属性选择与路径覆盖" description="只保留 customer 与 status；排除密码和内部追踪字段。" code={selectionSource}><RecursiveComparisonTable versions={restrictedVersions} selection={{ include: ['customer.*', 'status'], exclude: ['customer.password', 'internal.*'] }} rules={[{ path: 'customer', label: '客户资料' }]} /></Example>
+      <Example title="自定义渲染器" description="Property Definition 可独立控制每个字段的展示。" code={rendererSource}><RecursiveComparisonTable versions={orderVersions} propertyDefinitions={[{ key: 'money', label: '订单金额', path: ['order', 'money'], level: 1, type: 'object', renderValue: (value) => { const money = value as { amount: number; currency: string }; return new Intl.NumberFormat('en-US', { style: 'currency', currency: money.currency }).format(money.amount); } }, { key: 'ratio', label: '完成率', path: ['order', 'ratio'], level: 1, type: 'number', renderValue: (value) => `${Number(value) * 100}%` }, { key: 'placedAt', label: '下单时间', path: ['order', 'placedAt'], level: 1, type: 'date' }]} /></Example>
       <ControlledExample />
     </Space>
   </main></ConfigProvider>;
 }
-function ControlledExample() { const [expandedKeys, setExpandedKeys] = useState<React.Key[]>(['["lines"]']); return <Example title="受控展开、数组与缺失值" description="数组按索引对齐；空值、缺失字段和新增字段均保持可见。"><RecursiveComparisonTable versions={arrayVersions} expandedKeys={expandedKeys} onExpandedChange={setExpandedKeys} /></Example>; }
-function Example({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <Card className="example-card"><Typography.Title level={2}>{title}</Typography.Title><Typography.Paragraph type="secondary">{description}</Typography.Paragraph>{children}</Card>; }
+function ControlledExample() { const [expandedKeys, setExpandedKeys] = useState<React.Key[]>(['["lines"]']); return <Example title="受控展开、数组与缺失值" description="数组按索引对齐；空值、缺失字段和新增字段均保持可见。" code={controlledSource}><RecursiveComparisonTable versions={arrayVersions} expandedKeys={expandedKeys} onExpandedChange={setExpandedKeys} /></Example>; }
+function Example({ title, description, code, children }: { title: string; description: string; code: string; children: React.ReactNode }) { const [open, setOpen] = useState(false); const copy = () => navigator.clipboard?.writeText(code); return <Card className="example-card"><Typography.Title level={2}>{title}</Typography.Title><Typography.Paragraph type="secondary">{description}</Typography.Paragraph>{children}<div className="source-actions"><Button type="link" onClick={() => setOpen((value) => !value)}>{open ? '收起源代码' : '查看源代码'}</Button></div>{open && <div className="source-panel"><Button size="small" onClick={copy}>复制源代码</Button><pre><code>{code}</code></pre></div>}</Card>; }
+
+const basicSource = `import { RecursiveComparisonTable } from './RecursiveComparisonTable';
+
+<RecursiveComparisonTable
+  versions={versions}
+  rules={[{ path: 'money', expand: false, label: '金额' }]}
+/>`;
+const selectionSource = `<RecursiveComparisonTable
+  versions={versions}
+  selection={{ include: ['customer.*', 'status'], exclude: ['customer.password'] }}
+  rules={[{ path: 'customer', label: '客户资料' }]}
+/>`;
+const rendererSource = `<RecursiveComparisonTable
+  versions={versions}
+  propertyDefinitions={[{
+    key: 'money', label: '订单金额', path: ['order', 'money'],
+    level: 1, type: 'object',
+    renderValue: value => formatMoney(value),
+  }]}
+/>`;
+const controlledSource = `const [expandedKeys, setExpandedKeys] = useState(['["lines"]']);
+
+<RecursiveComparisonTable
+  versions={versions}
+  expandedKeys={expandedKeys}
+  onExpandedChange={setExpandedKeys}
+/>`;
