@@ -1,6 +1,5 @@
-import source from './BaselineExample.tsx?raw';
-import { RecursiveComparisonTable } from '../components/RecursiveComparisonTable';
-import type { ComparisonVersion } from '../core/comparison';
+import source from './DiffExample.tsx?raw';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
 import { ExampleCard } from './ExampleCard';
 
 const diffVersions = [
@@ -21,19 +20,23 @@ const diffVersions = [
   },
 ] satisfies ComparisonVersion[];
 
-export function BaselineExample() {
+export function DiffExample() {
   return (
     <ExampleCard
-      title="基准列高亮"
-      description="指定 baseVersionId 后突出基准列并显示 Base 标签；表头与单元格 className 均可按业务主题覆盖。"
+      title="自动 Diff 与自定义比较"
+      description="自动标记差异、保留父级上下文并隐藏相同字段。此处以基准版比较，价格差异小于 10 时由业务 comparator 视为相同。"
       code={source}
     >
       <RecursiveComparisonTable
         versions={diffVersions}
         comparison={{
+          onlyDifferences: true,
           baseVersionId: 'baseline',
-          baselineHeaderClassName: 'example-baseline-header',
-          baselineCellClassName: 'example-baseline-cell',
+          comparator: (values, context) => {
+            if (context.path.join('.') !== 'product.price') return false;
+            const prices = values.map(Number);
+            return Math.max(...prices) - Math.min(...prices) > 10;
+          },
         }}
       />
     </ExampleCard>

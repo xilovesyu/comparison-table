@@ -1,0 +1,1 @@
+{"name":"@jxi/comparision-table-demo","private":true,"type":"module","scripts":{"dev":"vite","build":"tsc --noEmit -p tsconfig.json && vite build","test":"vitest run","test:watch":"vitest","lint":"tsc --noEmit -p tsconfig.json"},"dependencies":{"@jxi/comparision-table":"workspace:*","@ant-design/icons":"^5.6.1","antd":"^5.26.7","react":"^18.3.1","react-dom":"^18.3.1"}}

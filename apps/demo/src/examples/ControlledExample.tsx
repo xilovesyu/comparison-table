@@ -1,7 +1,6 @@
 import source from './ControlledExample.tsx?raw';
 import { useState } from 'react';
-import { RecursiveComparisonTable } from '../components/RecursiveComparisonTable';
-import type { ComparisonVersion } from '../core/comparison';
+import { RecursiveComparisonTable, type ComparisonVersion } from '@jxi/comparision-table';
 import { ExampleCard } from './ExampleCard';
 
 const arrayVersions = [
