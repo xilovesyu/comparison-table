@@ -49,4 +49,17 @@ describe('documentation examples', () => {
     expect(within(card).getByText('lines[0]')).toBeInTheDocument();
     expect(within(card).queryByText('secret')).not.toBeInTheDocument();
   });
+
+  it('places the local registry example before the advanced example and mixes renderer styles', () => {
+    render(<App />);
+    const registryHeading = screen.getByRole('heading', { name: '局部 Renderer Registry' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+
+    expect(
+      registryHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(advancedCard).getByText('本地金额：USD 980')).toBeInTheDocument();
+    expect(within(advancedCard).getByText('$1,200.00')).toBeInTheDocument();
+  });
 });

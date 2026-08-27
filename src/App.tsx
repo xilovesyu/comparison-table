@@ -280,6 +280,15 @@ const localRendererDefinitions = {
     return '—';
   },
 };
+const advancedRendererDefinitions = {
+  localMoney: (value: unknown) => {
+    if (typeof value === 'object' && value !== null && 'amount' in value && 'currency' in value) {
+      const money = value as { amount: number; currency: string };
+      return `本地金额：${money.currency} ${money.amount.toFixed(0)}`;
+    }
+    return '—';
+  },
+};
 
 export function App() {
   return (
@@ -374,8 +383,8 @@ export function App() {
               propertyDefinitions={flattenedLineDefinitions}
             />
           </Example>
-          <AdvancedExample />
           <RegistryExample />
+          <AdvancedExample />
         </Space>
       </main>
     </ConfigProvider>
@@ -406,18 +415,19 @@ function AdvancedExample() {
   return (
     <Example
       title="综合高级配置"
-      description="组合字段筛选、受控展开、路径规则、金额渲染、扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
+      description="组合字段筛选、受控展开、路径规则、局部与内置混合金额渲染、扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
       code={advancedSource}
     >
       <RecursiveComparisonTable
         versions={advancedVersions}
         propertyDefinitions={advancedDefinitions}
+        renderers={advancedRendererDefinitions}
         selection={{
           include: ['customer', 'customer.*', 'billing.*', 'lines.*', 'note', 'availability'],
           exclude: ['customer.secret', 'internal.*'],
         }}
         rules={[
-          { path: 'billing.money', renderer: 'money' },
+          { path: 'billing.money', renderer: 'localMoney' },
           { path: 'billing.summaryMoney', renderer: 'money', expand: false },
         ]}
         expandedKeys={expandedKeys}
@@ -536,7 +546,11 @@ const flattenedSource = `const propertyDefinitions = [
   versions={versions}
   propertyDefinitions={propertyDefinitions}
 />`;
-const advancedSource = `const [expandedKeys, setExpandedKeys] = useState([
+const advancedSource = `const advancedRenderers = {
+  localMoney: value => formatLocalMoney(value),
+};
+
+const [expandedKeys, setExpandedKeys] = useState([
   '["customer"]',
   '["billing","money"]',
   '["lines",0]',
@@ -545,12 +559,13 @@ const advancedSource = `const [expandedKeys, setExpandedKeys] = useState([
 <RecursiveComparisonTable
   versions={versions}
   propertyDefinitions={propertyDefinitions}
+  renderers={advancedRenderers}
   selection={{
     include: ['customer', 'customer.*', 'billing.*', 'lines.*', 'note', 'availability'],
     exclude: ['customer.secret', 'internal.*'],
   }}
   rules={[
-    { path: 'billing.money', renderer: 'money' },
+    { path: 'billing.money', renderer: 'localMoney' },
     { path: 'billing.summaryMoney', renderer: 'money', expand: false },
   ]}
   expandedKeys={expandedKeys}
