@@ -108,6 +108,31 @@ describe('RecursiveComparisonTable', () => {
     );
     expect(screen.getByText('Changed 2')).toBeInTheDocument();
   });
+  it('highlights only a configured baseline column and allows class overrides', () => {
+    const versions = [
+      { id: 'base', label: 'Base', data: { name: 'Ava' } },
+      { id: 'next', label: 'Next', data: { name: 'Mia' } },
+    ];
+    const { rerender } = render(
+      <RecursiveComparisonTable
+        versions={versions}
+        comparison={{
+          baseVersionId: 'base',
+          baselineHeaderClassName: 'custom-baseline-header',
+          baselineCellClassName: 'custom-baseline-cell',
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('columnheader', { name: 'Base' })).toContainElement(
+      document.querySelector('.custom-baseline-header'),
+    );
+    expect(document.querySelectorAll('.custom-baseline-cell')).toHaveLength(2);
+
+    rerender(<RecursiveComparisonTable versions={versions} />);
+    expect(document.querySelector('.comparison-baseline-header')).not.toBeInTheDocument();
+    expect(document.querySelector('.comparison-baseline-cell')).not.toBeInTheDocument();
+  });
   it('filters only one expandable node from its local search input', () => {
     render(<RecursiveComparisonTable versions={versions} />);
     fireEvent.click(screen.getByRole('button', { name: 'Search within user' }));

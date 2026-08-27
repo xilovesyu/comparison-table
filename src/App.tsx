@@ -402,6 +402,7 @@ export function App() {
           </Example>
           <RegistryExample />
           <DiffExample />
+          <BaselineExample />
           <AdvancedExample />
         </Space>
       </main>
@@ -460,6 +461,24 @@ function AdvancedExample() {
         }}
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
+      />
+    </Example>
+  );
+}
+function BaselineExample() {
+  return (
+    <Example
+      title="基准列高亮"
+      description="指定 baseVersionId 后突出基准列；表头与单元格 className 均可按业务主题覆盖。"
+      code={baselineSource}
+    >
+      <RecursiveComparisonTable
+        versions={diffVersions}
+        comparison={{
+          baseVersionId: 'baseline',
+          baselineHeaderClassName: 'example-baseline-header',
+          baselineCellClassName: 'example-baseline-cell',
+        }}
       />
     </Example>
   );
@@ -661,5 +680,14 @@ const diffSource = `<RecursiveComparisonTable
     // 可选：替换默认 Diff 方块
     differenceIndicator: info =>
       info.isDirectDifference ? '字段已变更' : \`含 \${info.descendantDifferenceCount} 项变更\`,
+  }}
+/>`;
+const baselineSource = `<RecursiveComparisonTable
+  versions={versions}
+  comparison={{
+    baseVersionId: 'baseline',
+    // 以下两个配置均可选；省略时使用默认蓝色基准列样式。
+    baselineHeaderClassName: 'my-baseline-header',
+    baselineCellClassName: 'my-baseline-cell',
   }}
 />`;

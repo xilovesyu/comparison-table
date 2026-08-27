@@ -75,6 +75,8 @@ export type DifferenceComparator = (
 export interface DifferenceOptions {
   onlyDifferences?: boolean;
   baseVersionId?: string;
+  baselineHeaderClassName?: string;
+  baselineCellClassName?: string;
   comparator?: DifferenceComparator;
   differenceIndicator?: false | ((context: DifferenceIndicatorContext) => React.ReactNode);
 }

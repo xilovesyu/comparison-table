@@ -64,6 +64,7 @@ export function RecursiveComparisonTable({
       ? allKeys
       : (expandedKeys ?? internalExpanded);
   const registry = useMemo(() => createRendererRegistry(renderers), [renderers]);
+  const baselineId = config.comparison?.baseVersionId;
   const columns: ColumnsType<ComparisonRow> = [
     {
       title: 'Property',
@@ -84,11 +85,20 @@ export function RecursiveComparisonTable({
         />
       ),
     },
-    ...versions.map((version) => ({
-      title: version.label,
-      key: version.id,
-      render: (_: unknown, row: ComparisonRow) => renderValue(row, version, registry),
-    })),
+    ...versions.map((version) => {
+      const isBaseline = baselineId === version.id;
+      const headerClassName = isBaseline
+        ? (config.comparison?.baselineHeaderClassName ?? 'comparison-baseline-header')
+        : undefined;
+      return {
+        title: <span className={headerClassName}>{version.label}</span>,
+        key: version.id,
+        className: isBaseline
+          ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')
+          : undefined,
+        render: (_: unknown, row: ComparisonRow) => renderValue(row, version, registry),
+      };
+    }),
   ];
   return (
     <section aria-label="Recursive comparison table">

@@ -69,6 +69,35 @@ main {
   color: #334155;
   font-weight: 600;
 }
+.comparison-baseline-header {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: #175cd3;
+  background: #eff8ff;
+  font-weight: 700;
+}
+.ant-table-wrapper .ant-table-thead > tr > th.comparison-baseline-cell,
+.ant-table-wrapper .ant-table-tbody > tr > td.comparison-baseline-cell {
+  background: #f5faff;
+}
+.ant-table-wrapper .ant-table-thead > tr > th.comparison-baseline-cell {
+  box-shadow: inset 3px 0 #2e90fa;
+}
+.example-baseline-header {
+  display: inline-flex;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: #027a48;
+  background: #ecfdf3;
+  font-weight: 700;
+}
+.ant-table-wrapper .ant-table-thead > tr > th.example-baseline-cell,
+.ant-table-wrapper .ant-table-tbody > tr > td.example-baseline-cell {
+  background: #f6fef9;
+}
 .ant-table-wrapper .ant-table-tbody > tr > td {
   padding-top: 10px;
   padding-bottom: 10px;
