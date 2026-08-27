@@ -76,4 +76,18 @@ describe('documentation examples', () => {
     ).toBeTruthy();
     expect(within(advancedCard).getAllByLabelText('Diff').length).toBeGreaterThan(0);
   });
+
+  it('shows complete data, configuration and JSX in the advanced source panel', () => {
+    render(<App />);
+    const advancedCard = screen
+      .getByRole('heading', { name: '综合高级配置' })
+      .closest('.ant-card') as HTMLElement;
+
+    fireEvent.click(within(advancedCard).getByRole('button', { name: '查看源代码' }));
+
+    expect(within(advancedCard).getByText(/const advancedVersions/)).toBeInTheDocument();
+    expect(within(advancedCard).getByText(/const advancedDefinitions/)).toBeInTheDocument();
+    expect(within(advancedCard).getByText(/baseVersionId: 'baseline'/)).toBeInTheDocument();
+    expect(within(advancedCard).getByText(/<RecursiveComparisonTable/)).toBeInTheDocument();
+  });
 });
