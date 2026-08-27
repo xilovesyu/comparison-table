@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { App } from './App';
 
@@ -16,5 +16,12 @@ describe('documentation examples', () => {
     fireEvent.click(screen.getAllByRole('button', { name: '查看源代码' })[0]);
     expect(screen.getByText(/RecursiveComparisonTable/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '复制源代码' })).toBeInTheDocument();
+  });
+
+  it('shows summary money as a non-expandable first-level value', () => {
+    render(<App />);
+    const row = screen.getByText('汇总金额（仅一级）').closest('tr')!;
+    expect(within(row).getByText('$1,200.00')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /row/i })).not.toBeInTheDocument();
   });
 });
