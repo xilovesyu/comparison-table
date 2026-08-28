@@ -47,11 +47,17 @@ export interface PropertyDefinition {
 
 /** Context used to select fields, match rules, and compare values. */
 export interface PropertyContext {
+  /** Last path segment of the field. */
   key: string;
+  /** Absolute field path from a version's root data object. */
   path: PropertyPath;
+  /** Value from the first version, when available. */
   value: unknown;
+  /** Parent value from the first version, when available. */
   parent?: unknown;
+  /** Zero-based nesting level. */
   level: number;
+  /** Detected type of `value`. */
   type: PropertyType;
 }
 /** Glob-like path, regular expression, or predicate used to match a field. */
@@ -84,7 +90,9 @@ export interface DisplayRule {
 }
 /** Context supplied to a custom value renderer. */
 export interface ValueRenderContext extends PropertyContext {
+  /** Version whose column is currently being rendered. */
   version: ComparisonVersion;
+  /** Normalized display definition for the current row. */
   property: PropertyDefinition;
 }
 /** Renders one version value in a comparison cell. */
@@ -92,22 +100,35 @@ export type ValueRenderer = (value: unknown, context: ValueRenderContext) => Rea
 
 /** A normalized recursive row returned by `buildComparisonRows`. */
 export interface ComparisonRow {
+  /** Stable, serialized path key used by Ant Design's row expansion. */
   id: string;
+  /** Display metadata for the field. */
   property: PropertyDefinition;
+  /** Raw values keyed by `ComparisonVersion.id`. */
   values: Record<string, unknown>;
+  /** Recursive child rows when the property is expanded. */
   children?: ComparisonRow[];
+  /** Whether this row or one of its descendants differs. */
   hasDifference?: boolean;
+  /** Whether the row itself, rather than only descendants, differs. */
   hasOwnDifference?: boolean;
+  /** Total differing descendant leaves, used by the default parent Diff badge. */
   descendantDifferenceCount?: number;
+  /** Resolved setting used to render this row's Diff badge. */
   differenceIndicator?: DifferenceIndicatorSetting;
+  /** Resolved setting that determines whether this row exposes subtree search. */
   nodeSearchable?: boolean;
 }
 
 /** Information passed to a custom Diff badge renderer. */
 export interface DifferenceIndicatorContext {
+  /** Current normalized row. */
   row: ComparisonRow;
+  /** Values in version-column order. */
   values: readonly unknown[];
+  /** `true` when this row itself differs. */
   isDirectDifference: boolean;
+  /** Number of changed descendant leaves. */
   descendantDifferenceCount: number;
 }
 /** Enables, hides, or custom-renders a field's Diff badge. */
