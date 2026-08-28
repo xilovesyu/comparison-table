@@ -18,16 +18,32 @@ import {
   RendererRegistry,
 } from '../core/renderers';
 
+/** Public props accepted by {@link RecursiveComparisonTable}. */
 export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
+  /** Ordered versions rendered as table columns. Version ids must be unique. */
   versions: readonly ComparisonVersion[];
+  /** Per-table renderer additions or overrides. Built-in renderers remain unchanged globally. */
   renderers?: RendererOverrides;
+  /** Shows the global property/value search input. Defaults to `true`. */
   searchable?: boolean;
+  /** Chooses whether global search matches property labels, values, or both. */
   searchOptions?: SearchOptions;
+  /** Expands every visible tree node initially when no controlled keys are supplied. Defaults to `true`. */
   expandAll?: boolean;
+  /** Initial expanded row keys for uncontrolled expansion. */
   defaultExpandedKeys?: React.Key[];
+  /** Controlled expanded row keys. */
   expandedKeys?: React.Key[];
+  /** Reports expansion changes for controlled or uncontrolled usage. */
   onExpandedChange?: (keys: React.Key[]) => void;
 }
+
+/**
+ * Displays recursive records from multiple versions in an Ant Design table.
+ *
+ * Use `rules` for path-based presentation, `propertyDefinitions` for an explicit
+ * display tree, and `comparison` for difference and baseline behavior.
+ */
 export function RecursiveComparisonTable({
   versions,
   renderers,

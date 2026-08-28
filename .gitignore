@@ -3,3 +3,4 @@ dist/
 *.log
 *.tsbuildinfo
 artifacts/
+.playwright-cli/

@@ -31,6 +31,33 @@ export function App() {
 
 The library declares React, React DOM, Ant Design, and Ant Design Icons as peer dependencies. The consuming application must provide compatible versions.
 
+## What it supports
+
+- Any number of version columns, with recursive objects, arrays, nulls, and newly introduced fields.
+- Global search plus per-container subtree search.
+- Field selection, path rules, explicit definitions, custom ordering, and flattened levels.
+- Built-in and table-local renderer registries, including selective built-in overrides.
+- Automatic Diff detection, custom business comparators, inherited Diff/search controls, and a baseline `Base` column marker.
+- Controlled or uncontrolled expansion and Ant Design-compatible styling hooks.
+
+## Screenshots
+
+### Recursive data and subtree search
+
+![Recursive data comparison with version columns, nested properties, Diff badges, and subtree search](docs/images/basic-recursive.png)
+
+### Diff filtering and baseline comparison
+
+![Difference-only view with a highlighted Base version](docs/images/diff-baseline.png)
+
+### Advanced configuration
+
+![Advanced comparison with local money renderer, flattened array entries, selection, and controlled expansion](docs/images/advanced-configuration.png)
+
+## Component API
+
+The complete Props and configuration reference, including custom renderers, Diff comparators, baseline styling, field definitions, and search controls, is available in the [package README](./packages/comparison-table/README.md).
+
 ## Development
 
 ```bash

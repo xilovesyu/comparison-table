@@ -13,7 +13,9 @@ import type {
   SearchOptions,
 } from './types';
 
+/** Serializes a property path into the stable row/expansion key used by the table. */
 export const pathId = (path: PropertyPath): string => JSON.stringify(path);
+/** Detects the library's supported value kind. */
 export function getPropertyType(value: unknown): PropertyType {
   if (value === null) return 'null';
   if (value === undefined) return 'undefined';
@@ -24,6 +26,7 @@ export function getPropertyType(value: unknown): PropertyType {
     ? (typeof value as PropertyType)
     : 'unknown';
 }
+/** Builds the normalized recursive row tree consumed by `RecursiveComparisonTable`. */
 export function buildComparisonRows(
   versions: readonly ComparisonVersion[],
   config: BuildComparisonConfig = {},
@@ -40,6 +43,7 @@ export function buildComparisonRows(
       );
   return markDifferences(rows, versions, config.comparison);
 }
+/** Filters rows by label and/or raw version values while retaining matching ancestors. */
 export function filterComparisonRows(
   rows: readonly ComparisonRow[],
   query: string,
@@ -63,6 +67,7 @@ export function filterComparisonRows(
       : [];
   });
 }
+/** Removes unchanged branches while retaining the ancestors of changed descendants. */
 export function filterDifferenceRows(rows: readonly ComparisonRow[]): ComparisonRow[] {
   return rows.flatMap((row) => {
     const children = filterDifferenceRows(row.children ?? []);

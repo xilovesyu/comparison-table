@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -59,4 +59,29 @@ test('README documents public package installation and trusted publishing setup'
   assert.match(readme, /Trusted Publishing/);
   assert.match(readme, /release:dry-run/);
   assert.match(readme, /release:publish/);
+});
+
+test('documentation provides static screenshots and a complete component props reference', async () => {
+  const readme = await readWorkspaceFile('README.md');
+  const packageReadme = await readWorkspaceFile('packages/comparison-table/README.md');
+  const componentSource = await readWorkspaceFile(
+    'packages/comparison-table/src/components/RecursiveComparisonTable.tsx',
+  );
+  const publicPropsSource = componentSource.match(
+    /export interface RecursiveComparisonTableProps[\s\S]*?\n}\n\n\/\*\*/,
+  )?.[0];
+  assert.ok(publicPropsSource, 'public component props interface should be present');
+  const propNames = [...(publicPropsSource ?? '').matchAll(/^  (\w+)\??:/gm)].map(
+    (match) => match[1],
+  );
+  const imagePaths = [...readme.matchAll(/\]\((docs\/images\/[^)]+\.png)\)/g)].map(
+    (match) => match[1],
+  );
+
+  assert.equal(imagePaths.length, 3);
+  await Promise.all(imagePaths.map((imagePath) => access(path.join(root, imagePath))));
+  assert.match(packageReadme, /## Component props/);
+  for (const propName of propNames) {
+    assert.match(packageReadme, new RegExp('\\| `' + propName + '`'));
+  }
 });
