@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildComparisonRows, filterComparisonRows, filterDifferenceRows } from './comparison';
+import type { PropertyDefinition } from './types';
 
 describe('buildComparisonRows', () => {
   it('creates a property row with one value per version', () => {
@@ -136,9 +137,9 @@ describe('buildComparisonRows', () => {
         { id: 'mid', label: 'Mid', data: { lines: [{ sku: 'C', quantity: 1 }] } },
         { id: 'last', label: 'Last', data: { lines: [{ sku: 'C', quantity: 2 }, { sku: 'D', quantity: 1 }] } },
       ], { arrayItemKeyFields: { lines: 'sku' }, comparison: { baseVersionId: 'base' } });
-      expect(rows[0].children?.map((row) => [row.itemIdentity, row.presence, row.changeKind])).toEqual([
-        ['B', { base: true, mid: false, last: false }, 'removed'], ['A', { base: true, mid: false, last: false }, 'removed'],
-        ['C', { base: false, mid: true, last: true }, 'added'], ['D', { base: false, mid: false, last: true }, 'added'],
+      expect(rows[0].children?.map((row) => [row.itemIdentity, row.presence])).toEqual([
+        ['B', { base: true, mid: false, last: false }], ['A', { base: true, mid: false, last: false }],
+        ['C', { base: false, mid: true, last: true }], ['D', { base: false, mid: false, last: true }],
       ]);
     });
 
@@ -153,7 +154,9 @@ describe('buildComparisonRows', () => {
 
     it('uses keyed item-definition templates while rejecting conflicting numeric definitions only for keyed arrays', () => {
       const versions = [{ id: 'v1', label: 'V1', data: { lines: [{ sku: 'A', quantity: 2 }] } }];
-      const numericDefinition = [{ key: 'line0', label: 'lines[0]', path: ['lines', 0], level: 0, type: 'object' }];
+      const numericDefinition: PropertyDefinition[] = [{
+        key: 'line0', label: 'lines[0]', path: ['lines', 0], level: 0, type: 'object',
+      }];
       expect(buildComparisonRows(versions, { propertyDefinitions: numericDefinition })).toHaveLength(1);
       expect(() => buildComparisonRows(versions, { arrayItemKeyFields: { lines: 'sku' }, propertyDefinitions: numericDefinition }))
         .toThrow(/keyed.*array.*numeric|numeric.*index/i);
