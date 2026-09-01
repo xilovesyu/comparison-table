@@ -122,21 +122,19 @@ describe('buildComparisonRows', () => {
     );
     expect(Object.keys(rows[0]).sort()).toEqual([
       'children',
-      'descendantDifferenceCount',
       'differenceIndicator',
-      'hasDifference',
-      'hasOwnDifference',
+      'id',
+      'itemIdentity',
       'nodeSearchable',
+      'presence',
       'property',
       'values',
     ]);
     const item = rows[0].children?.[0]!;
     expect(Object.keys({ ...item }).sort()).toEqual([
       'children',
-      'descendantDifferenceCount',
       'differenceIndicator',
-      'hasDifference',
-      'hasOwnDifference',
+      'id',
       'itemIdentity',
       'nodeSearchable',
       'presence',
