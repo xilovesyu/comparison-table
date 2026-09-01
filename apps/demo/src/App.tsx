@@ -3,6 +3,7 @@ import {
   AdvancedExample,
   BaselineExample,
   BasicExample,
+  ContainerSummaryExample,
   ControlledExample,
   DiffExample,
   FlattenedExample,
@@ -32,6 +33,7 @@ export function App() {
           <BaselineExample />
           <PresentationControlsExample />
           <KeyedArrayExample />
+          <ContainerSummaryExample />
           <AdvancedExample />
         </Space>
       </main>

@@ -17,6 +17,12 @@ describe('buildComparisonRows', () => {
     });
   });
 
+  it('preserves an own undefined renderer field on automatically discovered rows', () => {
+    const row = buildComparisonRows([{ id: 'v', label: 'V', data: { value: 1 } }])[0];
+    expect(Object.prototype.hasOwnProperty.call(row.property, 'renderer')).toBe(true);
+    expect(row.property.renderer).toBeUndefined();
+  });
+
   it('recursively discovers nested keys and preserves missing values', () => {
     const rows = buildComparisonRows([
       { id: 'v1', label: 'V1', data: { user: { name: 'John' } } },
@@ -88,6 +94,136 @@ describe('buildComparisonRows', () => {
         },
       })[0].hasDifference,
     ).toBe(false);
+  });
+
+  it('keeps container summary functions out of the public row and property shape', () => {
+    const rows = buildComparisonRows([{ id: 'v1', label: 'V1', data: { payload: { id: 1 } } }], {
+      propertyDefinitions: [
+        {
+          key: 'payload',
+          label: 'Payload',
+          path: ['payload'],
+          level: 0,
+          type: 'object',
+          containerSummary: () => 'summary',
+        },
+      ],
+    });
+    expect(Object.keys(rows[0]).sort()).toEqual([
+      'children',
+      'descendantDifferenceCount',
+      'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
+      'id',
+      'itemIdentity',
+      'nodeSearchable',
+      'presence',
+      'property',
+      'values',
+    ]);
+    expect(Object.keys(rows[0].property).sort()).toEqual([
+      'key',
+      'label',
+      'level',
+      'path',
+      'renderer',
+      'type',
+    ]);
+  });
+
+  it('preserves the baseline enumerable row shape and keeps presentation helpers private', async () => {
+    const rows = buildComparisonRows(
+      [
+        { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
+        { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } },
+      ],
+      { arrayItemKeyFields: { lines: 'sku' } },
+    );
+    expect(Object.keys(rows[0]).sort()).toEqual([
+      'children',
+      'descendantDifferenceCount',
+      'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
+      'id',
+      'itemIdentity',
+      'nodeSearchable',
+      'presence',
+      'property',
+      'values',
+    ]);
+    const item = rows[0].children?.[0]!;
+    expect(Object.keys({ ...item }).sort()).toEqual([
+      'children',
+      'descendantDifferenceCount',
+      'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
+      'id',
+      'itemIdentity',
+      'nodeSearchable',
+      'presence',
+      'property',
+      'values',
+    ]);
+    expect(JSON.stringify(rows)).not.toMatch(/containerSummary|function/);
+    const publicApi = await import('../index');
+    expect('buildComparisonPresentation' in publicApi).toBe(false);
+    expect('copyComparisonRow' in publicApi).toBe(false);
+  });
+
+  it('keeps summary configurations out of enumerable difference rows', () => {
+    const rows = buildComparisonRows(
+      [
+        { id: 'a', label: 'A', data: { value: { id: 1 } } },
+        { id: 'b', label: 'B', data: { value: { id: 2 } } },
+      ],
+      {
+        rules: [{ path: 'value', containerSummary: () => 'summary' }],
+        comparison: { comparator: () => true },
+      },
+    );
+    expect(Object.keys(rows[0])).toContain('id');
+    expect(Object.keys(rows[0])).toEqual(
+      expect.arrayContaining(['hasDifference', 'hasOwnDifference', 'descendantDifferenceCount']),
+    );
+    expect(JSON.stringify(rows[0])).not.toMatch(/containerSummary|summary/);
+  });
+
+  it('retains complete consumer definition metadata while excluding only containerSummary from public rows', () => {
+    const metadata = { consumer: { source: 'fixture' } };
+    const definition = {
+      key: 'value',
+      label: 'Value',
+      path: ['value'],
+      level: 0,
+      type: 'object' as const,
+      renderLabel: () => 'consumer label',
+      expandable: true,
+      defaultExpanded: false,
+      differenceIndicator: false,
+      nodeSearchable: false,
+      flatten: true,
+      itemDefinition: { key: 'item', label: 'Item', path: [], level: 0, type: 'object' as const },
+      ...metadata,
+      containerSummary: () => 'summary',
+    };
+    const rows = buildComparisonRows([{ id: 'v', label: 'V', data: { value: { id: 1 } } }], {
+      propertyDefinitions: [definition],
+    });
+    expect(rows[0].property).toMatchObject({
+      ...metadata,
+      renderLabel: definition.renderLabel,
+      expandable: true,
+      defaultExpanded: false,
+      differenceIndicator: false,
+      nodeSearchable: false,
+      flatten: true,
+      itemDefinition: definition.itemDefinition,
+    });
+    expect(Object.keys(rows[0].property)).not.toContain('containerSummary');
+    expect(JSON.stringify(rows)).not.toMatch(/containerSummary|summary/);
   });
 
   it('preserves explicit property-definition type and level for rows and comparator contexts', () => {

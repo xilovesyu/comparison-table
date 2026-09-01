@@ -85,3 +85,18 @@ test('documentation provides static screenshots and a complete component props r
     assert.match(packageReadme, new RegExp('\\| `' + propName + '`'));
   }
 });
+
+test('public documentation and JSDoc specify the display-only container summary contract', async () => {
+  const packageReadme = await readWorkspaceFile('packages/comparison-table/README.md');
+  const typeSource = await readWorkspaceFile('packages/comparison-table/src/core/types.ts');
+
+  assert.match(packageReadme, /containerSummary/);
+  assert.match(packageReadme, /definition.*rule.*table/i);
+  assert.match(packageReadme, /undefined.*fallback/i);
+  assert.match(packageReadme, /not.*search/i);
+  assert.match(typeSource, /containerSummary\??:/);
+  assert.match(typeSource, /display-only/i);
+  assert.match(typeSource, /undefined.*normal renderer fallback/i);
+  assert.match(packageReadme, /null.*false/i);
+  assert.match(packageReadme, /not.*search/i);
+});

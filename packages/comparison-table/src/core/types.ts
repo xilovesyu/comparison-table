@@ -33,6 +33,8 @@ export interface PropertyDefinition {
   renderLabel?: (property: PropertyDefinition) => string;
   /** Renderer that takes precedence over renderer registry selection. */
   renderValue?: ValueRenderer;
+  /** Display-only formatter for plain object or array cells. */
+  containerSummary?: ContainerSummary;
   /** Reserved metadata for consumers describing explicit expandability. */
   expandable?: boolean;
   /** Reserved metadata for consumers describing default expansion. */
@@ -89,6 +91,8 @@ export interface DisplayRule {
   label?: string;
   /** Local or built-in renderer name. */
   renderer?: string;
+  /** Display-only formatter for plain object or array cells matched by this rule. */
+  containerSummary?: ContainerSummary;
   /** Diff badge inherited by descendants unless they override it. */
   differenceIndicator?: DifferenceIndicatorSetting;
   /** Subtree-search affordance inherited by descendants unless overridden. */
@@ -103,6 +107,12 @@ export interface ValueRenderContext extends PropertyContext {
 }
 /** Renders one version value in a comparison cell. */
 export type ValueRenderer = (value: unknown, context: ValueRenderContext) => React.ReactNode;
+/**
+ * Display-only formatter for a plain object or array cell. The undefined normal renderer fallback
+ * produces a safe shallow default summary; `null` and `false` remain explicit output. Summary output
+ * never changes the raw values used by search or Diff.
+ */
+export type ContainerSummary = ValueRenderer;
 
 /** A normalized recursive row returned by `buildComparisonRows`. */
 export interface ComparisonRow {
@@ -179,6 +189,8 @@ export interface BuildComparisonConfig {
   propertyDefinitions?: PropertyDefinition[];
   /** Maps an array's dot path to the field used to align its items between versions. */
   arrayItemKeyFields?: Record<string, string>;
+  /** Display-only fallback formatter for plain object or array cells. Definition, then rule, takes priority. */
+  containerSummary?: ContainerSummary;
   /** Difference, baseline, and indicator options. */
   comparison?: DifferenceOptions;
   /** Default subtree-search setting inherited by nodes. Defaults to `true`. */

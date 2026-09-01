@@ -20,6 +20,7 @@ const advancedVersions = [
       lines: [
         { sku: 'P-100', quantity: 1 },
         { sku: 'P-200', quantity: 2 },
+        { sku: 'P-400', quantity: 4 },
       ],
       note: null,
       internal: { auditId: 'initial-audit' },
@@ -39,7 +40,7 @@ const advancedVersions = [
         { sku: 'P-300', quantity: 1 },
       ],
       note: 'priority shipment',
-      availability: 'available in review',
+      availability: 'available now',
       internal: { auditId: 'review-audit' },
     },
   },
@@ -55,9 +56,10 @@ const advancedVersions = [
       lines: [
         { sku: 'P-100', quantity: 2 },
         { sku: 'P-300', quantity: 3 },
+        { sku: 'P-400', quantity: 4 },
       ],
       note: 'priority shipment',
-      availability: 'available in review',
+      availability: 'available now',
       internal: { auditId: 'final-audit' },
     },
   },
@@ -180,6 +182,11 @@ export function AdvancedExample() {
           { path: 'billing.money', renderer: 'localMoney' },
           { path: 'billing.summaryMoney', renderer: 'money', expand: false },
         ]}
+        containerSummary={(value) =>
+          typeof value === 'object' && value !== null
+            ? `对象摘要：${Object.keys(value).length} 字段`
+            : undefined
+        }
         comparison={{
           baseVersionId: 'baseline',
           showBaselineBadge: true,

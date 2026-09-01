@@ -1,5 +1,6 @@
 import type {
   BuildComparisonConfig,
+  ContainerSummary,
   ComparisonRow,
   ComparisonVersion,
   DifferenceIndicatorSetting,
@@ -12,6 +13,7 @@ import type {
   PropertyType,
   SearchOptions,
 } from './types';
+import { copyComparisonRow, registerContainerSummaries } from './presentation';
 
 /** Serializes a property path into the stable row/expansion key used by the table. */
 export const pathId = (path: PropertyPath): string => JSON.stringify(path);
@@ -49,7 +51,11 @@ export function buildComparisonRows(
         undefined,
         keyedArrays,
       );
-  return markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
+  const containerSummaries = new Map<string, ContainerSummary>();
+  collectContainerSummaries(rows, containerSummaries);
+  const markedRows = markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
+  registerContainerSummaries(markedRows, containerSummaries);
+  return markedRows;
 }
 /** Filters rows by label and/or raw version values while retaining matching ancestors. */
 export function filterComparisonRows(
@@ -71,7 +77,7 @@ export function filterComparisonRows(
           .includes(needle),
       );
     return label || value || children.length
-      ? [{ ...row, children: children.length ? children : row.children }]
+      ? [copyComparisonRow(row, { children: children.length ? children : row.children })]
       : [];
   });
 }
@@ -79,7 +85,9 @@ export function filterComparisonRows(
 export function filterDifferenceRows(rows: readonly ComparisonRow[]): ComparisonRow[] {
   return rows.flatMap((row) => {
     const children = filterDifferenceRows(row.children ?? []);
-    return row.hasDifference ? [{ ...row, children: children.length ? children : undefined }] : [];
+    return row.hasDifference
+      ? [copyComparisonRow(row, { children: children.length ? children : undefined })]
+      : [];
   });
 }
 function visit(
@@ -308,8 +316,9 @@ function row(
   itemIdentity?: string,
 ): ComparisonRow {
   const definitionLabel = def?.label ?? displayLabel(key, path, itemIdentity);
+  const { containerSummary: definitionSummary, ...definitionMetadata } = def ?? {};
   const property: PropertyDefinition = {
-    ...def,
+    ...definitionMetadata,
     key,
     label:
       displayRule?.label ??
@@ -321,7 +330,8 @@ function row(
     type: def?.type ?? context.type,
     renderer: displayRule?.renderer ?? def?.renderer,
   };
-  return {
+  const summary = definitionSummary ?? displayRule?.containerSummary;
+  const result: ComparisonRow = {
     id: pathId(path),
     property,
     values: Object.fromEntries(versions.map((v, i) => [v.id, values[i]])),
@@ -335,6 +345,19 @@ function row(
         )
       : undefined,
   };
+  if (summary) rowContainerSummaries.set(result, summary);
+  return result;
+}
+const rowContainerSummaries = new WeakMap<ComparisonRow, ContainerSummary>();
+function collectContainerSummaries(
+  rows: readonly ComparisonRow[],
+  target: Map<string, ContainerSummary>,
+): void {
+  rows.forEach((current) => {
+    const summary = rowContainerSummaries.get(current);
+    if (summary) target.set(current.id, summary);
+    collectContainerSummaries(current.children ?? [], target);
+  });
 }
 interface RowDisplayControls {
   differenceIndicator: DifferenceOptions['differenceIndicator'];
@@ -570,13 +593,12 @@ function markDifferences(
         count + Number(child.hasOwnDifference) + (child.descendantDifferenceCount ?? 0),
       0,
     );
-    return {
-      ...row,
+    return copyComparisonRow(row, {
       children: children.length ? children : undefined,
       hasDifference: ownDifference || children.some((child) => child.hasDifference),
       hasOwnDifference: ownDifference,
       descendantDifferenceCount,
-    };
+    });
   });
 }
 function deepEqual(

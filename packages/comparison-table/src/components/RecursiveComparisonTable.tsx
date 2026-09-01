@@ -13,6 +13,7 @@ import {
   type DifferenceOptions,
   type SearchOptions,
 } from '../core/comparison';
+import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
 import {
   createRendererRegistry,
   type RendererOverrides,
@@ -63,6 +64,7 @@ export function RecursiveComparisonTable({
   const [openNodeSearches, setOpenNodeSearches] = useState<React.Key[]>([]);
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
   const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
+  const containerSummaries = useMemo(() => getContainerSummaries(rows), [rows]);
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -123,7 +125,15 @@ export function RecursiveComparisonTable({
         className: isBaseline
           ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')
           : undefined,
-        render: (_: unknown, row: ComparisonRow) => renderValue(row, version, registry),
+        render: (_: unknown, row: ComparisonRow) =>
+          renderValue(
+            row,
+            version,
+            registry,
+            renderers,
+            containerSummaries.get(row.id),
+            config.containerSummary,
+          ),
       };
     }),
   ];
@@ -267,7 +277,14 @@ function DifferenceIndicator({
     </span>
   );
 }
-function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: RendererRegistry) {
+function renderValue(
+  row: ComparisonRow,
+  version: ComparisonVersion,
+  registry: RendererRegistry,
+  overrides: RendererOverrides | undefined,
+  resolvedSummary: BuildComparisonConfig['containerSummary'],
+  tableSummary: BuildComparisonConfig['containerSummary'],
+) {
   const value = row.values[version.id];
   const context = {
     key: row.property.key,
@@ -279,13 +296,42 @@ function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: R
     version,
     property: row.property,
   };
-  return (
-    row.property.renderValue?.(value, context) ??
-    (registry.get(row.property.renderer ?? row.property.type) ?? registry.get('text'))?.(
-      value,
-      context,
-    )
-  );
+  const explicit = row.property.renderValue?.(value, context);
+  if (explicit != null) return explicit;
+  if (row.property.renderer !== undefined) {
+    const renderer = registry.get(row.property.renderer ?? String(row.property.type));
+    if (renderer) return renderer(value, context);
+  }
+  if (hasRendererOverride(overrides, String(row.property.type))) {
+    const renderer = registry.get(String(row.property.type));
+    if (renderer) return renderer(value, context);
+  }
+  if (isSummaryContainer(value)) {
+    const summary = resolvedSummary ?? tableSummary;
+    const rendered = summary?.(value, context);
+    if (rendered !== undefined) return rendered;
+    return defaultContainerSummary(value);
+  }
+  const typedRenderer = registry.get(row.property.type);
+  if (typedRenderer) return typedRenderer(value, context);
+  return registry.get('text')?.(value, context);
+}
+function defaultContainerSummary(value: Record<string, unknown> | unknown[]): string {
+  return Array.isArray(value)
+    ? `[ ${value.length} items ]`
+    : `{ ${Object.keys(value).length} fields }`;
+}
+function hasRendererOverride(overrides: RendererOverrides | undefined, name: string): boolean {
+  if (!overrides) return false;
+  return overrides instanceof RendererRegistry
+    ? Array.from(overrides.entries()).some(([key]) => key === name)
+    : Object.prototype.hasOwnProperty.call(overrides, name);
+}
+function isSummaryContainer(value: unknown): value is Record<string, unknown> | unknown[] {
+  if (Array.isArray(value)) return true;
+  if (value === null || typeof value !== 'object') return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 function collectKeys(rows: readonly ComparisonRow[]): React.Key[] {
   return rows.flatMap((row) => [row.id, ...collectKeys(row.children ?? [])]);
@@ -297,10 +343,9 @@ function applyNodeFilters(
   return rows.map((row) => {
     const children = row.children ? applyNodeFilters(row.children, queries) : undefined;
     const ownQuery = queries[row.id];
-    return {
-      ...row,
+    return copyComparisonRow(row, {
       children: ownQuery ? filterComparisonRows(children ?? [], ownQuery) : children,
-    };
+    });
   });
 }
 function countRows(rows: readonly ComparisonRow[]): number {
