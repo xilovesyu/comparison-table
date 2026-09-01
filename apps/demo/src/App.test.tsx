@@ -161,7 +161,7 @@ describe('documentation examples', () => {
     expect(
       summaryHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(within(summaryCard).getByText('字段数：2')).toBeInTheDocument();
+    expect(within(summaryCard).getAllByText('字段数：2')).toHaveLength(2);
     fireEvent.click(within(summaryCard).getByRole('button', { name: '查看源代码' }));
     expect(within(summaryCard).getByText(/containerSummary/)).toBeInTheDocument();
     fireEvent.click(within(advancedCard).getByRole('button', { name: '查看源代码' }));

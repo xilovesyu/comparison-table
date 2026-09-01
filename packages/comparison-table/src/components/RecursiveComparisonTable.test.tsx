@@ -243,7 +243,7 @@ describe('RecursiveComparisonTable', () => {
   it('uses a container summary formatter for collapsed keyed Added and Removed object and array cells', () => {
     const summary = (
       value: unknown,
-      context: { version: { id: string }; property: { path: unknown[] } },
+      context: { version: { id: string }; property: { path: readonly unknown[] } },
     ) =>
       `summary:${context.version.id}:${context.property.path.join('.')}:${Array.isArray(value) ? 'array' : 'object'}`;
     render(
@@ -254,7 +254,7 @@ describe('RecursiveComparisonTable', () => {
         ]}
         arrayItemKeyFields={{ lines: 'sku' }}
         rules={[{ path: 'lines', expand: false }]}
-        {...({ containerSummary: summary } as never)}
+        containerSummary={summary}
       />,
     );
     expect(screen.getByText('summary:base:lines:array')).toBeInTheDocument();
@@ -273,7 +273,7 @@ describe('RecursiveComparisonTable', () => {
           {
             path: 'ruled',
             expand: false,
-            ...({ containerSummary: () => 'rule summary' } as never),
+            containerSummary: () => 'rule summary',
           },
         ]}
         propertyDefinitions={[
@@ -283,7 +283,7 @@ describe('RecursiveComparisonTable', () => {
             path: ['defined'],
             level: 0,
             type: 'object',
-            ...({ containerSummary: () => 'definition summary' } as never),
+            containerSummary: () => 'definition summary',
           },
           { key: 'ruled', label: 'Ruled', path: ['ruled'], level: 0, type: 'object' },
           {
@@ -296,7 +296,7 @@ describe('RecursiveComparisonTable', () => {
           },
         ]}
         renderers={{ local: () => 'named renderer' }}
-        {...({ containerSummary: table } as never)}
+        containerSummary={table}
       />,
     );
     expect(screen.getByText('definition summary')).toBeInTheDocument();
@@ -327,11 +327,11 @@ describe('RecursiveComparisonTable', () => {
           },
         ]}
         rules={[{ path: '*', expand: false }]}
-        {...({ containerSummary: summary } as never)}
+        containerSummary={summary}
       />,
     );
     expect(screen.getAllByText('SECRET-SUMMARY')).toHaveLength(2);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getAllByText('—')).toHaveLength(4);
     fireEvent.change(screen.getByLabelText('Search comparison'), {
       target: { value: 'SECRET-SUMMARY' },
     });
