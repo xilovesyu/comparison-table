@@ -178,4 +178,12 @@ describe('documentation examples', () => {
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByText(/10000/)).toBeInTheDocument();
   });
+
+  it('shows an Advanced keyed item missing only in review and keeps it in the source panel', () => {
+    render(<App />);
+    const card = screen.getByRole('heading', { name: '综合高级配置' }).closest('.ant-card') as HTMLElement;
+    expect(within(card).getByText(/Missing in review/)).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+    expect(within(card).getByText(/review/)).toBeInTheDocument();
+  });
 });
