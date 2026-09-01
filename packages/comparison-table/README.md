@@ -157,6 +157,13 @@ are rejected.
 
 ## Renderers
 
+### Container summaries
+
+`containerSummary` formats plain object and array cells for display only. It can be set on a
+property definition, a display rule, or the table; priority is definition, then rule, then table.
+`renderValue` and named/local renderers take priority. A formatter returning `undefined` uses the normal renderer fallback; `null` and `false` are explicit output. Summary output is not searched,
+and non-plain objects keep their existing rendering.
+
 Built-in renderer names are `text`, `number`, `percentage`, `boolean`, `date`, `object`, `array`, and `money`. Select one with `DisplayRule.renderer` or `PropertyDefinition.renderer`.
 
 `renderers` always creates a local view: it can add a new renderer or override one built-in without mutating `builtInRenderers` or affecting other tables.

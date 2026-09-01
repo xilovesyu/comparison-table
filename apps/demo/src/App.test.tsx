@@ -16,6 +16,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '基准列高亮' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '显示控制与层级继承' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '业务键数组对齐' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '容器摘要' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {
@@ -149,5 +150,21 @@ describe('documentation examples', () => {
       .closest('.ant-card') as HTMLElement;
 
     expect(within(card).getByText('Removed')).toBeInTheDocument();
+  });
+
+  it('places container summaries before advanced configuration and includes them in source panels', () => {
+    render(<App />);
+    const summaryHeading = screen.getByRole('heading', { name: '容器摘要' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const summaryCard = summaryHeading.closest('.ant-card') as HTMLElement;
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+    expect(
+      summaryHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(summaryCard).getByText('字段数：2')).toBeInTheDocument();
+    fireEvent.click(within(summaryCard).getByRole('button', { name: '查看源代码' }));
+    expect(within(summaryCard).getByText(/containerSummary/)).toBeInTheDocument();
+    fireEvent.click(within(advancedCard).getByRole('button', { name: '查看源代码' }));
+    expect(within(advancedCard).getByText(/containerSummary/)).toBeInTheDocument();
   });
 });

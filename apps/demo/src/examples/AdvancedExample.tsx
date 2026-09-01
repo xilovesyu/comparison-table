@@ -180,6 +180,11 @@ export function AdvancedExample() {
           { path: 'billing.money', renderer: 'localMoney' },
           { path: 'billing.summaryMoney', renderer: 'money', expand: false },
         ]}
+        containerSummary={(value) =>
+          typeof value === 'object' && value !== null
+            ? `对象摘要：${Object.keys(value).length} 字段`
+            : undefined
+        }
         comparison={{
           baseVersionId: 'baseline',
           showBaselineBadge: true,

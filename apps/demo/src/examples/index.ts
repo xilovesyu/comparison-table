@@ -2,6 +2,7 @@ export { AdvancedExample } from './AdvancedExample';
 export { BaselineExample } from './BaselineExample';
 export { BasicExample } from './BasicExample';
 export { ControlledExample } from './ControlledExample';
+export { ContainerSummaryExample } from './ContainerSummaryExample';
 export { DiffExample } from './DiffExample';
 export { FlattenedExample } from './FlattenedExample';
 export { KeyedArrayExample } from './KeyedArrayExample';

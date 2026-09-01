@@ -123,7 +123,8 @@ export function RecursiveComparisonTable({
         className: isBaseline
           ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')
           : undefined,
-        render: (_: unknown, row: ComparisonRow) => renderValue(row, version, registry),
+        render: (_: unknown, row: ComparisonRow) =>
+          renderValue(row, version, registry, renderers, config.containerSummary),
       };
     }),
   ];
@@ -267,7 +268,13 @@ function DifferenceIndicator({
     </span>
   );
 }
-function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: RendererRegistry) {
+function renderValue(
+  row: ComparisonRow,
+  version: ComparisonVersion,
+  registry: RendererRegistry,
+  overrides: RendererOverrides | undefined,
+  tableSummary: BuildComparisonConfig['containerSummary'],
+) {
   const value = row.values[version.id];
   const context = {
     key: row.property.key,
@@ -279,13 +286,30 @@ function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: R
     version,
     property: row.property,
   };
-  return (
-    row.property.renderValue?.(value, context) ??
-    (registry.get(row.property.renderer ?? row.property.type) ?? registry.get('text'))?.(
-      value,
-      context,
-    )
-  );
+  const explicit = row.property.renderValue?.(value, context);
+  if (explicit !== undefined) return explicit;
+  if (row.property.renderer || hasRendererOverride(overrides, String(row.property.type))) {
+    const renderer = registry.get(row.property.renderer ?? String(row.property.type));
+    if (renderer) return renderer(value, context);
+  }
+  if (isSummaryContainer(value)) {
+    const summary = row.property.containerSummary ?? tableSummary;
+    const rendered = summary?.(value, context);
+    if (rendered !== undefined) return rendered;
+  }
+  return (registry.get(row.property.type) ?? registry.get('text'))?.(value, context);
+}
+function hasRendererOverride(overrides: RendererOverrides | undefined, name: string): boolean {
+  if (!overrides) return false;
+  return overrides instanceof RendererRegistry
+    ? Array.from(overrides.entries()).some(([key]) => key === name)
+    : Object.prototype.hasOwnProperty.call(overrides, name);
+}
+function isSummaryContainer(value: unknown): value is Record<string, unknown> | unknown[] {
+  if (Array.isArray(value)) return true;
+  if (value === null || typeof value !== 'object') return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 function collectKeys(rows: readonly ComparisonRow[]): React.Key[] {
   return rows.flatMap((row) => [row.id, ...collectKeys(row.children ?? [])]);

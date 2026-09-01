@@ -52,6 +52,7 @@ The library declares React, React DOM, Ant Design, and Ant Design Icons as peer 
 - Built-in and table-local renderer registries, including selective built-in overrides.
 - Automatic Diff detection, custom business comparators, inherited Diff/search controls, and a baseline `Base` column marker.
 - Business-keyed array alignment with stable keyed paths, reorder-insensitive comparison, and per-version item presence.
+- Display-only summaries for plain object and array cells, without changing search or Diff data.
 - Controlled or uncontrolled expansion and Ant Design-compatible styling hooks.
 
 ## Screenshots

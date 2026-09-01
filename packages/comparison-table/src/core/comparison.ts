@@ -320,6 +320,7 @@ function row(
     level: def?.level ?? path.length - 1,
     type: def?.type ?? context.type,
     renderer: displayRule?.renderer ?? def?.renderer,
+    containerSummary: def?.containerSummary ?? displayRule?.containerSummary,
   };
   return {
     id: pathId(path),
