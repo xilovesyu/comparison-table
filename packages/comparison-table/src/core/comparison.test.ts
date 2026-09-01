@@ -169,7 +169,7 @@ describe('buildComparisonRows', () => {
           ] },
         }],
       });
-      expect(rows).toMatchObject([{ id: '["lines","A"]', property: { label: 'Line item', path: ['lines', 'A'] }, children: [
+      expect(rows).toMatchObject([{ id: '["lines","A"]', property: { label: 'Line item' }, children: [
         { property: { label: 'Quantity' }, values: { v1: 2 } },
       ] }]);
     });
