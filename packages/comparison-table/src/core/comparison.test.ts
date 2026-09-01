@@ -95,18 +95,33 @@ describe('buildComparisonRows', () => {
     const rows = buildComparisonRows(
       [{ id: 'v1', label: 'V1', data: { effectiveDate: '2026-09-01' } }],
       {
-        propertyDefinitions: [{
-          key: 'effectiveDate', label: 'Effective date', path: ['effectiveDate'], level: 7,
-          type: 'date', renderer: 'date',
-        }],
-        comparison: { comparator: (_values, context) => { contexts.push(context); return false; } },
+        propertyDefinitions: [
+          {
+            key: 'effectiveDate',
+            label: 'Effective date',
+            path: ['effectiveDate'],
+            level: 7,
+            type: 'date',
+            renderer: 'date',
+          },
+        ],
+        comparison: {
+          comparator: (_values, context) => {
+            contexts.push(context);
+            return false;
+          },
+        },
       },
     );
 
     expect(rows[0].property).toMatchObject({ type: 'date', level: 7, renderer: 'date' });
-    expect(contexts).toContainEqual(expect.objectContaining({
-      path: ['effectiveDate'], type: 'date', level: 7,
-    }));
+    expect(contexts).toContainEqual(
+      expect.objectContaining({
+        path: ['effectiveDate'],
+        type: 'date',
+        level: 7,
+      }),
+    );
   });
 
   describe('keyed array alignment', () => {

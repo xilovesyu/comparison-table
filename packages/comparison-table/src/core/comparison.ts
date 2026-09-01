@@ -197,7 +197,7 @@ function fromDefinitions(
   return defs.flatMap((def) => {
     const path = def.path.length ? [...def.path] : [...parentPath, def.key];
     const values = versions.map((v) => resolvePath(v.data, path, config.arrayItemKeyFields));
-    const context = ctx(def.key, path, values[0], undefined);
+    const context = ctx(def.key, path, values[0], undefined, def);
     const rule = ruleFor(context, config.rules);
     const controls = resolveRowDisplayControls(config, inheritedControls, rule, def);
     const itemRows =
@@ -243,7 +243,7 @@ function fromItemDefinition(
   return keyed.keys.flatMap((identity) => {
     const values = keyed.maps.map((map) => map?.get(identity));
     const path = [...arrayPath, identity];
-    const context = ctx(template.key, path, values[0], undefined);
+    const context = ctx(template.key, path, values[0], undefined, template);
     const rule = ruleFor(context, config.rules);
     const controls = resolveRowDisplayControls(config, inherited, rule, template);
     const children =
@@ -315,8 +315,8 @@ function row(
         ? `${definitionLabel} [${itemIdentity}]`
         : definitionLabel),
     path,
-    level: path.length - 1,
-    type: context.type,
+    level: def?.level ?? path.length - 1,
+    type: def?.type ?? context.type,
     renderer: displayRule?.renderer ?? def?.renderer,
   };
   return {
@@ -488,8 +488,23 @@ function record(value: unknown): value is Record<string | number, unknown> {
 function container(value: unknown): value is object {
   return Array.isArray(value) || record(value);
 }
-function ctx(key: string, path: PropertyPath, value: unknown, parent: unknown): PropertyContext {
-  return { key, path, value, parent, level: path.length - 1, type: getPropertyType(value) };
+function ctx(
+  key: string,
+  path: PropertyPath,
+  value: unknown,
+  parent: unknown,
+  definition?: PropertyDefinition,
+): PropertyContext {
+  const valueType = getPropertyType(value);
+  return {
+    key,
+    path,
+    value,
+    parent,
+    level: definition?.level ?? path.length - 1,
+    type: definition?.type ?? valueType,
+    valueType,
+  };
 }
 function validateVersions(versions: readonly ComparisonVersion[]): void {
   const ids = new Set<string>();
@@ -541,7 +556,7 @@ function markDifferences(
   return rows.map((row) => {
     const children = markDifferences(row.children ?? [], versions, options, keyFields);
     const values = versions.map((version) => row.values[version.id]);
-    const context = ctx(row.property.key, row.property.path, values[0], undefined);
+    const context = ctx(row.property.key, row.property.path, values[0], undefined, row.property);
     const detectedDifference = options?.comparator
       ? options.comparator(values, context)
       : values.some(

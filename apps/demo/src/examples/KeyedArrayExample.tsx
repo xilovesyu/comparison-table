@@ -10,6 +10,7 @@ const keyedVersions = [
       lines: [
         { sku: 'P-100', quantity: 1 },
         { sku: 'P-200', quantity: 2 },
+        { sku: 'P-400', quantity: 4 },
       ],
     },
   },

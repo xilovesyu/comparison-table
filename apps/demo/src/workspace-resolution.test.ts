@@ -7,6 +7,8 @@ describe('demo workspace package resolution', () => {
     const config = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8');
 
     expect(config).toMatch(/'@jxi\/comparison-table':\s*fileURLToPath/);
-    expect(config).toContain("new URL('../../packages/comparison-table/src/index.ts', import.meta.url)");
+    expect(config).toContain(
+      "new URL('../../packages/comparison-table/src/index.ts', import.meta.url)",
+    );
   });
 });

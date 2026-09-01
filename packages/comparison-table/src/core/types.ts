@@ -61,8 +61,10 @@ export interface PropertyContext {
   parent?: unknown;
   /** Zero-based nesting level. */
   level: number;
-  /** Detected type of `value`. */
-  type: PropertyType;
+  /** Effective display type, including an explicit property-definition override. */
+  type: PropertyDefinition['type'];
+  /** Runtime type detected from `value`, retained separately from display semantics. */
+  valueType: PropertyType;
 }
 /** Glob-like path, regular expression, or predicate used to match a field. */
 export type PropertyMatcher = string | RegExp | ((context: PropertyContext) => boolean);

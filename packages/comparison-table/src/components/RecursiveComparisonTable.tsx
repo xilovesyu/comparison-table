@@ -274,7 +274,8 @@ function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: R
     path: row.property.path,
     value,
     level: row.property.level,
-    type: getPropertyType(value),
+    type: row.property.type,
+    valueType: getPropertyType(value),
     version,
     property: row.property,
   };
