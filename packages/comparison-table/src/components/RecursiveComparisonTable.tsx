@@ -6,6 +6,7 @@ import {
   buildComparisonRows,
   filterComparisonRows,
   filterDifferenceRows,
+  getPropertyType,
   type BuildComparisonConfig,
   type ComparisonRow,
   type ComparisonVersion,
@@ -190,13 +191,16 @@ function PropertyCell({
 }) {
   const expandable = Boolean(row.children?.length);
   const baselinePresent = baselineId ? row.presence?.[baselineId] : undefined;
+  const missingVersionIds = versionIds.filter((id) => !row.presence?.[id]);
   const status =
     row.itemIdentity && baselinePresent !== undefined
       ? baselinePresent
-        ? versionIds.some((id) => !row.presence?.[id])
+        ? missingVersionIds.length === versionIds.length - 1
           ? 'removed'
           : undefined
-        : 'added'
+        : missingVersionIds.length === 1
+          ? 'added'
+          : undefined
       : undefined;
   return (
     <div className="comparison-property-cell">
@@ -204,6 +208,11 @@ function PropertyCell({
       {status && (
         <span className={`comparison-item-status comparison-item-status-${status}`}>
           {status === 'added' ? 'Added' : 'Removed'}
+        </span>
+      )}
+      {row.itemIdentity && !status && missingVersionIds.length > 0 && (
+        <span className="comparison-item-status comparison-item-status-missing">
+          Missing in {missingVersionIds.join(', ')}
         </span>
       )}
       <DifferenceIndicator row={row} indicator={row.differenceIndicator} />
@@ -265,7 +274,7 @@ function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: R
     path: row.property.path,
     value,
     level: row.property.level,
-    type: row.property.type,
+    type: getPropertyType(value),
     version,
     property: row.property,
   };

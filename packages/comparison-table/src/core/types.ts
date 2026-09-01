@@ -25,8 +25,8 @@ export interface PropertyDefinition {
   path: PropertyPath;
   /** Visual nesting level for the supplied display tree. */
   level: number;
-  /** Value kind used to select a built-in renderer. */
-  type: PropertyType;
+  /** Value kind used to select a built-in or consumer-defined renderer. */
+  type: PropertyType | (string & {});
   /** Child nodes, which may flatten or reorder the source data tree. */
   children?: PropertyDefinition[];
   /** Optional label formatter for consumers building definitions programmatically. */

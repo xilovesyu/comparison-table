@@ -198,6 +198,11 @@ main {
   color: #b42318;
   background: #fef3f2;
 }
+
+.comparison-item-status-missing {
+  color: #344054;
+  background: #f2f4f7;
+}
 .ant-table-wrapper .ant-table-tbody > tr.comparison-row-difference > td {
   background: #fffcf5;
 }

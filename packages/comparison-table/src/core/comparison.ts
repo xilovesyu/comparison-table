@@ -33,14 +33,21 @@ export function buildComparisonRows(
 ): ComparisonRow[] {
   validateVersions(versions);
   validateDefinitions(config.propertyDefinitions, config.arrayItemKeyFields);
+  const keyedArrays = prevalidateKeyedArrays(
+    versions,
+    config.arrayItemKeyFields,
+    config.comparison?.baseVersionId,
+  );
   const rows = config.propertyDefinitions
-    ? fromDefinitions(config.propertyDefinitions, versions, config)
+    ? fromDefinitions(config.propertyDefinitions, versions, config, [], undefined, keyedArrays)
     : visit(
         versions.map((v) => v.data),
         versions,
         [],
         config,
         [],
+        undefined,
+        keyedArrays,
       );
   return markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
 }
@@ -82,10 +89,18 @@ function visit(
   config: BuildComparisonConfig,
   ancestors: readonly object[],
   inheritedControls?: RowDisplayControls,
+  keyedArrays?: KeyedArrayCache,
 ): ComparisonRow[] {
   const keyField = keyFieldFor(path, config.arrayItemKeyFields);
   if (keyField) {
-    const keyed = keyedItems(values, versions, path, keyField, config.comparison?.baseVersionId);
+    const keyed = getKeyedItems(
+      keyedArrays,
+      values,
+      versions,
+      path,
+      keyField,
+      config.comparison?.baseVersionId,
+    );
     return keyed.keys.flatMap((identity) => {
       const nodeValues = keyed.maps.map((map) => map?.get(identity));
       const nodePath = [...path, identity];
@@ -104,6 +119,7 @@ function visit(
               config,
               [...ancestors, ...nodeValues.filter(container)],
               controls,
+              keyedArrays,
             )
           : undefined;
       if (!selected(context, config.selection) && !children?.length) return [];
@@ -128,7 +144,14 @@ function visit(
     const nodePath = [...path, key];
     const itemKeyField = keyFieldFor(nodePath, config.arrayItemKeyFields);
     if (itemKeyField) {
-      keyedItems(nodeValues, versions, nodePath, itemKeyField, config.comparison?.baseVersionId);
+      getKeyedItems(
+        keyedArrays,
+        nodeValues,
+        versions,
+        nodePath,
+        itemKeyField,
+        config.comparison?.baseVersionId,
+      );
     }
     const context = ctx(String(key), nodePath, nodeValues[0], values[0]);
     const rule = ruleFor(context, config.rules);
@@ -144,6 +167,7 @@ function visit(
             config,
             [...ancestors, ...nodeValues.filter(container)],
             controls,
+            keyedArrays,
           )
         : undefined;
     if (!selected(context, config.selection) && !children?.length) return [];
@@ -168,6 +192,7 @@ function fromDefinitions(
   config: BuildComparisonConfig,
   parentPath: (string | number)[] = [],
   inheritedControls?: RowDisplayControls,
+  keyedArrays?: KeyedArrayCache,
 ): ComparisonRow[] {
   return defs.flatMap((def) => {
     const path = def.path.length ? [...def.path] : [...parentPath, def.key];
@@ -176,13 +201,21 @@ function fromDefinitions(
     const rule = ruleFor(context, config.rules);
     const controls = resolveRowDisplayControls(config, inheritedControls, rule, def);
     const itemRows =
-      def.itemDefinition && keyFieldFor(path, config.arrayItemKeyFields)
-        ? fromItemDefinition(def.itemDefinition, values, versions, path, config, controls)
+      def.itemDefinition && rule?.expand !== false && keyFieldFor(path, config.arrayItemKeyFields)
+        ? fromItemDefinition(
+            def.itemDefinition,
+            values,
+            versions,
+            path,
+            config,
+            controls,
+            keyedArrays,
+          )
         : undefined;
     const children =
       itemRows ??
       (def.children && rule?.expand !== false
-        ? fromDefinitions(def.children, versions, config, path, controls)
+        ? fromDefinitions(def.children, versions, config, path, controls, keyedArrays)
         : undefined);
     if (!selected(context, config.selection) && !children?.length) return [];
     if (def.flatten && itemRows) return itemRows;
@@ -196,9 +229,17 @@ function fromItemDefinition(
   arrayPath: PropertyPath,
   config: BuildComparisonConfig,
   inherited: RowDisplayControls,
+  keyedArrays?: KeyedArrayCache,
 ): ComparisonRow[] {
   const field = keyFieldFor(arrayPath, config.arrayItemKeyFields)!;
-  const keyed = keyedItems(arrays, versions, arrayPath, field, config.comparison?.baseVersionId);
+  const keyed = getKeyedItems(
+    keyedArrays,
+    arrays,
+    versions,
+    arrayPath,
+    field,
+    config.comparison?.baseVersionId,
+  );
   return keyed.keys.flatMap((identity) => {
     const values = keyed.maps.map((map) => map?.get(identity));
     const path = [...arrayPath, identity];
@@ -213,6 +254,7 @@ function fromItemDefinition(
             config,
             path,
             controls,
+            keyedArrays,
           )
         : undefined;
     if (!selected(context, config.selection) && !children?.length) return [];
@@ -242,7 +284,12 @@ function relativeDefinitions(
       ? [...parentPath, ...definition.path]
       : [...parentPath, definition.key],
     children: definition.children
-      ? relativeDefinitions(definition.children, parentPath)
+      ? relativeDefinitions(
+          definition.children,
+          definition.path.length
+            ? [...parentPath, ...definition.path]
+            : [...parentPath, definition.key],
+        )
       : undefined,
   }));
 }
@@ -258,14 +305,19 @@ function row(
   controls?: RowDisplayControls,
   itemIdentity?: string,
 ): ComparisonRow {
+  const definitionLabel = def?.label ?? displayLabel(key, path, itemIdentity);
   const property: PropertyDefinition = {
+    ...def,
     key,
-    label: displayRule?.label ?? def?.label ?? displayLabel(key, path, itemIdentity),
+    label:
+      displayRule?.label ??
+      (itemIdentity && def?.label && versions.length > 1
+        ? `${definitionLabel} [${itemIdentity}]`
+        : definitionLabel),
     path,
     level: path.length - 1,
     type: context.type,
     renderer: displayRule?.renderer ?? def?.renderer,
-    ...def,
   };
   return {
     id: pathId(path),
@@ -386,6 +438,31 @@ function keyedItems(
   );
   return { keys, maps };
 }
+type KeyedItems = ReturnType<typeof keyedItems>;
+type KeyedArrayCache = Map<string, KeyedItems>;
+function prevalidateKeyedArrays(
+  versions: readonly ComparisonVersion[],
+  fields: BuildComparisonConfig['arrayItemKeyFields'],
+  baseVersionId?: string,
+): KeyedArrayCache {
+  const cache: KeyedArrayCache = new Map();
+  Object.entries(fields ?? {}).forEach(([configuredPath, field]) => {
+    const path = configuredPath.split('.');
+    const values = versions.map((version) => path.reduce(child, version.data));
+    cache.set(configuredPath, keyedItems(values, versions, path, field, baseVersionId));
+  });
+  return cache;
+}
+function getKeyedItems(
+  cache: KeyedArrayCache | undefined,
+  values: unknown[],
+  versions: readonly ComparisonVersion[],
+  path: PropertyPath,
+  field: string,
+  baseVersionId?: string,
+): KeyedItems {
+  return cache?.get(path.join('.')) ?? keyedItems(values, versions, path, field, baseVersionId);
+}
 function resolvePath(
   data: unknown,
   path: PropertyPath,
@@ -436,8 +513,20 @@ function validateDefinitions(
       }
     });
     validateDefinitions(definition.children, fields, path);
-    if (definition.itemDefinition) validateDefinitions([definition.itemDefinition], fields, path);
+    if (definition.itemDefinition) {
+      if (keyFieldFor(path, fields)) validateKeyedItemTemplate(definition.itemDefinition, path);
+      validateDefinitions([definition.itemDefinition], fields, path);
+    }
   });
+}
+function validateKeyedItemTemplate(template: PropertyDefinition, arrayPath: PropertyPath): void {
+  if (template.path.some((part) => typeof part === 'number')) {
+    throw new Error(
+      `Keyed array "${arrayPath.join('.')}" item definition cannot use numeric indexes`,
+    );
+  }
+  template.children?.forEach((child) => validateKeyedItemTemplate(child, arrayPath));
+  if (template.itemDefinition) validateKeyedItemTemplate(template.itemDefinition, arrayPath);
 }
 function markDifferences(
   rows: readonly ComparisonRow[],
