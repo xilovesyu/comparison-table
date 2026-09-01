@@ -13,15 +13,7 @@ import type {
   PropertyType,
   SearchOptions,
 } from './types';
-import {
-  copyComparisonRow,
-  isDefinitionRow,
-  isPresentationPrivate,
-  markDefinitionRow,
-  markPresentationPrivate,
-  registerDefinitionRows,
-  registerContainerSummaries,
-} from './presentation';
+import { copyComparisonRow, registerContainerSummaries } from './presentation';
 
 /** Serializes a property path into the stable row/expansion key used by the table. */
 export const pathId = (path: PropertyPath): string => JSON.stringify(path);
@@ -61,11 +53,8 @@ export function buildComparisonRows(
       );
   const containerSummaries = new Map<string, ContainerSummary>();
   collectContainerSummaries(rows, containerSummaries);
-  const definitionRowIds = new Set<string>();
-  collectDefinitionRows(rows, definitionRowIds);
   const markedRows = markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
   registerContainerSummaries(markedRows, containerSummaries);
-  registerDefinitionRows(markedRows, definitionRowIds);
   return markedRows;
 }
 /** Filters rows by label and/or raw version values while retaining matching ancestors. */
@@ -356,44 +345,10 @@ function row(
         )
       : undefined,
   };
-  if (summary) {
-    definePresentationFields(result, {
-      id: result.id,
-      children: result.children,
-      differenceIndicator: result.differenceIndicator,
-      nodeSearchable: result.nodeSearchable,
-      itemIdentity: result.itemIdentity,
-      presence: result.presence,
-    });
-    rowContainerSummaries.set(result, summary);
-    markPresentationPrivate(result);
-  }
-  if (def) markDefinitionRow(result);
+  if (summary) rowContainerSummaries.set(result, summary);
   return result;
 }
 const rowContainerSummaries = new WeakMap<ComparisonRow, ContainerSummary>();
-type PresentationFields = Pick<
-  ComparisonRow,
-  | 'id'
-  | 'children'
-  | 'hasDifference'
-  | 'hasOwnDifference'
-  | 'differenceIndicator'
-  | 'nodeSearchable'
-  | 'itemIdentity'
-  | 'presence'
-  | 'descendantDifferenceCount'
->;
-function definePresentationFields(row: ComparisonRow, fields: Partial<PresentationFields>): void {
-  Object.entries(fields).forEach(([key, value]) => {
-    Object.defineProperty(row, key, {
-      configurable: true,
-      enumerable: false,
-      value,
-      writable: true,
-    });
-  });
-}
 function collectContainerSummaries(
   rows: readonly ComparisonRow[],
   target: Map<string, ContainerSummary>,
@@ -402,12 +357,6 @@ function collectContainerSummaries(
     const summary = rowContainerSummaries.get(current);
     if (summary) target.set(current.id, summary);
     collectContainerSummaries(current.children ?? [], target);
-  });
-}
-function collectDefinitionRows(rows: readonly ComparisonRow[], target: Set<string>): void {
-  rows.forEach((current) => {
-    if (isDefinitionRow(current)) target.add(current.id);
-    collectDefinitionRows(current.children ?? [], target);
   });
 }
 interface RowDisplayControls {
@@ -644,21 +593,12 @@ function markDifferences(
         count + Number(child.hasOwnDifference) + (child.descendantDifferenceCount ?? 0),
       0,
     );
-    const result = copyComparisonRow(row, {
+    return copyComparisonRow(row, {
       children: children.length ? children : undefined,
       hasDifference: ownDifference || children.some((child) => child.hasDifference),
       hasOwnDifference: ownDifference,
+      descendantDifferenceCount,
     });
-    if (isPresentationPrivate(result)) {
-      definePresentationFields(result, { descendantDifferenceCount });
-    } else {
-      definePresentationFields(result, {
-        hasDifference: result.hasDifference,
-        hasOwnDifference: result.hasOwnDifference,
-        descendantDifferenceCount,
-      });
-    }
-    return result;
   });
 }
 function deepEqual(

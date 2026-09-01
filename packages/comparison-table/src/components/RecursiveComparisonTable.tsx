@@ -13,9 +13,8 @@ import {
   type DifferenceOptions,
   type SearchOptions,
 } from '../core/comparison';
-import { copyComparisonRow, getContainerSummaries, getDefinitionRows } from '../core/presentation';
+import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
 import {
-  builtInRenderers,
   createRendererRegistry,
   type RendererOverrides,
   RendererRegistry,
@@ -66,7 +65,6 @@ export function RecursiveComparisonTable({
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
   const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
   const containerSummaries = useMemo(() => getContainerSummaries(rows), [rows]);
-  const definitionRows = useMemo(() => getDefinitionRows(rows), [rows]);
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -135,8 +133,6 @@ export function RecursiveComparisonTable({
             renderers,
             containerSummaries.get(row.id),
             config.containerSummary,
-            config.arrayItemKeyFields,
-            definitionRows.has(row.id),
           ),
       };
     }),
@@ -288,8 +284,6 @@ function renderValue(
   overrides: RendererOverrides | undefined,
   resolvedSummary: BuildComparisonConfig['containerSummary'],
   tableSummary: BuildComparisonConfig['containerSummary'],
-  arrayItemKeyFields: BuildComparisonConfig['arrayItemKeyFields'],
-  isDefinitionRow: boolean,
 ) {
   const value = row.values[version.id];
   const context = {
@@ -308,10 +302,7 @@ function renderValue(
     const renderer = registry.get(row.property.renderer ?? String(row.property.type));
     if (renderer) return renderer(value, context);
   }
-  if (
-    hasRendererOverride(overrides, String(row.property.type)) &&
-    !(isSummaryContainer(value) && row.children?.length)
-  ) {
+  if (hasRendererOverride(overrides, String(row.property.type))) {
     const renderer = registry.get(String(row.property.type));
     if (renderer) return renderer(value, context);
   }
@@ -323,24 +314,11 @@ function renderValue(
     }
     const rendered = summary?.(value, context);
     if (rendered !== undefined) return rendered;
-    if (
-      row.children?.some((item) =>
-        item.children?.some((child) =>
-          Object.values(child.values).some((childValue) => isSummaryContainer(childValue)),
-        ),
-      ) &&
-      arrayItemKeyFields?.[row.property.path.join('.')]
-    ) {
-      return null;
-    }
     return defaultContainerSummary(value);
   }
   const typedRenderer = registry.get(row.property.type);
   if (typedRenderer) return typedRenderer(value, context);
-  return (row.property.level === 0 || isDefinitionRow ? registry : builtInRenderers).get('text')?.(
-    value,
-    context,
-  );
+  return registry.get('text')?.(value, context);
 }
 function defaultContainerSummary(value: Record<string, unknown> | unknown[]): string {
   return Array.isArray(value)

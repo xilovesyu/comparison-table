@@ -104,8 +104,15 @@ describe('buildComparisonRows', () => {
       ],
     });
     expect(Object.keys(rows[0]).sort()).toEqual([
+      'children',
+      'descendantDifferenceCount',
+      'differenceIndicator',
       'hasDifference',
       'hasOwnDifference',
+      'id',
+      'itemIdentity',
+      'nodeSearchable',
+      'presence',
       'property',
       'values',
     ]);
@@ -122,7 +129,10 @@ describe('buildComparisonRows', () => {
     );
     expect(Object.keys(rows[0]).sort()).toEqual([
       'children',
+      'descendantDifferenceCount',
       'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
       'id',
       'itemIdentity',
       'nodeSearchable',
@@ -133,7 +143,10 @@ describe('buildComparisonRows', () => {
     const item = rows[0].children?.[0]!;
     expect(Object.keys({ ...item }).sort()).toEqual([
       'children',
+      'descendantDifferenceCount',
       'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
       'id',
       'itemIdentity',
       'nodeSearchable',
@@ -148,9 +161,20 @@ describe('buildComparisonRows', () => {
   });
 
   it('keeps summary configurations out of enumerable difference rows', () => {
-    const rows = buildComparisonRows([{ id: 'a', label: 'A', data: { value: { id: 1 } } }, { id: 'b', label: 'B', data: { value: { id: 2 } } }], { rules: [{ path: 'value', containerSummary: () => 'summary' }], comparison: { comparator: () => true } });
+    const rows = buildComparisonRows(
+      [
+        { id: 'a', label: 'A', data: { value: { id: 1 } } },
+        { id: 'b', label: 'B', data: { value: { id: 2 } } },
+      ],
+      {
+        rules: [{ path: 'value', containerSummary: () => 'summary' }],
+        comparison: { comparator: () => true },
+      },
+    );
     expect(Object.keys(rows[0])).toContain('id');
-    expect(Object.keys(rows[0])).toEqual(expect.arrayContaining(['hasDifference', 'hasOwnDifference', 'descendantDifferenceCount']));
+    expect(Object.keys(rows[0])).toEqual(
+      expect.arrayContaining(['hasDifference', 'hasOwnDifference', 'descendantDifferenceCount']),
+    );
     expect(JSON.stringify(rows[0])).not.toMatch(/containerSummary|summary/);
   });
 
