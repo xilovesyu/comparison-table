@@ -13,6 +13,12 @@ import type {
   PropertyType,
   SearchOptions,
 } from './types';
+import {
+  copyComparisonRow,
+  isPresentationPrivate,
+  markPresentationPrivate,
+  registerContainerSummaries,
+} from './presentation';
 
 /** Serializes a property path into the stable row/expansion key used by the table. */
 export const pathId = (path: PropertyPath): string => JSON.stringify(path);
@@ -32,14 +38,6 @@ export function buildComparisonRows(
   versions: readonly ComparisonVersion[],
   config: BuildComparisonConfig = {},
 ): ComparisonRow[] {
-  return buildComparisonPresentation(versions, config).rows;
-}
-
-/** Internal component presentation data. Formatter resolution intentionally stays out of public rows. */
-export function buildComparisonPresentation(
-  versions: readonly ComparisonVersion[],
-  config: BuildComparisonConfig = {},
-): { rows: ComparisonRow[]; containerSummaries: Map<string, ContainerSummary> } {
   validateVersions(versions);
   validateDefinitions(config.propertyDefinitions, config.arrayItemKeyFields);
   const keyedArrays = prevalidateKeyedArrays(
@@ -61,7 +59,8 @@ export function buildComparisonPresentation(
   const containerSummaries = new Map<string, ContainerSummary>();
   collectContainerSummaries(rows, containerSummaries);
   const markedRows = markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
-  return { rows: markedRows, containerSummaries };
+  registerContainerSummaries(markedRows, containerSummaries);
+  return markedRows;
 }
 /** Filters rows by label and/or raw version values while retaining matching ancestors. */
 export function filterComparisonRows(
@@ -336,12 +335,29 @@ function row(
   const renderer = displayRule?.renderer ?? def?.renderer;
   if (renderer) property.renderer = renderer;
   if (def?.renderValue) property.renderValue = def.renderValue;
+  const summary = def?.containerSummary ?? displayRule?.containerSummary;
   const result: ComparisonRow = {
     id: pathId(path),
     property,
     values: Object.fromEntries(versions.map((v, i) => [v.id, values[i]])),
   };
-  definePresentationFields(result, {
+  Object.defineProperty(result, 'id', { enumerable: false, value: result.id, writable: true });
+  if (!summary) {
+    Object.assign(result, {
+      children: children?.length ? children : undefined,
+      differenceIndicator: controls?.differenceIndicator ?? true,
+      nodeSearchable: controls?.nodeSearchable ?? true,
+    });
+    if (itemIdentity) {
+      Object.assign(result, {
+        itemIdentity,
+        presence: Object.fromEntries(
+          versions.map((version, index) => [version.id, values[index] !== undefined]),
+        ),
+      });
+    }
+  }
+  const presentationFields = {
     id: pathId(path),
     children: children?.length ? children : undefined,
     differenceIndicator: controls?.differenceIndicator ?? true,
@@ -352,9 +368,12 @@ function row(
           versions.map((version, index) => [version.id, values[index] !== undefined]),
         )
       : undefined,
-  });
-  const summary = def?.containerSummary ?? displayRule?.containerSummary;
-  if (summary) rowContainerSummaries.set(result, summary);
+  };
+  if (summary) {
+    definePresentationFields(result, presentationFields);
+    rowContainerSummaries.set(result, summary);
+    markPresentationPrivate(result);
+  }
   return result;
 }
 const rowContainerSummaries = new WeakMap<ComparisonRow, ContainerSummary>();
@@ -377,23 +396,6 @@ function definePresentationFields(row: ComparisonRow, fields: Partial<Presentati
       writable: true,
     });
   });
-}
-/** Preserves internal presentation metadata while public row serialization stays data-only. */
-export function copyComparisonRow(
-  row: ComparisonRow,
-  changes: Partial<ComparisonRow>,
-): ComparisonRow {
-  const copy = Object.create(Object.getPrototypeOf(row)) as ComparisonRow;
-  Object.defineProperties(copy, Object.getOwnPropertyDescriptors(row));
-  Object.entries(changes).forEach(([key, value]) => {
-    const descriptor = Object.getOwnPropertyDescriptor(copy, key);
-    if (descriptor && !descriptor.enumerable) {
-      Object.defineProperty(copy, key, { ...descriptor, value });
-    } else {
-      Object.assign(copy, { [key]: value });
-    }
-  });
-  return copy;
 }
 function collectContainerSummaries(
   rows: readonly ComparisonRow[],
@@ -644,7 +646,11 @@ function markDifferences(
       hasDifference: ownDifference || children.some((child) => child.hasDifference),
       hasOwnDifference: ownDifference,
     });
-    definePresentationFields(result, { descendantDifferenceCount });
+    if (isPresentationPrivate(result)) {
+      definePresentationFields(result, { descendantDifferenceCount });
+    } else {
+      result.descendantDifferenceCount = descendantDifferenceCount;
+    }
     return result;
   });
 }

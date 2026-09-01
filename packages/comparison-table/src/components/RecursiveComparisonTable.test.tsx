@@ -381,7 +381,26 @@ describe('RecursiveComparisonTable', () => {
   });
 
   it('does not let a local text renderer hijack typed values while matching local renderers win', () => {
-    render(<RecursiveComparisonTable versions={[{ id: 'v1', label: 'V1', data: { text: 'plain', number: 1200, boolean: true, date: new Date('2026-01-02T00:00:00Z'), object: { id: 1 }, array: ['a'], money: { amount: 2, currency: 'USD' } } }]} renderers={{ text: () => 'local text', money: () => 'local money' }} />);
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'v1',
+            label: 'V1',
+            data: {
+              text: 'plain',
+              number: 1200,
+              boolean: true,
+              date: new Date('2026-01-02T00:00:00Z'),
+              object: { id: 1 },
+              array: ['a'],
+              money: { amount: 2, currency: 'USD' },
+            },
+          },
+        ]}
+        renderers={{ text: () => 'local text', money: () => 'local money' }}
+      />,
+    );
     expect(screen.getByText('local text')).toBeInTheDocument();
     expect(screen.getByText('1,200')).toBeInTheDocument();
     expect(screen.getByText('Yes')).toBeInTheDocument();
@@ -420,10 +439,23 @@ describe('RecursiveComparisonTable', () => {
       { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
       { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } },
     ];
-    const { rerender } = render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} />);
+    const { rerender } = render(
+      <RecursiveComparisonTable
+        versions={versions}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines', expand: false }]}
+      />,
+    );
     expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
     expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
-    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} containerSummary={() => undefined} />);
+    rerender(
+      <RecursiveComparisonTable
+        versions={versions}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines', expand: false }]}
+        containerSummary={() => undefined}
+      />,
+    );
     expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
     expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
   });

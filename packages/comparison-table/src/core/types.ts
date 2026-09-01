@@ -107,7 +107,11 @@ export interface ValueRenderContext extends PropertyContext {
 }
 /** Renders one version value in a comparison cell. */
 export type ValueRenderer = (value: unknown, context: ValueRenderContext) => React.ReactNode;
-/** Display-only formatter for a plain object or array cell; returning `undefined` uses the normal renderer fallback. */
+/**
+ * Display-only formatter for a plain object or array cell. The undefined normal renderer fallback
+ * produces a safe shallow default summary; `null` and `false` remain explicit output. Summary output
+ * never changes the raw values used by search or Diff.
+ */
 export type ContainerSummary = ValueRenderer;
 
 /** A normalized recursive row returned by `buildComparisonRows`. */

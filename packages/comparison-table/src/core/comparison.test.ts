@@ -113,13 +113,36 @@ describe('buildComparisonRows', () => {
   });
 
   it('preserves the baseline enumerable row shape and keeps presentation helpers private', async () => {
-    const rows = buildComparisonRows([
-      { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
-      { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } },
-    ], { arrayItemKeyFields: { lines: 'sku' } });
-    expect(Object.keys(rows[0]).sort()).toEqual(['children', 'descendantDifferenceCount', 'differenceIndicator', 'hasDifference', 'hasOwnDifference', 'nodeSearchable', 'property', 'values']);
+    const rows = buildComparisonRows(
+      [
+        { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
+        { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } },
+      ],
+      { arrayItemKeyFields: { lines: 'sku' } },
+    );
+    expect(Object.keys(rows[0]).sort()).toEqual([
+      'children',
+      'descendantDifferenceCount',
+      'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
+      'nodeSearchable',
+      'property',
+      'values',
+    ]);
     const item = rows[0].children?.[0]!;
-    expect(Object.keys({ ...item }).sort()).toEqual(['children', 'descendantDifferenceCount', 'differenceIndicator', 'hasDifference', 'hasOwnDifference', 'itemIdentity', 'nodeSearchable', 'presence', 'property', 'values']);
+    expect(Object.keys({ ...item }).sort()).toEqual([
+      'children',
+      'descendantDifferenceCount',
+      'differenceIndicator',
+      'hasDifference',
+      'hasOwnDifference',
+      'itemIdentity',
+      'nodeSearchable',
+      'presence',
+      'property',
+      'values',
+    ]);
     expect(JSON.stringify(rows)).not.toMatch(/containerSummary|function/);
     const publicApi = await import('../index');
     expect('buildComparisonPresentation' in publicApi).toBe(false);

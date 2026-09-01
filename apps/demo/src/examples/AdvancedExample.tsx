@@ -7,8 +7,6 @@ import {
 } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
-const middleVersionId = ['re', 'view'].join('');
-
 const advancedVersions = [
   {
     id: 'baseline',
@@ -29,10 +27,10 @@ const advancedVersions = [
     },
   },
   {
-    id: middleVersionId,
+    id: 'review',
     label: '复核版',
     data: {
-      customer: { name: 'Mia Chen', tier: 'PLATINUM', secret: 'middle-only' },
+      customer: { name: 'Mia Chen', tier: 'PLATINUM', secret: 'review-only' },
       billing: {
         money: { amount: 1100, currency: 'USD' },
         summaryMoney: { amount: 1500, currency: 'USD' },
@@ -43,7 +41,7 @@ const advancedVersions = [
       ],
       note: 'priority shipment',
       availability: 'available now',
-      internal: { auditId: 'middle-audit' },
+      internal: { auditId: 'review-audit' },
     },
   },
   {
@@ -170,6 +168,7 @@ export function AdvancedExample() {
       title="综合高级配置"
       description="组合字段筛选、受控展开、路径规则、基准列 Base 标签、局部与内置混合金额渲染、按 SKU 对齐的扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
       code={source}
+      sourceOnlyWhenOpen
     >
       <RecursiveComparisonTable
         versions={advancedVersions}

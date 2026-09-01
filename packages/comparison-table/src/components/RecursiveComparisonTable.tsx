@@ -3,8 +3,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useState } from 'react';
 import {
-  buildComparisonPresentation,
-  copyComparisonRow,
+  buildComparisonRows,
   filterComparisonRows,
   filterDifferenceRows,
   getPropertyType,
@@ -14,7 +13,9 @@ import {
   type DifferenceOptions,
   type SearchOptions,
 } from '../core/comparison';
+import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
 import {
+  builtInRenderers,
   createRendererRegistry,
   type RendererOverrides,
   RendererRegistry,
@@ -63,11 +64,8 @@ export function RecursiveComparisonTable({
   );
   const [openNodeSearches, setOpenNodeSearches] = useState<React.Key[]>([]);
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
-  const presentation = useMemo(
-    () => buildComparisonPresentation(versions, config),
-    [versions, config],
-  );
-  const rows = presentation.rows;
+  const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
+  const containerSummaries = useMemo(() => getContainerSummaries(rows), [rows]);
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -134,7 +132,7 @@ export function RecursiveComparisonTable({
             version,
             registry,
             renderers,
-            presentation.containerSummaries.get(row.id),
+            containerSummaries.get(row.id),
             config.containerSummary,
             config.arrayItemKeyFields,
           ),
@@ -311,7 +309,11 @@ function renderValue(
     const renderer = registry.get(String(row.property.type));
     if (renderer) return renderer(value, context);
   }
-  if (hasRendererOverride(overrides, 'text')) {
+  if (hasRendererOverride(overrides, row.property.key)) {
+    const renderer = registry.get(row.property.key);
+    if (renderer) return renderer(value, context);
+  }
+  if ((resolvedSummary ?? tableSummary) && hasRendererOverride(overrides, 'text')) {
     const renderer = registry.get('text');
     if (renderer) return renderer(value, context);
   }
@@ -319,10 +321,12 @@ function renderValue(
     const summary = resolvedSummary ?? tableSummary;
     const rendered = summary?.(value, context);
     if (rendered !== undefined) return rendered;
-    if (arrayItemKeyFields?.[row.property.path.join('.')]) return null;
+    if (row.children?.length && arrayItemKeyFields?.[row.property.path.join('.')]) return null;
     return defaultContainerSummary(value);
   }
-  return (registry.get(row.property.type) ?? registry.get('text'))?.(value, context);
+  const typedRenderer = registry.get(row.property.type);
+  if (typedRenderer) return typedRenderer(value, context);
+  return (row.property.level === 0 ? registry : builtInRenderers).get('text')?.(value, context);
 }
 function defaultContainerSummary(value: Record<string, unknown> | unknown[]): string {
   return Array.isArray(value)
