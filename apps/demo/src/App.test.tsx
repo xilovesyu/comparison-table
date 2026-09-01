@@ -15,6 +15,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '自动 Diff 与自定义比较' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '基准列高亮' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '显示控制与层级继承' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '业务键数组对齐' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {
@@ -105,5 +106,20 @@ describe('documentation examples', () => {
     expect(within(advancedCard).getByText(/const advancedDefinitions/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/baseVersionId: 'baseline'/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/<RecursiveComparisonTable/)).toBeInTheDocument();
+  });
+
+  it('places the keyed-array example before advanced configuration and includes it in the advanced source panel', () => {
+    render(<App />);
+    const keyedHeading = screen.getByRole('heading', { name: '业务键数组对齐' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const keyedCard = keyedHeading.closest('.ant-card') as HTMLElement;
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+    expect(keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(keyedCard).getByText('lines[P-100]')).toBeInTheDocument();
+    fireEvent.click(within(keyedCard).getByRole('button', { name: '查看源代码' }));
+    expect(within(keyedCard).getByText(/arrayItemKeyFields/)).toBeInTheDocument();
+    fireEvent.click(within(advancedCard).getByRole('button', { name: '查看源代码' }));
+    expect(within(advancedCard).getByText(/arrayItemKeyFields/)).toBeInTheDocument();
+    expect(within(advancedCard).getByText(/itemDefinition/)).toBeInTheDocument();
   });
 });
