@@ -17,6 +17,12 @@ describe('buildComparisonRows', () => {
     });
   });
 
+  it('preserves an own undefined renderer field on automatically discovered rows', () => {
+    const row = buildComparisonRows([{ id: 'v', label: 'V', data: { value: 1 } }])[0];
+    expect(Object.prototype.hasOwnProperty.call(row.property, 'renderer')).toBe(true);
+    expect(row.property.renderer).toBeUndefined();
+  });
+
   it('recursively discovers nested keys and preserves missing values', () => {
     const rows = buildComparisonRows([
       { id: 'v1', label: 'V1', data: { user: { name: 'John' } } },
