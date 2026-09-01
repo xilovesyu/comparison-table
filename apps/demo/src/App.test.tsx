@@ -204,4 +204,13 @@ describe('documentation examples', () => {
       within(source).getByText(/id: 'review',[\s\S]*sku: 'P-400',[\s\S]*containerSummary/),
     ).toBeInTheDocument();
   });
+
+  it('keeps the Advanced comparison interactive when its source panel is opened', () => {
+    render(<App />);
+    const card = screen.getByRole('heading', { name: '综合高级配置' }).closest('.ant-card') as HTMLElement;
+    expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+    expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(card).getByText(/const advancedVersions/).closest('.source-panel')).toBeInTheDocument();
+  });
 });
