@@ -481,6 +481,26 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
   });
 
+  it('keeps keyed parent array summaries when expanded items contain nested objects and arrays', () => {
+    const versions = [{ id: 'a', label: 'A', data: { lines: [{ sku: 'A', payload: { id: 1 }, tags: ['x'] }] } }, { id: 'b', label: 'B', data: { lines: [{ sku: 'A', payload: { id: 2 }, tags: ['x', 'y'] }] } }];
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} />);
+    expect(screen.getAllByText('[ 1 items ]')).not.toHaveLength(0);
+    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} containerSummary={() => undefined} />);
+    expect(screen.getAllByText('[ 1 items ]')).not.toHaveLength(0);
+  });
+
+  it('uses matching local object and array renderers for expanded containers before table summaries', () => {
+    render(<RecursiveComparisonTable versions={[{ id: 'v', label: 'V', data: { object: { id: 1 }, array: ['x'] } }]} renderers={{ object: () => 'local object', array: () => 'local array' }} containerSummary={() => 'summary'} />);
+    expect(screen.getByText('local object')).toBeInTheDocument();
+    expect(screen.getByText('local array')).toBeInTheDocument();
+    expect(screen.queryByText('summary')).not.toBeInTheDocument();
+  });
+
+  it('uses local text for automatically discovered nested string leaves', () => {
+    render(<RecursiveComparisonTable versions={[{ id: 'v', label: 'V', data: { outer: { note: 'plain' } } }]} renderers={{ text: () => 'local text' }} />);
+    expect(screen.getByText('local text')).toBeInTheDocument();
+  });
+
   it('routes table summaries and local text only to real text fallback while explicit renderers win', () => {
     render(
       <RecursiveComparisonTable

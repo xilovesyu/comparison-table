@@ -147,6 +147,13 @@ describe('buildComparisonRows', () => {
     expect('copyComparisonRow' in publicApi).toBe(false);
   });
 
+  it('keeps summary configurations out of enumerable difference rows', () => {
+    const rows = buildComparisonRows([{ id: 'a', label: 'A', data: { value: { id: 1 } } }, { id: 'b', label: 'B', data: { value: { id: 2 } } }], { rules: [{ path: 'value', containerSummary: () => 'summary' }], comparison: { comparator: () => true } });
+    expect(Object.keys(rows[0])).toContain('id');
+    expect(Object.keys(rows[0])).toEqual(expect.arrayContaining(['hasDifference', 'hasOwnDifference', 'descendantDifferenceCount']));
+    expect(JSON.stringify(rows[0])).not.toMatch(/containerSummary|summary/);
+  });
+
   it('preserves explicit property-definition type and level for rows and comparator contexts', () => {
     const contexts: PropertyContext[] = [];
     const rows = buildComparisonRows(
