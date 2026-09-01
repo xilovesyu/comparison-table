@@ -190,4 +190,12 @@ describe('documentation examples', () => {
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByText(/review/)).toBeInTheDocument();
   });
+
+  it('shows the review/P-400/Missing scenario in the opened Advanced source panel', () => {
+    render(<App />);
+    const card = screen.getByRole('heading', { name: '综合高级配置' }).closest('.ant-card') as HTMLElement;
+    fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+    const source = within(card).getByText(/const advancedVersions/).closest('.source-panel')!;
+    expect(within(source).getByText(/id: 'review',[\s\S]*sku: 'P-400',[\s\S]*containerSummary/)).toBeInTheDocument();
+  });
 });
