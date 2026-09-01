@@ -460,6 +460,25 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
   });
 
+  it('keeps default-expanded keyed parents summarized per cell without a formatter or after undefined', () => {
+    const versions = [{ id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } }, { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } }];
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} />);
+    expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
+    expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
+    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} containerSummary={() => undefined} />);
+    expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
+    expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
+  });
+
+  it('routes table summaries and local text only to real text fallback while explicit renderers win', () => {
+    render(<RecursiveComparisonTable versions={[{ id: 'v', label: 'V', data: { nested: { text: 'plain' }, number: 3, boolean: true, date: new Date('2026-01-01'), explicit: { id: 1 }, typed: { id: 2 } } }]} renderers={{ text: () => 'local text', object: () => 'local object', named: () => 'named' }} rules={[{ path: 'explicit', renderer: 'named' }]} propertyDefinitions={[{ key: 'nested', label: 'Nested', path: ['nested'], level: 0, type: 'object', children: [{ key: 'text', label: 'Text', path: ['text'], level: 1, type: 'string' }] }, { key: 'number', label: 'Number', path: ['number'], level: 0, type: 'number' }, { key: 'boolean', label: 'Boolean', path: ['boolean'], level: 0, type: 'boolean' }, { key: 'date', label: 'Date', path: ['date'], level: 0, type: 'date' }, { key: 'explicit', label: 'Explicit', path: ['explicit'], level: 0, type: 'object' }, { key: 'typed', label: 'Typed', path: ['typed'], level: 0, type: 'object' }]} containerSummary={() => 'summary'} />);
+    expect(screen.getByText('local text')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText('named')).toBeInTheDocument();
+    expect(screen.getByText('local object')).toBeInTheDocument();
+  });
+
   it('falls back to safe object and array summaries when a formatter returns undefined', () => {
     render(
       <RecursiveComparisonTable
