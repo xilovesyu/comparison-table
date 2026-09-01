@@ -504,6 +504,18 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getAllByText('[ 1 items ]')).not.toHaveLength(0);
   });
 
+  it('renders each keyed lines parent version cell through summary fallback semantics', () => {
+    const versions = [{ id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } }, { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } }];
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} />);
+    const linesRow = screen.getByText('lines').closest('tr')!;
+    expect(within(linesRow).getByText('[ 1 items ]')).toBeInTheDocument();
+    expect(within(linesRow).getByText('[ 2 items ]')).toBeInTheDocument();
+    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} containerSummary={() => undefined} />);
+    expect(within(screen.getByText('lines').closest('tr')!).getByText('[ 1 items ]')).toBeInTheDocument();
+    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} containerSummary={() => <b>node</b>} />);
+    expect(within(screen.getByText('lines').closest('tr')!).getAllByText('node')).toHaveLength(2);
+  });
+
   it('uses matching local object and array renderers for expanded containers before table summaries', () => {
     render(
       <RecursiveComparisonTable
