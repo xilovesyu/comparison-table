@@ -338,6 +338,21 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('value')).not.toBeInTheDocument();
   });
 
+  it('falls back when an explicit renderValue returns null but renders false explicitly', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[{ id: 'v1', label: 'V1', data: { nullable: { a: 1 }, falsey: { b: 2 } } }]}
+        rules={[{ path: '*', expand: false }]}
+        propertyDefinitions={[
+          { key: 'nullable', label: 'Nullable', path: ['nullable'], level: 0, type: 'object', renderValue: () => null },
+          { key: 'falsey', label: 'Falsey', path: ['falsey'], level: 0, type: 'object', renderValue: () => false },
+        ]}
+      />,
+    );
+    expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
+    expect(screen.queryByText('false')).not.toBeInTheDocument();
+  });
+
   it('P1: does not collapse an item that returns after an intermediate absence into Removed', () => {
     render(
       <RecursiveComparisonTable
