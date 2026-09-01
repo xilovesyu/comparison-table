@@ -197,8 +197,9 @@ function fromDefinitions(
   return defs.flatMap((def) => {
     const path = def.path.length ? [...def.path] : [...parentPath, def.key];
     const values = versions.map((v) => resolvePath(v.data, path, config.arrayItemKeyFields));
+    const runtimeContext = ctx(def.key, path, values[0], undefined);
     const context = ctx(def.key, path, values[0], undefined, def);
-    const rule = ruleFor(context, config.rules);
+    const rule = ruleFor(runtimeContext, config.rules);
     const controls = resolveRowDisplayControls(config, inheritedControls, rule, def);
     const itemRows =
       def.itemDefinition && rule?.expand !== false && keyFieldFor(path, config.arrayItemKeyFields)
@@ -217,7 +218,7 @@ function fromDefinitions(
       (def.children && rule?.expand !== false
         ? fromDefinitions(def.children, versions, config, path, controls, keyedArrays)
         : undefined);
-    if (!selected(context, config.selection) && !children?.length) return [];
+    if (!selected(runtimeContext, config.selection) && !children?.length) return [];
     if (def.flatten && itemRows) return itemRows;
     return [row(def.key, path, values, versions, context, children, rule, def, controls)];
   });
@@ -243,8 +244,9 @@ function fromItemDefinition(
   return keyed.keys.flatMap((identity) => {
     const values = keyed.maps.map((map) => map?.get(identity));
     const path = [...arrayPath, identity];
+    const runtimeContext = ctx(template.key, path, values[0], undefined);
     const context = ctx(template.key, path, values[0], undefined, template);
-    const rule = ruleFor(context, config.rules);
+    const rule = ruleFor(runtimeContext, config.rules);
     const controls = resolveRowDisplayControls(config, inherited, rule, template);
     const children =
       template.children && rule?.expand !== false
@@ -257,7 +259,7 @@ function fromItemDefinition(
             keyedArrays,
           )
         : undefined;
-    if (!selected(context, config.selection) && !children?.length) return [];
+    if (!selected(runtimeContext, config.selection) && !children?.length) return [];
     return [
       row(
         template.key,
