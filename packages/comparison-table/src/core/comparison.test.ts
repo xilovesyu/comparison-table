@@ -151,6 +151,76 @@ describe('buildComparisonRows', () => {
     ).toMatchObject({ label: 'Effective date', type: 'date', level: 4 });
   });
 
+  it('keeps DisplayRule matcher predicates on runtime type when definitions use the opposite display type', () => {
+    const cases = [
+      {
+        value: '2026-09-01',
+        displayType: 'date' as const,
+        runtimeType: 'string' as const,
+      },
+      {
+        value: new Date('2026-09-01T00:00:00.000Z'),
+        displayType: 'string' as const,
+        runtimeType: 'date' as const,
+      },
+    ];
+
+    for (const { value, displayType, runtimeType } of cases) {
+      const propertyDefinitions: PropertyDefinition[] = [
+        {
+          key: 'value',
+          label: 'Value',
+          path: ['value'],
+          level: 3,
+          type: displayType,
+        },
+      ];
+      const versions = [{ id: 'v1', label: 'V1', data: { value } }];
+
+      expect(
+        buildComparisonRows(versions, {
+          propertyDefinitions,
+          rules: [{ matcher: (context) => context.type === runtimeType, label: 'Runtime match' }],
+        })[0].property,
+      ).toMatchObject({ label: 'Runtime match', type: displayType, level: 3 });
+    }
+  });
+
+  it('keeps selection predicates on runtime type when definitions use the opposite display type', () => {
+    const cases = [
+      {
+        value: '2026-09-01',
+        displayType: 'date' as const,
+        runtimeType: 'string' as const,
+      },
+      {
+        value: new Date('2026-09-01T00:00:00.000Z'),
+        displayType: 'string' as const,
+        runtimeType: 'date' as const,
+      },
+    ];
+
+    for (const { value, displayType, runtimeType } of cases) {
+      const propertyDefinitions: PropertyDefinition[] = [
+        {
+          key: 'value',
+          label: 'Value',
+          path: ['value'],
+          level: 3,
+          type: displayType,
+        },
+      ];
+      const versions = [{ id: 'v1', label: 'V1', data: { value } }];
+
+      expect(
+        buildComparisonRows(versions, {
+          propertyDefinitions,
+          selection: { include: [(context) => context.type === runtimeType] },
+        }),
+      ).toHaveLength(1);
+    }
+  });
+
   describe('keyed array alignment', () => {
     const twoVersions = [
       {
