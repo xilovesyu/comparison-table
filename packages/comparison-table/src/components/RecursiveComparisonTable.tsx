@@ -177,6 +177,8 @@ function PropertyCell({
   query,
   onToggle,
   onQuery,
+  baselineId,
+  versionIds,
 }: {
   row: ComparisonRow;
   open: boolean;
