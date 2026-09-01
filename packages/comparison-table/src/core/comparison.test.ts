@@ -122,7 +122,14 @@ describe('buildComparisonRows', () => {
       'property',
       'values',
     ]);
-    expect(Object.keys(rows[0].property).sort()).toEqual(['key', 'label', 'level', 'path', 'type']);
+    expect(Object.keys(rows[0].property).sort()).toEqual([
+      'key',
+      'label',
+      'level',
+      'path',
+      'renderer',
+      'type',
+    ]);
   });
 
   it('preserves the baseline enumerable row shape and keeps presentation helpers private', async () => {

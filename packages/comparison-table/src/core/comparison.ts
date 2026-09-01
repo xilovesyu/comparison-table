@@ -328,9 +328,8 @@ function row(
     path,
     level: def?.level ?? path.length - 1,
     type: def?.type ?? context.type,
+    renderer: displayRule?.renderer ?? def?.renderer,
   };
-  const renderer = displayRule?.renderer ?? def?.renderer;
-  if (renderer) property.renderer = renderer;
   const summary = definitionSummary ?? displayRule?.containerSummary;
   const result: ComparisonRow = {
     id: pathId(path),

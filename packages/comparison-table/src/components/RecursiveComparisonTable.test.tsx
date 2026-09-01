@@ -31,7 +31,24 @@ describe('RecursiveComparisonTable', () => {
   it('resolves an empty-string renderer from definitions and rules in a local registry', () => {
     const renderers = { '': () => 'empty-key renderer' };
     const versions = [{ id: 'v', label: 'V', data: { defined: 1, ruled: 2 } }];
-    render(<RecursiveComparisonTable versions={versions} renderers={renderers} propertyDefinitions={[{ key: 'defined', label: 'Defined', path: ['defined'], level: 0, type: 'number', renderer: '' }, { key: 'ruled', label: 'Ruled', path: ['ruled'], level: 0, type: 'number' }]} rules={[{ path: 'ruled', renderer: '' }]} />);
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        renderers={renderers}
+        propertyDefinitions={[
+          {
+            key: 'defined',
+            label: 'Defined',
+            path: ['defined'],
+            level: 0,
+            type: 'number',
+            renderer: '',
+          },
+          { key: 'ruled', label: 'Ruled', path: ['ruled'], level: 0, type: 'number' },
+        ]}
+        rules={[{ path: 'ruled', renderer: '' }]}
+      />,
+    );
     expect(screen.getAllByText('empty-key renderer')).toHaveLength(2);
   });
   it('uses an object renderer only for the current table instance', () => {

@@ -298,7 +298,7 @@ function renderValue(
   };
   const explicit = row.property.renderValue?.(value, context);
   if (explicit != null) return explicit;
-  if (row.property.renderer) {
+  if (row.property.renderer !== undefined) {
     const renderer = registry.get(row.property.renderer ?? String(row.property.type));
     if (renderer) return renderer(value, context);
   }
