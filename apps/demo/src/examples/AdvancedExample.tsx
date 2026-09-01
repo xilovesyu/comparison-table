@@ -123,28 +123,16 @@ const advancedDefinitions = [
     type: 'object',
   },
   {
-    key: 'line0',
-    label: 'lines[0]',
-    path: ['lines', 0],
-    level: 0,
-    type: 'object',
-    children: [
-      { key: 'sku', label: 'SKU', path: ['lines', 0, 'sku'], level: 1, type: 'string' },
-      { key: 'quantity', label: '数量', path: ['lines', 0, 'quantity'], level: 1, type: 'number' },
-    ],
+    key: 'lines', label: 'lines', path: ['lines'], level: 0, type: 'array', flatten: true,
+    itemDefinition: {
+      key: 'line', label: '订单行', path: [], level: 0, type: 'object',
+      children: [
+        { key: 'sku', label: 'SKU', path: ['sku'], level: 1, type: 'string' },
+        { key: 'quantity', label: '数量', path: ['quantity'], level: 1, type: 'number' },
+      ],
+    },
   },
   { key: 'note', label: '备注', path: ['note'], level: 0, type: 'string' },
-  {
-    key: 'line1',
-    label: 'lines[1]',
-    path: ['lines', 1],
-    level: 0,
-    type: 'object',
-    children: [
-      { key: 'sku', label: 'SKU', path: ['lines', 1, 'sku'], level: 1, type: 'string' },
-      { key: 'quantity', label: '数量', path: ['lines', 1, 'quantity'], level: 1, type: 'number' },
-    ],
-  },
   { key: 'availability', label: '新增字段', path: ['availability'], level: 0, type: 'string' },
 ] satisfies PropertyDefinition[];
 
@@ -162,17 +150,18 @@ export function AdvancedExample() {
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([
     '["customer"]',
     '["billing","money"]',
-    '["lines",0]',
+    '["lines","P-100"]',
   ]);
   return (
     <ExampleCard
       title="综合高级配置"
-      description="组合字段筛选、受控展开、路径规则、基准列 Base 标签、局部与内置混合金额渲染、扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
+      description="组合字段筛选、受控展开、路径规则、基准列 Base 标签、局部与内置混合金额渲染、按 SKU 对齐的扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
       code={source}
     >
       <RecursiveComparisonTable
         versions={advancedVersions}
         propertyDefinitions={advancedDefinitions}
+        arrayItemKeyFields={{ lines: 'sku' }}
         renderers={advancedRendererDefinitions}
         selection={{
           include: ['customer', 'customer.*', 'billing.*', 'lines.*', 'note', 'availability'],

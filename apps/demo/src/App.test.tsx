@@ -37,7 +37,7 @@ describe('documentation examples', () => {
     const card = screen
       .getByRole('heading', { name: '自定义顺序与扁平层级' })
       .closest('.ant-card') as HTMLElement;
-    expect(within(card).getByText('lines[0]')).toBeInTheDocument();
+    expect(within(card).getAllByText('订单行').length).toBeGreaterThan(0);
     expect(within(card).getByText('备注')).toBeInTheDocument();
     expect(within(card).getByText('lines[1]')).toBeInTheDocument();
     expect(within(card).queryByText(/^lines$/)).not.toBeInTheDocument();
@@ -94,6 +94,20 @@ describe('documentation examples', () => {
     expect(within(advancedCard).getByLabelText('Base')).toBeInTheDocument();
   });
 
+  it('places keyed-array alignment before the advanced example and integrates it', () => {
+    render(<App />);
+    const keyedHeading = screen.getByRole('heading', { name: '业务键数组对齐' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const keyedCard = keyedHeading.closest('.ant-card') as HTMLElement;
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+
+    expect(
+      keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(keyedCard).getByText('lines[P-100]')).toBeInTheDocument();
+    expect(within(advancedCard).getAllByText('订单行').length).toBeGreaterThan(0);
+  });
+
   it('shows complete data, configuration and JSX in the advanced source panel', () => {
     render(<App />);
     const advancedCard = screen
@@ -104,6 +118,7 @@ describe('documentation examples', () => {
 
     expect(within(advancedCard).getByText(/const advancedVersions/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/const advancedDefinitions/)).toBeInTheDocument();
+    expect(within(advancedCard).getByText(/arrayItemKeyFields={{ lines: 'sku' }}/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/baseVersionId: 'baseline'/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/<RecursiveComparisonTable/)).toBeInTheDocument();
   });

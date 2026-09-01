@@ -6,6 +6,7 @@ import {
   ControlledExample,
   DiffExample,
   FlattenedExample,
+  KeyedArrayExample,
   PresentationControlsExample,
   RegistryExample,
   RendererExample,
@@ -30,6 +31,7 @@ export function App() {
           <DiffExample />
           <BaselineExample />
           <PresentationControlsExample />
+          <KeyedArrayExample />
           <AdvancedExample />
         </Space>
       </main>

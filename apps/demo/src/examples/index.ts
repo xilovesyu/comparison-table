@@ -4,6 +4,7 @@ export { BasicExample } from './BasicExample';
 export { ControlledExample } from './ControlledExample';
 export { DiffExample } from './DiffExample';
 export { FlattenedExample } from './FlattenedExample';
+export { KeyedArrayExample } from './KeyedArrayExample';
 export { PresentationControlsExample } from './PresentationControlsExample';
 export { RegistryExample } from './RegistryExample';
 export { RendererExample } from './RendererExample';
