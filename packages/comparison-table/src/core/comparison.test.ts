@@ -124,6 +124,33 @@ describe('buildComparisonRows', () => {
     );
   });
 
+  it('matches DisplayRule.type against the detected runtime type, not the definition display type', () => {
+    const definitions: PropertyDefinition[] = [
+      {
+        key: 'effectiveDate',
+        label: 'Effective date',
+        path: ['effectiveDate'],
+        level: 4,
+        type: 'date',
+      },
+    ];
+    const versions = [{ id: 'v1', label: 'V1', data: { effectiveDate: '2026-09-01' } }];
+
+    expect(
+      buildComparisonRows(versions, {
+        propertyDefinitions: definitions,
+        rules: [{ type: 'string', label: 'Detected string' }],
+      })[0].property,
+    ).toMatchObject({ label: 'Detected string', type: 'date', level: 4 });
+
+    expect(
+      buildComparisonRows(versions, {
+        propertyDefinitions: definitions,
+        rules: [{ type: 'date', label: 'Incorrect display-type match' }],
+      })[0].property,
+    ).toMatchObject({ label: 'Effective date', type: 'date', level: 4 });
+  });
+
   describe('keyed array alignment', () => {
     const twoVersions = [
       {
