@@ -406,7 +406,7 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getByText('Yes')).toBeInTheDocument();
     expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
     expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
-    expect(screen.getByText('local money')).toBeInTheDocument();
+    expect(screen.queryByText('local money')).not.toBeInTheDocument();
   });
 
   it('uses safe built-in summaries for keyed Added containers without a formatter', () => {
