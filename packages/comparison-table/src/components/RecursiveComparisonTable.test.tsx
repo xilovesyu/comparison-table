@@ -380,6 +380,16 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('summary')).not.toBeInTheDocument();
   });
 
+  it('does not let a local text renderer hijack typed values while matching local renderers win', () => {
+    render(<RecursiveComparisonTable versions={[{ id: 'v1', label: 'V1', data: { text: 'plain', number: 1200, boolean: true, date: new Date('2026-01-02T00:00:00Z'), object: { id: 1 }, array: ['a'], money: { amount: 2, currency: 'USD' } } }]} renderers={{ text: () => 'local text', money: () => 'local money' }} />);
+    expect(screen.getByText('local text')).toBeInTheDocument();
+    expect(screen.getByText('1,200')).toBeInTheDocument();
+    expect(screen.getByText('Yes')).toBeInTheDocument();
+    expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
+    expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
+    expect(screen.getByText('local money')).toBeInTheDocument();
+  });
+
   it('uses safe built-in summaries for keyed Added containers without a formatter', () => {
     render(
       <RecursiveComparisonTable
