@@ -353,6 +353,19 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('false')).not.toBeInTheDocument();
   });
 
+  it('keeps a table-local text renderer ahead of a container summary', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[{ id: 'v1', label: 'V1', data: { payload: { id: 1 } } }]}
+        rules={[{ path: 'payload', expand: false }]}
+        renderers={{ text: () => 'local text' }}
+        containerSummary={() => 'summary'}
+      />,
+    );
+    expect(screen.getByText('local text')).toBeInTheDocument();
+    expect(screen.queryByText('summary')).not.toBeInTheDocument();
+  });
+
   it('P1: does not collapse an item that returns after an intermediate absence into Removed', () => {
     render(
       <RecursiveComparisonTable
