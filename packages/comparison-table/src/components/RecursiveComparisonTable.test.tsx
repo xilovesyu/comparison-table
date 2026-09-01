@@ -239,4 +239,21 @@ describe('RecursiveComparisonTable', () => {
     fireEvent.click(document.querySelector('.ant-table-row-expand-icon') as HTMLElement);
     expect(onExpandedChange).toHaveBeenCalled();
   });
+
+  it('P1: does not collapse an item that returns after an intermediate absence into Removed', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
+          { id: 'mid', label: 'Mid', data: { lines: [] } },
+          { id: 'last', label: 'Last', data: { lines: [{ sku: 'A' }] } },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        comparison={{ baseVersionId: 'base' }}
+      />,
+    );
+
+    expect(screen.getByText('lines[A]')).toBeInTheDocument();
+    expect(screen.queryByText('Removed')).not.toBeInTheDocument();
+  });
 });
