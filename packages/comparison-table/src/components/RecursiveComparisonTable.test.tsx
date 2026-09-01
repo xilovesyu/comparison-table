@@ -583,6 +583,17 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getAllByText('local object')).toHaveLength(2);
   });
 
+  it('keeps renderer legacy routing for summary null false and isolated registries', () => {
+    const versions = [{ id: 'v', label: 'V', data: { text: 'plain', object: { id: 1 }, explicit: { id: 2 } } }];
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} renderers={{ text: () => 'local text', object: () => 'local object', named: () => 'named' }} rules={[{ path: 'explicit', renderer: 'named' }]} containerSummary={() => null} />);
+    expect(screen.getByText('local text')).toBeInTheDocument();
+    expect(screen.getByText('local object')).toBeInTheDocument();
+    expect(screen.getByText('named')).toBeInTheDocument();
+    rerender(<RecursiveComparisonTable versions={versions} renderers={{ text: () => 'other text' }} containerSummary={() => false} />);
+    expect(screen.getByText('other text')).toBeInTheDocument();
+    expect(screen.queryByText('local object')).not.toBeInTheDocument();
+  });
+
   it('falls back to safe object and array summaries when a formatter returns undefined', () => {
     render(
       <RecursiveComparisonTable
