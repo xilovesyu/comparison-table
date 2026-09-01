@@ -178,6 +178,41 @@ describe('buildComparisonRows', () => {
     expect(JSON.stringify(rows[0])).not.toMatch(/containerSummary|summary/);
   });
 
+  it('retains complete consumer definition metadata while excluding only containerSummary from public rows', () => {
+    const metadata = { consumer: { source: 'fixture' } };
+    const definition = {
+      key: 'value',
+      label: 'Value',
+      path: ['value'],
+      level: 0,
+      type: 'object' as const,
+      renderLabel: () => 'consumer label',
+      expandable: true,
+      defaultExpanded: false,
+      differenceIndicator: false,
+      nodeSearchable: false,
+      flatten: true,
+      itemDefinition: { key: 'item', label: 'Item', path: [], level: 0, type: 'object' as const },
+      ...metadata,
+      containerSummary: () => 'summary',
+    };
+    const rows = buildComparisonRows([{ id: 'v', label: 'V', data: { value: { id: 1 } } }], {
+      propertyDefinitions: [definition],
+    });
+    expect(rows[0].property).toMatchObject({
+      ...metadata,
+      renderLabel: definition.renderLabel,
+      expandable: true,
+      defaultExpanded: false,
+      differenceIndicator: false,
+      nodeSearchable: false,
+      flatten: true,
+      itemDefinition: definition.itemDefinition,
+    });
+    expect(Object.keys(rows[0].property)).not.toContain('containerSummary');
+    expect(JSON.stringify(rows)).not.toMatch(/containerSummary|summary/);
+  });
+
   it('preserves explicit property-definition type and level for rows and comparator contexts', () => {
     const contexts: PropertyContext[] = [];
     const rows = buildComparisonRows(
