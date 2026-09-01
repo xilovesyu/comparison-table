@@ -366,6 +366,19 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('summary')).not.toBeInTheDocument();
   });
 
+  it('uses safe built-in summaries for keyed Added containers without a formatter', () => {
+    render(<RecursiveComparisonTable versions={[{ id: 'base', label: 'Base', data: { lines: [] } }, { id: 'next', label: 'Next', data: { lines: [{ sku: 'object', payload: { id: 1 } }, { sku: 'array', payload: ['a', 'b'] }] } }]} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines.*.payload', expand: false }]} />);
+    expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
+    expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
+  });
+
+  it('falls back to safe object and array summaries when a formatter returns undefined', () => {
+    render(<RecursiveComparisonTable versions={[{ id: 'v1', label: 'V1', data: { object: { id: 1 }, array: ['a', 'b'] } }]} rules={[{ path: '*', expand: false }]} containerSummary={() => undefined} />);
+    expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
+    expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
+  });
+
   it('P1: does not collapse an item that returns after an intermediate absence into Removed', () => {
     render(
       <RecursiveComparisonTable
