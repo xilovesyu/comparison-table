@@ -50,7 +50,7 @@ describe('documentation examples', () => {
       .closest('.ant-card') as HTMLElement;
     expect(within(card).getByText('结算金额（可展开）')).toBeInTheDocument();
     expect(within(card).getByText('总计（仅一级）')).toBeInTheDocument();
-    expect(within(card).getAllByText('订单行').length).toBeGreaterThan(0);
+    expect(within(card).getAllByText(/^订单行 \[/).length).toBeGreaterThan(0);
     expect(within(card).queryByText('secret')).not.toBeInTheDocument();
   });
 
@@ -105,7 +105,7 @@ describe('documentation examples', () => {
       keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(within(keyedCard).getByText('lines[P-100]')).toBeInTheDocument();
-    expect(within(advancedCard).getAllByText('订单行').length).toBeGreaterThan(0);
+    expect(within(advancedCard).getAllByText(/^订单行 \[/).length).toBeGreaterThan(0);
   });
 
   it('shows complete data, configuration and JSX in the advanced source panel', () => {
