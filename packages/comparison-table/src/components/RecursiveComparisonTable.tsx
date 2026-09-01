@@ -308,10 +308,6 @@ function renderValue(
   }
   if (isSummaryContainer(value)) {
     const summary = resolvedSummary ?? tableSummary;
-    if (summary && !row.children?.length && hasRendererOverride(overrides, 'text')) {
-      const renderer = registry.get('text');
-      if (renderer) return renderer(value, context);
-    }
     const rendered = summary?.(value, context);
     if (rendered !== undefined) return rendered;
     return defaultContainerSummary(value);

@@ -367,7 +367,7 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('false')).not.toBeInTheDocument();
   });
 
-  it('keeps a table-local text renderer ahead of a container summary', () => {
+  it('keeps a container summary ahead of a table-local text fallback', () => {
     render(
       <RecursiveComparisonTable
         versions={[{ id: 'v1', label: 'V1', data: { payload: { id: 1 } } }]}
@@ -376,8 +376,8 @@ describe('RecursiveComparisonTable', () => {
         containerSummary={() => 'summary'}
       />,
     );
-    expect(screen.getByText('local text')).toBeInTheDocument();
-    expect(screen.queryByText('summary')).not.toBeInTheDocument();
+    expect(screen.getByText('summary')).toBeInTheDocument();
+    expect(screen.queryByText('local text')).not.toBeInTheDocument();
   });
 
   it('does not let a local text renderer hijack typed values while matching local renderers win', () => {
@@ -505,14 +505,39 @@ describe('RecursiveComparisonTable', () => {
   });
 
   it('renders each keyed lines parent version cell through summary fallback semantics', () => {
-    const versions = [{ id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } }, { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } }];
-    const { rerender } = render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} />);
+    const versions = [
+      { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
+      { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } },
+    ];
+    const { rerender } = render(
+      <RecursiveComparisonTable
+        versions={versions}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines', expand: false }]}
+      />,
+    );
     const linesRow = screen.getByText('lines').closest('tr')!;
     expect(within(linesRow).getByText('[ 1 items ]')).toBeInTheDocument();
     expect(within(linesRow).getByText('[ 2 items ]')).toBeInTheDocument();
-    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} containerSummary={() => undefined} />);
-    expect(within(screen.getByText('lines').closest('tr')!).getByText('[ 1 items ]')).toBeInTheDocument();
-    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} containerSummary={() => <b>node</b>} />);
+    rerender(
+      <RecursiveComparisonTable
+        versions={versions}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines', expand: false }]}
+        containerSummary={() => undefined}
+      />,
+    );
+    expect(
+      within(screen.getByText('lines').closest('tr')!).getByText('[ 1 items ]'),
+    ).toBeInTheDocument();
+    rerender(
+      <RecursiveComparisonTable
+        versions={versions}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines', expand: false }]}
+        containerSummary={() => <b>node</b>}
+      />,
+    );
     expect(within(screen.getByText('lines').closest('tr')!).getAllByText('node')).toHaveLength(2);
   });
 
@@ -584,12 +609,27 @@ describe('RecursiveComparisonTable', () => {
   });
 
   it('keeps renderer legacy routing for summary null false and isolated registries', () => {
-    const versions = [{ id: 'v', label: 'V', data: { text: 'plain', object: { id: 1 }, explicit: { id: 2 } } }];
-    const { rerender } = render(<RecursiveComparisonTable versions={versions} renderers={{ text: () => 'local text', object: () => 'local object', named: () => 'named' }} rules={[{ path: 'explicit', renderer: 'named' }]} containerSummary={() => null} />);
+    const versions = [
+      { id: 'v', label: 'V', data: { text: 'plain', object: { id: 1 }, explicit: { id: 2 } } },
+    ];
+    const { rerender } = render(
+      <RecursiveComparisonTable
+        versions={versions}
+        renderers={{ text: () => 'local text', object: () => 'local object', named: () => 'named' }}
+        rules={[{ path: 'explicit', renderer: 'named' }]}
+        containerSummary={() => null}
+      />,
+    );
     expect(screen.getByText('local text')).toBeInTheDocument();
     expect(screen.getByText('local object')).toBeInTheDocument();
     expect(screen.getByText('named')).toBeInTheDocument();
-    rerender(<RecursiveComparisonTable versions={versions} renderers={{ text: () => 'other text' }} containerSummary={() => false} />);
+    rerender(
+      <RecursiveComparisonTable
+        versions={versions}
+        renderers={{ text: () => 'other text' }}
+        containerSummary={() => false}
+      />,
+    );
     expect(screen.getByText('other text')).toBeInTheDocument();
     expect(screen.queryByText('local object')).not.toBeInTheDocument();
   });

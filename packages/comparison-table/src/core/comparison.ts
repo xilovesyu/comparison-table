@@ -316,7 +316,9 @@ function row(
   itemIdentity?: string,
 ): ComparisonRow {
   const definitionLabel = def?.label ?? displayLabel(key, path, itemIdentity);
+  const { containerSummary: definitionSummary, ...definitionMetadata } = def ?? {};
   const property: PropertyDefinition = {
+    ...definitionMetadata,
     key,
     label:
       displayRule?.label ??
@@ -329,8 +331,7 @@ function row(
   };
   const renderer = displayRule?.renderer ?? def?.renderer;
   if (renderer) property.renderer = renderer;
-  if (def?.renderValue) property.renderValue = def.renderValue;
-  const summary = def?.containerSummary ?? displayRule?.containerSummary;
+  const summary = definitionSummary ?? displayRule?.containerSummary;
   const result: ComparisonRow = {
     id: pathId(path),
     property,
