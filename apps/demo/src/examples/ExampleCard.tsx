@@ -6,23 +6,16 @@ interface ExampleCardProps {
   description: string;
   code: string;
   children: React.ReactNode;
-  sourceOnlyWhenOpen?: boolean;
 }
 
-export function ExampleCard({
-  title,
-  description,
-  code,
-  children,
-  sourceOnlyWhenOpen = false,
-}: ExampleCardProps) {
+export function ExampleCard({ title, description, code, children }: ExampleCardProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <Card className="example-card">
       <Typography.Title level={2}>{title}</Typography.Title>
       <Typography.Paragraph type="secondary">{description}</Typography.Paragraph>
-      {(!open || !sourceOnlyWhenOpen) && children}
+      {children}
       <div className="source-actions">
         <Button type="link" onClick={() => setOpen((value) => !value)}>
           {open ? '收起源代码' : '查看源代码'}

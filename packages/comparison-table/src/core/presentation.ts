@@ -1,7 +1,9 @@
 import type { ComparisonRow, ContainerSummary } from './types';
 
 const summariesByRows = new WeakMap<readonly ComparisonRow[], Map<string, ContainerSummary>>();
+const definitionRowsByRows = new WeakMap<readonly ComparisonRow[], Set<string>>();
 const privatePresentationRows = new WeakSet<ComparisonRow>();
+const definitionRows = new WeakSet<ComparisonRow>();
 
 export function registerContainerSummaries(
   rows: readonly ComparisonRow[],
@@ -14,6 +16,22 @@ export function getContainerSummaries(
   rows: readonly ComparisonRow[],
 ): Map<string, ContainerSummary> {
   return summariesByRows.get(rows) ?? new Map();
+}
+
+export function registerDefinitionRows(rows: readonly ComparisonRow[], ids: Set<string>): void {
+  definitionRowsByRows.set(rows, ids);
+}
+
+export function getDefinitionRows(rows: readonly ComparisonRow[]): Set<string> {
+  return definitionRowsByRows.get(rows) ?? new Set();
+}
+
+export function markDefinitionRow(row: ComparisonRow): void {
+  definitionRows.add(row);
+}
+
+export function isDefinitionRow(row: ComparisonRow): boolean {
+  return definitionRows.has(row);
 }
 
 export function markPresentationPrivate(row: ComparisonRow): void {
@@ -39,5 +57,6 @@ export function copyComparisonRow(
     }
   });
   if (privatePresentationRows.has(row)) privatePresentationRows.add(copy);
+  if (definitionRows.has(row)) definitionRows.add(copy);
   return copy;
 }

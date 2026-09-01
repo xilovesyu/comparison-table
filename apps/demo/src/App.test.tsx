@@ -188,7 +188,7 @@ describe('documentation examples', () => {
       .closest('.ant-card') as HTMLElement;
     expect(within(card).getByText(/Missing in review/)).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
-    expect(within(card).getByText(/review/)).toBeInTheDocument();
+    expect(within(card.querySelector('.source-panel')!).getByText(/review/)).toBeInTheDocument();
   });
 
   it('shows the review/P-400/Missing scenario in the opened Advanced source panel', () => {
@@ -207,10 +207,16 @@ describe('documentation examples', () => {
 
   it('keeps the Advanced comparison interactive when its source panel is opened', () => {
     render(<App />);
-    const card = screen.getByRole('heading', { name: '综合高级配置' }).closest('.ant-card') as HTMLElement;
+    const card = screen
+      .getByRole('heading', { name: '综合高级配置' })
+      .closest('.ant-card') as HTMLElement;
     expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
-    expect(within(card).getByText(/const advancedVersions/).closest('.source-panel')).toBeInTheDocument();
+    expect(
+      within(card)
+        .getByText(/const advancedVersions/)
+        .closest('.source-panel'),
+    ).toBeInTheDocument();
   });
 });

@@ -15,8 +15,11 @@ import type {
 } from './types';
 import {
   copyComparisonRow,
+  isDefinitionRow,
   isPresentationPrivate,
+  markDefinitionRow,
   markPresentationPrivate,
+  registerDefinitionRows,
   registerContainerSummaries,
 } from './presentation';
 
@@ -58,8 +61,11 @@ export function buildComparisonRows(
       );
   const containerSummaries = new Map<string, ContainerSummary>();
   collectContainerSummaries(rows, containerSummaries);
+  const definitionRowIds = new Set<string>();
+  collectDefinitionRows(rows, definitionRowIds);
   const markedRows = markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
   registerContainerSummaries(markedRows, containerSummaries);
+  registerDefinitionRows(markedRows, definitionRowIds);
   return markedRows;
 }
 /** Filters rows by label and/or raw version values while retaining matching ancestors. */
@@ -340,25 +346,6 @@ function row(
     id: pathId(path),
     property,
     values: Object.fromEntries(versions.map((v, i) => [v.id, values[i]])),
-  };
-  Object.defineProperty(result, 'id', { enumerable: false, value: result.id, writable: true });
-  if (!summary) {
-    Object.assign(result, {
-      children: children?.length ? children : undefined,
-      differenceIndicator: controls?.differenceIndicator ?? true,
-      nodeSearchable: controls?.nodeSearchable ?? true,
-    });
-    if (itemIdentity) {
-      Object.assign(result, {
-        itemIdentity,
-        presence: Object.fromEntries(
-          versions.map((version, index) => [version.id, values[index] !== undefined]),
-        ),
-      });
-    }
-  }
-  const presentationFields = {
-    id: pathId(path),
     children: children?.length ? children : undefined,
     differenceIndicator: controls?.differenceIndicator ?? true,
     nodeSearchable: controls?.nodeSearchable ?? true,
@@ -370,10 +357,18 @@ function row(
       : undefined,
   };
   if (summary) {
-    definePresentationFields(result, presentationFields);
+    definePresentationFields(result, {
+      id: result.id,
+      children: result.children,
+      differenceIndicator: result.differenceIndicator,
+      nodeSearchable: result.nodeSearchable,
+      itemIdentity: result.itemIdentity,
+      presence: result.presence,
+    });
     rowContainerSummaries.set(result, summary);
     markPresentationPrivate(result);
   }
+  if (def) markDefinitionRow(result);
   return result;
 }
 const rowContainerSummaries = new WeakMap<ComparisonRow, ContainerSummary>();
@@ -381,6 +376,8 @@ type PresentationFields = Pick<
   ComparisonRow,
   | 'id'
   | 'children'
+  | 'hasDifference'
+  | 'hasOwnDifference'
   | 'differenceIndicator'
   | 'nodeSearchable'
   | 'itemIdentity'
@@ -405,6 +402,12 @@ function collectContainerSummaries(
     const summary = rowContainerSummaries.get(current);
     if (summary) target.set(current.id, summary);
     collectContainerSummaries(current.children ?? [], target);
+  });
+}
+function collectDefinitionRows(rows: readonly ComparisonRow[], target: Set<string>): void {
+  rows.forEach((current) => {
+    if (isDefinitionRow(current)) target.add(current.id);
+    collectDefinitionRows(current.children ?? [], target);
   });
 }
 interface RowDisplayControls {
@@ -649,7 +652,11 @@ function markDifferences(
     if (isPresentationPrivate(result)) {
       definePresentationFields(result, { descendantDifferenceCount });
     } else {
-      result.descendantDifferenceCount = descendantDifferenceCount;
+      definePresentationFields(result, {
+        hasDifference: result.hasDifference,
+        hasOwnDifference: result.hasOwnDifference,
+        descendantDifferenceCount,
+      });
     }
     return result;
   });

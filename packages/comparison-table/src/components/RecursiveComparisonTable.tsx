@@ -13,7 +13,7 @@ import {
   type DifferenceOptions,
   type SearchOptions,
 } from '../core/comparison';
-import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
+import { copyComparisonRow, getContainerSummaries, getDefinitionRows } from '../core/presentation';
 import {
   builtInRenderers,
   createRendererRegistry,
@@ -66,6 +66,7 @@ export function RecursiveComparisonTable({
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
   const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
   const containerSummaries = useMemo(() => getContainerSummaries(rows), [rows]);
+  const definitionRows = useMemo(() => getDefinitionRows(rows), [rows]);
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -135,6 +136,7 @@ export function RecursiveComparisonTable({
             containerSummaries.get(row.id),
             config.containerSummary,
             config.arrayItemKeyFields,
+            definitionRows.has(row.id),
           ),
       };
     }),
@@ -287,6 +289,7 @@ function renderValue(
   resolvedSummary: BuildComparisonConfig['containerSummary'],
   tableSummary: BuildComparisonConfig['containerSummary'],
   arrayItemKeyFields: BuildComparisonConfig['arrayItemKeyFields'],
+  isDefinitionRow: boolean,
 ) {
   const value = row.values[version.id];
   const context = {
@@ -305,28 +308,39 @@ function renderValue(
     const renderer = registry.get(row.property.renderer ?? String(row.property.type));
     if (renderer) return renderer(value, context);
   }
-  if (hasRendererOverride(overrides, String(row.property.type))) {
+  if (
+    hasRendererOverride(overrides, String(row.property.type)) &&
+    !(isSummaryContainer(value) && row.children?.length)
+  ) {
     const renderer = registry.get(String(row.property.type));
-    if (renderer) return renderer(value, context);
-  }
-  if (hasRendererOverride(overrides, row.property.key)) {
-    const renderer = registry.get(row.property.key);
-    if (renderer) return renderer(value, context);
-  }
-  if ((resolvedSummary ?? tableSummary) && hasRendererOverride(overrides, 'text')) {
-    const renderer = registry.get('text');
     if (renderer) return renderer(value, context);
   }
   if (isSummaryContainer(value)) {
     const summary = resolvedSummary ?? tableSummary;
+    if (summary && !row.children?.length && hasRendererOverride(overrides, 'text')) {
+      const renderer = registry.get('text');
+      if (renderer) return renderer(value, context);
+    }
     const rendered = summary?.(value, context);
     if (rendered !== undefined) return rendered;
-    if (row.children?.length && arrayItemKeyFields?.[row.property.path.join('.')]) return null;
+    if (
+      row.children?.some((item) =>
+        item.children?.some((child) =>
+          Object.values(child.values).some((childValue) => isSummaryContainer(childValue)),
+        ),
+      ) &&
+      arrayItemKeyFields?.[row.property.path.join('.')]
+    ) {
+      return null;
+    }
     return defaultContainerSummary(value);
   }
   const typedRenderer = registry.get(row.property.type);
   if (typedRenderer) return typedRenderer(value, context);
-  return (row.property.level === 0 ? registry : builtInRenderers).get('text')?.(value, context);
+  return (row.property.level === 0 || isDefinitionRow ? registry : builtInRenderers).get('text')?.(
+    value,
+    context,
+  );
 }
 function defaultContainerSummary(value: Record<string, unknown> | unknown[]): string {
   return Array.isArray(value)
