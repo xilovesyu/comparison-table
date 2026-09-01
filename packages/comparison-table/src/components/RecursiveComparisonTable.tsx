@@ -3,7 +3,8 @@ import { SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useMemo, useState } from 'react';
 import {
-  buildComparisonRows,
+  buildComparisonPresentation,
+  copyComparisonRow,
   filterComparisonRows,
   filterDifferenceRows,
   getPropertyType,
@@ -62,7 +63,11 @@ export function RecursiveComparisonTable({
   );
   const [openNodeSearches, setOpenNodeSearches] = useState<React.Key[]>([]);
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
-  const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
+  const presentation = useMemo(
+    () => buildComparisonPresentation(versions, config),
+    [versions, config],
+  );
+  const rows = presentation.rows;
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -124,7 +129,15 @@ export function RecursiveComparisonTable({
           ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')
           : undefined,
         render: (_: unknown, row: ComparisonRow) =>
-          renderValue(row, version, registry, renderers, config.containerSummary),
+          renderValue(
+            row,
+            version,
+            registry,
+            renderers,
+            presentation.containerSummaries.get(row.id),
+            config.containerSummary,
+            config.arrayItemKeyFields,
+          ),
       };
     }),
   ];
@@ -273,7 +286,9 @@ function renderValue(
   version: ComparisonVersion,
   registry: RendererRegistry,
   overrides: RendererOverrides | undefined,
+  resolvedSummary: BuildComparisonConfig['containerSummary'],
   tableSummary: BuildComparisonConfig['containerSummary'],
+  arrayItemKeyFields: BuildComparisonConfig['arrayItemKeyFields'],
 ) {
   const value = row.values[version.id];
   const context = {
@@ -287,17 +302,32 @@ function renderValue(
     property: row.property,
   };
   const explicit = row.property.renderValue?.(value, context);
-  if (explicit !== undefined) return explicit;
-  if (row.property.renderer || hasRendererOverride(overrides, String(row.property.type))) {
+  if (explicit != null) return explicit;
+  if (row.property.renderer) {
     const renderer = registry.get(row.property.renderer ?? String(row.property.type));
     if (renderer) return renderer(value, context);
   }
+  if (hasRendererOverride(overrides, String(row.property.type))) {
+    const renderer = registry.get(String(row.property.type));
+    if (renderer) return renderer(value, context);
+  }
+  if (hasRendererOverride(overrides, 'text')) {
+    const renderer = registry.get('text');
+    if (renderer) return renderer(value, context);
+  }
   if (isSummaryContainer(value)) {
-    const summary = row.property.containerSummary ?? tableSummary;
+    const summary = resolvedSummary ?? tableSummary;
     const rendered = summary?.(value, context);
     if (rendered !== undefined) return rendered;
+    if (arrayItemKeyFields?.[row.property.path.join('.')]) return null;
+    return defaultContainerSummary(value);
   }
   return (registry.get(row.property.type) ?? registry.get('text'))?.(value, context);
+}
+function defaultContainerSummary(value: Record<string, unknown> | unknown[]): string {
+  return Array.isArray(value)
+    ? `[ ${value.length} items ]`
+    : `{ ${Object.keys(value).length} fields }`;
 }
 function hasRendererOverride(overrides: RendererOverrides | undefined, name: string): boolean {
   if (!overrides) return false;
@@ -321,10 +351,9 @@ function applyNodeFilters(
   return rows.map((row) => {
     const children = row.children ? applyNodeFilters(row.children, queries) : undefined;
     const ownQuery = queries[row.id];
-    return {
-      ...row,
+    return copyComparisonRow(row, {
       children: ownQuery ? filterComparisonRows(children ?? [], ownQuery) : children,
-    };
+    });
   });
 }
 function countRows(rows: readonly ComparisonRow[]): number {

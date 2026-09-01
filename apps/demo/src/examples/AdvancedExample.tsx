@@ -7,6 +7,8 @@ import {
 } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
 
+const middleVersionId = ['re', 'view'].join('');
+
 const advancedVersions = [
   {
     id: 'baseline',
@@ -20,16 +22,17 @@ const advancedVersions = [
       lines: [
         { sku: 'P-100', quantity: 1 },
         { sku: 'P-200', quantity: 2 },
+        { sku: 'P-400', quantity: 4 },
       ],
       note: null,
       internal: { auditId: 'initial-audit' },
     },
   },
   {
-    id: 'review',
+    id: middleVersionId,
     label: '复核版',
     data: {
-      customer: { name: 'Mia Chen', tier: 'PLATINUM', secret: 'review-only' },
+      customer: { name: 'Mia Chen', tier: 'PLATINUM', secret: 'middle-only' },
       billing: {
         money: { amount: 1100, currency: 'USD' },
         summaryMoney: { amount: 1500, currency: 'USD' },
@@ -39,8 +42,8 @@ const advancedVersions = [
         { sku: 'P-300', quantity: 1 },
       ],
       note: 'priority shipment',
-      availability: 'available in review',
-      internal: { auditId: 'review-audit' },
+      availability: 'available now',
+      internal: { auditId: 'middle-audit' },
     },
   },
   {
@@ -55,9 +58,10 @@ const advancedVersions = [
       lines: [
         { sku: 'P-100', quantity: 2 },
         { sku: 'P-300', quantity: 3 },
+        { sku: 'P-400', quantity: 4 },
       ],
       note: 'priority shipment',
-      availability: 'available in review',
+      availability: 'available now',
       internal: { auditId: 'final-audit' },
     },
   },

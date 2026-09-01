@@ -170,7 +170,9 @@ describe('documentation examples', () => {
 
   it('keeps the container-summary demo safe for object, array, null, undefined, and long values', () => {
     render(<App />);
-    const card = screen.getByRole('heading', { name: '容器摘要' }).closest('.ant-card') as HTMLElement;
+    const card = screen
+      .getByRole('heading', { name: '容器摘要' })
+      .closest('.ant-card') as HTMLElement;
     expect(within(card).getByText('[ 2 items ]')).toBeInTheDocument();
     expect(within(card).getByText('null')).toBeInTheDocument();
     expect(within(card).getAllByText('—')).not.toHaveLength(0);
@@ -181,7 +183,9 @@ describe('documentation examples', () => {
 
   it('shows an Advanced keyed item missing only in review and keeps it in the source panel', () => {
     render(<App />);
-    const card = screen.getByRole('heading', { name: '综合高级配置' }).closest('.ant-card') as HTMLElement;
+    const card = screen
+      .getByRole('heading', { name: '综合高级配置' })
+      .closest('.ant-card') as HTMLElement;
     expect(within(card).getByText(/Missing in review/)).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByText(/review/)).toBeInTheDocument();

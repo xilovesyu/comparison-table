@@ -1,5 +1,6 @@
 import type {
   BuildComparisonConfig,
+  ContainerSummary,
   ComparisonRow,
   ComparisonVersion,
   DifferenceIndicatorSetting,
@@ -31,6 +32,14 @@ export function buildComparisonRows(
   versions: readonly ComparisonVersion[],
   config: BuildComparisonConfig = {},
 ): ComparisonRow[] {
+  return buildComparisonPresentation(versions, config).rows;
+}
+
+/** Internal component presentation data. Formatter resolution intentionally stays out of public rows. */
+export function buildComparisonPresentation(
+  versions: readonly ComparisonVersion[],
+  config: BuildComparisonConfig = {},
+): { rows: ComparisonRow[]; containerSummaries: Map<string, ContainerSummary> } {
   validateVersions(versions);
   validateDefinitions(config.propertyDefinitions, config.arrayItemKeyFields);
   const keyedArrays = prevalidateKeyedArrays(
@@ -49,7 +58,10 @@ export function buildComparisonRows(
         undefined,
         keyedArrays,
       );
-  return markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
+  const containerSummaries = new Map<string, ContainerSummary>();
+  collectContainerSummaries(rows, containerSummaries);
+  const markedRows = markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
+  return { rows: markedRows, containerSummaries };
 }
 /** Filters rows by label and/or raw version values while retaining matching ancestors. */
 export function filterComparisonRows(
@@ -71,7 +83,7 @@ export function filterComparisonRows(
           .includes(needle),
       );
     return label || value || children.length
-      ? [{ ...row, children: children.length ? children : row.children }]
+      ? [copyComparisonRow(row, { children: children.length ? children : row.children })]
       : [];
   });
 }
@@ -79,7 +91,9 @@ export function filterComparisonRows(
 export function filterDifferenceRows(rows: readonly ComparisonRow[]): ComparisonRow[] {
   return rows.flatMap((row) => {
     const children = filterDifferenceRows(row.children ?? []);
-    return row.hasDifference ? [{ ...row, children: children.length ? children : undefined }] : [];
+    return row.hasDifference
+      ? [copyComparisonRow(row, { children: children.length ? children : undefined })]
+      : [];
   });
 }
 function visit(
@@ -309,7 +323,6 @@ function row(
 ): ComparisonRow {
   const definitionLabel = def?.label ?? displayLabel(key, path, itemIdentity);
   const property: PropertyDefinition = {
-    ...def,
     key,
     label:
       displayRule?.label ??
@@ -319,13 +332,17 @@ function row(
     path,
     level: def?.level ?? path.length - 1,
     type: def?.type ?? context.type,
-    renderer: displayRule?.renderer ?? def?.renderer,
-    containerSummary: def?.containerSummary ?? displayRule?.containerSummary,
   };
-  return {
+  const renderer = displayRule?.renderer ?? def?.renderer;
+  if (renderer) property.renderer = renderer;
+  if (def?.renderValue) property.renderValue = def.renderValue;
+  const result: ComparisonRow = {
     id: pathId(path),
     property,
     values: Object.fromEntries(versions.map((v, i) => [v.id, values[i]])),
+  };
+  definePresentationFields(result, {
+    id: pathId(path),
     children: children?.length ? children : undefined,
     differenceIndicator: controls?.differenceIndicator ?? true,
     nodeSearchable: controls?.nodeSearchable ?? true,
@@ -335,7 +352,58 @@ function row(
           versions.map((version, index) => [version.id, values[index] !== undefined]),
         )
       : undefined,
-  };
+  });
+  const summary = def?.containerSummary ?? displayRule?.containerSummary;
+  if (summary) rowContainerSummaries.set(result, summary);
+  return result;
+}
+const rowContainerSummaries = new WeakMap<ComparisonRow, ContainerSummary>();
+type PresentationFields = Pick<
+  ComparisonRow,
+  | 'id'
+  | 'children'
+  | 'differenceIndicator'
+  | 'nodeSearchable'
+  | 'itemIdentity'
+  | 'presence'
+  | 'descendantDifferenceCount'
+>;
+function definePresentationFields(row: ComparisonRow, fields: Partial<PresentationFields>): void {
+  Object.entries(fields).forEach(([key, value]) => {
+    Object.defineProperty(row, key, {
+      configurable: true,
+      enumerable: false,
+      value,
+      writable: true,
+    });
+  });
+}
+/** Preserves internal presentation metadata while public row serialization stays data-only. */
+export function copyComparisonRow(
+  row: ComparisonRow,
+  changes: Partial<ComparisonRow>,
+): ComparisonRow {
+  const copy = Object.create(Object.getPrototypeOf(row)) as ComparisonRow;
+  Object.defineProperties(copy, Object.getOwnPropertyDescriptors(row));
+  Object.entries(changes).forEach(([key, value]) => {
+    const descriptor = Object.getOwnPropertyDescriptor(copy, key);
+    if (descriptor && !descriptor.enumerable) {
+      Object.defineProperty(copy, key, { ...descriptor, value });
+    } else {
+      Object.assign(copy, { [key]: value });
+    }
+  });
+  return copy;
+}
+function collectContainerSummaries(
+  rows: readonly ComparisonRow[],
+  target: Map<string, ContainerSummary>,
+): void {
+  rows.forEach((current) => {
+    const summary = rowContainerSummaries.get(current);
+    if (summary) target.set(current.id, summary);
+    collectContainerSummaries(current.children ?? [], target);
+  });
 }
 interface RowDisplayControls {
   differenceIndicator: DifferenceOptions['differenceIndicator'];
@@ -571,13 +639,13 @@ function markDifferences(
         count + Number(child.hasOwnDifference) + (child.descendantDifferenceCount ?? 0),
       0,
     );
-    return {
-      ...row,
+    const result = copyComparisonRow(row, {
       children: children.length ? children : undefined,
       hasDifference: ownDifference || children.some((child) => child.hasDifference),
       hasOwnDifference: ownDifference,
-      descendantDifferenceCount,
-    };
+    });
+    definePresentationFields(result, { descendantDifferenceCount });
+    return result;
   });
 }
 function deepEqual(

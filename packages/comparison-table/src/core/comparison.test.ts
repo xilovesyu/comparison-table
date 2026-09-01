@@ -91,11 +91,24 @@ describe('buildComparisonRows', () => {
   });
 
   it('keeps container summary functions out of the public row and property shape', () => {
-    const rows = buildComparisonRows(
-      [{ id: 'v1', label: 'V1', data: { payload: { id: 1 } } }],
-      { propertyDefinitions: [{ key: 'payload', label: 'Payload', path: ['payload'], level: 0, type: 'object', containerSummary: () => 'summary' }] },
-    );
-    expect(Object.keys(rows[0]).sort()).toEqual(['hasDifference', 'hasOwnDifference', 'property', 'values']);
+    const rows = buildComparisonRows([{ id: 'v1', label: 'V1', data: { payload: { id: 1 } } }], {
+      propertyDefinitions: [
+        {
+          key: 'payload',
+          label: 'Payload',
+          path: ['payload'],
+          level: 0,
+          type: 'object',
+          containerSummary: () => 'summary',
+        },
+      ],
+    });
+    expect(Object.keys(rows[0]).sort()).toEqual([
+      'hasDifference',
+      'hasOwnDifference',
+      'property',
+      'values',
+    ]);
     expect(Object.keys(rows[0].property).sort()).toEqual(['key', 'label', 'level', 'path', 'type']);
   });
 

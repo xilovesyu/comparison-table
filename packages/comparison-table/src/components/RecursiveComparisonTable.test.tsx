@@ -344,8 +344,22 @@ describe('RecursiveComparisonTable', () => {
         versions={[{ id: 'v1', label: 'V1', data: { nullable: { a: 1 }, falsey: { b: 2 } } }]}
         rules={[{ path: '*', expand: false }]}
         propertyDefinitions={[
-          { key: 'nullable', label: 'Nullable', path: ['nullable'], level: 0, type: 'object', renderValue: () => null },
-          { key: 'falsey', label: 'Falsey', path: ['falsey'], level: 0, type: 'object', renderValue: () => false },
+          {
+            key: 'nullable',
+            label: 'Nullable',
+            path: ['nullable'],
+            level: 0,
+            type: 'object',
+            renderValue: () => null,
+          },
+          {
+            key: 'falsey',
+            label: 'Falsey',
+            path: ['falsey'],
+            level: 0,
+            type: 'object',
+            renderValue: () => false,
+          },
         ]}
       />,
     );
@@ -367,14 +381,38 @@ describe('RecursiveComparisonTable', () => {
   });
 
   it('uses safe built-in summaries for keyed Added containers without a formatter', () => {
-    render(<RecursiveComparisonTable versions={[{ id: 'base', label: 'Base', data: { lines: [] } }, { id: 'next', label: 'Next', data: { lines: [{ sku: 'object', payload: { id: 1 } }, { sku: 'array', payload: ['a', 'b'] }] } }]} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines.*.payload', expand: false }]} />);
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          { id: 'base', label: 'Base', data: { lines: [] } },
+          {
+            id: 'next',
+            label: 'Next',
+            data: {
+              lines: [
+                { sku: 'object', payload: { id: 1 } },
+                { sku: 'array', payload: ['a', 'b'] },
+              ],
+            },
+          },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines.*.payload', expand: false }]}
+      />,
+    );
     expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
     expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
     expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
   });
 
   it('falls back to safe object and array summaries when a formatter returns undefined', () => {
-    render(<RecursiveComparisonTable versions={[{ id: 'v1', label: 'V1', data: { object: { id: 1 }, array: ['a', 'b'] } }]} rules={[{ path: '*', expand: false }]} containerSummary={() => undefined} />);
+    render(
+      <RecursiveComparisonTable
+        versions={[{ id: 'v1', label: 'V1', data: { object: { id: 1 }, array: ['a', 'b'] } }]}
+        rules={[{ path: '*', expand: false }]}
+        containerSummary={() => undefined}
+      />,
+    );
     expect(screen.getByText('{ 1 fields }')).toBeInTheDocument();
     expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
   });
