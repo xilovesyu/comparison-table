@@ -141,4 +141,13 @@ describe('documentation examples', () => {
     expect(within(advancedCard).getByText(/arrayItemKeyFields/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/itemDefinition/)).toBeInTheDocument();
   });
+
+  it('shows a genuine baseline-only keyed item as Removed in the keyed-array example', () => {
+    render(<App />);
+    const card = screen
+      .getByRole('heading', { name: '业务键数组对齐' })
+      .closest('.ant-card') as HTMLElement;
+
+    expect(within(card).getByText('Removed')).toBeInTheDocument();
+  });
 });
