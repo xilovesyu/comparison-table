@@ -15,6 +15,7 @@ describe('documentation examples', () => {
     expect(screen.getByRole('heading', { name: '自动 Diff 与自定义比较' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '基准列高亮' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '显示控制与层级继承' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '业务键数组对齐' })).toBeInTheDocument();
   });
 
   it('reveals a source panel for each example', () => {
@@ -49,7 +50,7 @@ describe('documentation examples', () => {
       .closest('.ant-card') as HTMLElement;
     expect(within(card).getByText('结算金额（可展开）')).toBeInTheDocument();
     expect(within(card).getByText('总计（仅一级）')).toBeInTheDocument();
-    expect(within(card).getByText('lines[0]')).toBeInTheDocument();
+    expect(within(card).getAllByText(/^订单行 \[/).length).toBeGreaterThan(0);
     expect(within(card).queryByText('secret')).not.toBeInTheDocument();
   });
 
@@ -93,6 +94,20 @@ describe('documentation examples', () => {
     expect(within(advancedCard).getByLabelText('Base')).toBeInTheDocument();
   });
 
+  it('places keyed-array alignment before the advanced example and integrates it', () => {
+    render(<App />);
+    const keyedHeading = screen.getByRole('heading', { name: '业务键数组对齐' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const keyedCard = keyedHeading.closest('.ant-card') as HTMLElement;
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+
+    expect(
+      keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(keyedCard).getByText('lines[P-100]')).toBeInTheDocument();
+    expect(within(advancedCard).getAllByText(/^订单行 \[/).length).toBeGreaterThan(0);
+  });
+
   it('shows complete data, configuration and JSX in the advanced source panel', () => {
     render(<App />);
     const advancedCard = screen
@@ -103,7 +118,36 @@ describe('documentation examples', () => {
 
     expect(within(advancedCard).getByText(/const advancedVersions/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/const advancedDefinitions/)).toBeInTheDocument();
+    expect(
+      within(advancedCard).getByText(/arrayItemKeyFields={{ lines: 'sku' }}/),
+    ).toBeInTheDocument();
     expect(within(advancedCard).getByText(/baseVersionId: 'baseline'/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/<RecursiveComparisonTable/)).toBeInTheDocument();
+  });
+
+  it('places the keyed-array example before advanced configuration and includes it in the advanced source panel', () => {
+    render(<App />);
+    const keyedHeading = screen.getByRole('heading', { name: '业务键数组对齐' });
+    const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
+    const keyedCard = keyedHeading.closest('.ant-card') as HTMLElement;
+    const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
+    expect(
+      keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(within(keyedCard).getByText('lines[P-100]')).toBeInTheDocument();
+    fireEvent.click(within(keyedCard).getByRole('button', { name: '查看源代码' }));
+    expect(within(keyedCard).getByText(/arrayItemKeyFields/)).toBeInTheDocument();
+    fireEvent.click(within(advancedCard).getByRole('button', { name: '查看源代码' }));
+    expect(within(advancedCard).getByText(/arrayItemKeyFields/)).toBeInTheDocument();
+    expect(within(advancedCard).getByText(/itemDefinition/)).toBeInTheDocument();
+  });
+
+  it('shows a genuine baseline-only keyed item as Removed in the keyed-array example', () => {
+    render(<App />);
+    const card = screen
+      .getByRole('heading', { name: '业务键数组对齐' })
+      .closest('.ant-card') as HTMLElement;
+
+    expect(within(card).getByText('Removed')).toBeInTheDocument();
   });
 });

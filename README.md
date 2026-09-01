@@ -29,6 +29,19 @@ export function App() {
 }
 ```
 
+For business-keyed arrays, map the array path to its identity field. Items are then aligned by
+identity instead of array position:
+
+```tsx
+<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} />
+```
+
+Each configured item must have a unique, non-blank string identity within every version; duplicate,
+missing, or blank identities fail during row construction with the array path, version, and field.
+`Added` and `Removed` are relative to `comparison.baseVersionId` (or the first version when it is
+omitted), while keyed rows retain presence for every version. See the [package README](./packages/comparison-table/README.md#business-keyed-arrays)
+for the full keyed-array contract.
+
 The library declares React, React DOM, Ant Design, and Ant Design Icons as peer dependencies. The consuming application must provide compatible versions.
 
 ## What it supports
@@ -38,6 +51,7 @@ The library declares React, React DOM, Ant Design, and Ant Design Icons as peer 
 - Field selection, path rules, explicit definitions, custom ordering, and flattened levels.
 - Built-in and table-local renderer registries, including selective built-in overrides.
 - Automatic Diff detection, custom business comparators, inherited Diff/search controls, and a baseline `Base` column marker.
+- Business-keyed array alignment with stable keyed paths, reorder-insensitive comparison, and per-version item presence.
 - Controlled or uncontrolled expansion and Ant Design-compatible styling hooks.
 
 ## Screenshots

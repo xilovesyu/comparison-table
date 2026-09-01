@@ -43,13 +43,14 @@ export function VersionComparison() {
 
 ### BuildComparisonConfig
 
-| Prop                  | Type                   | Description                                                                                  |
-| --------------------- | ---------------------- | -------------------------------------------------------------------------------------------- |
-| `selection`           | `PropertySelection`    | Includes or excludes source fields by glob path, regular expression, or predicate.           |
-| `rules`               | `DisplayRule[]`        | Applies path/type/predicate based labels, renderers, expansion, Diff, and node-search rules. |
-| `propertyDefinitions` | `PropertyDefinition[]` | Defines the exact display tree; use it to reorder or flatten nested fields.                  |
-| `comparison`          | `DifferenceOptions`    | Configures Diff detection, baseline rendering, and Diff badges.                              |
-| `nodeSearchable`      | `boolean`              | Default node-level search setting inherited by descendants; defaults to `true`.              |
+| Prop                  | Type                     | Description                                                                                  |
+| --------------------- | ------------------------ | -------------------------------------------------------------------------------------------- |
+| `selection`           | `PropertySelection`      | Includes or excludes source fields by glob path, regular expression, or predicate.           |
+| `rules`               | `DisplayRule[]`          | Applies path/type/predicate based labels, renderers, expansion, Diff, and node-search rules. |
+| `propertyDefinitions` | `PropertyDefinition[]`   | Defines the exact display tree; use it to reorder or flatten nested fields.                  |
+| `arrayItemKeyFields`  | `Record<string, string>` | Maps an array dot path to the business identity field used to align its items.               |
+| `comparison`          | `DifferenceOptions`      | Configures Diff detection, baseline rendering, and Diff badges.                              |
+| `nodeSearchable`      | `boolean`                | Default node-level search setting inherited by descendants; defaults to `true`.              |
 
 ## Data and display configuration
 
@@ -103,6 +104,56 @@ const definitions = [
 ```
 
 This omits the `lines` container while rendering `lines[0]` and `note` side by side at the top level.
+
+### Business-keyed arrays
+
+By default, arrays preserve the legacy index-based comparison and paths such as `lines[0]`.
+Set `arrayItemKeyFields` to compare a configured array by a business field instead:
+
+```tsx
+const versions = [
+  {
+    id: 'draft',
+    label: 'Draft',
+    data: {
+      lines: [
+        { sku: 'P-100', quantity: 1 },
+        { sku: 'P-200', quantity: 2 },
+      ],
+    },
+  },
+  {
+    id: 'review',
+    label: 'Review',
+    data: {
+      lines: [
+        { sku: 'P-200', quantity: 2 },
+        { sku: 'P-100', quantity: 3 },
+      ],
+    },
+  },
+] satisfies ComparisonVersion[];
+
+export function OrderLineComparison() {
+  return <RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} />;
+}
+```
+
+Configured items render with logical paths such as `lines[P-100]`. Reordering items does not
+produce a Diff; changes below the same identity still do. Identity comparison is exact and
+case-sensitive. Every configured item must contain a non-blank string identity, and identities
+must be unique within each version. Duplicate, missing, or blank identities throw an error that
+identifies the array path, version, and identity field.
+
+The keyed item union is stable: the baseline version's order comes first, then newly seen keys are
+appended in version and array order. The baseline is `comparison.baseVersionId`, or the first
+version when omitted. `Added` and `Removed` states are calculated relative to that baseline, while
+keyed rows retain per-version presence so an item missing in an intermediate version is not treated
+as a permanent removal.
+
+When `propertyDefinitions` addresses a keyed array, use its `itemDefinition` template for keyed
+items (including flattened layouts). Numeric item-index paths conflict with keyed alignment and
+are rejected.
 
 ## Renderers
 

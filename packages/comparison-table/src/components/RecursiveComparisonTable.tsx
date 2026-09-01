@@ -6,6 +6,7 @@ import {
   buildComparisonRows,
   filterComparisonRows,
   filterDifferenceRows,
+  getPropertyType,
   type BuildComparisonConfig,
   type ComparisonRow,
   type ComparisonVersion,
@@ -97,6 +98,8 @@ export function RecursiveComparisonTable({
             )
           }
           onQuery={(value) => setNodeQueries((queries) => ({ ...queries, [row.id]: value }))}
+          baselineId={baselineId ?? versions[0]?.id}
+          versionIds={versions.map((version) => version.id)}
         />
       ),
     },
@@ -175,17 +178,43 @@ function PropertyCell({
   query,
   onToggle,
   onQuery,
+  baselineId,
+  versionIds,
 }: {
   row: ComparisonRow;
   open: boolean;
   query: string;
   onToggle: () => void;
   onQuery: (value: string) => void;
+  baselineId?: string;
+  versionIds: readonly string[];
 }) {
   const expandable = Boolean(row.children?.length);
+  const baselinePresent = baselineId ? row.presence?.[baselineId] : undefined;
+  const missingVersionIds = versionIds.filter((id) => !row.presence?.[id]);
+  const status =
+    row.itemIdentity && baselinePresent !== undefined
+      ? baselinePresent
+        ? missingVersionIds.length === versionIds.length - 1
+          ? 'removed'
+          : undefined
+        : missingVersionIds.length === 1
+          ? 'added'
+          : undefined
+      : undefined;
   return (
     <div className="comparison-property-cell">
       <span>{row.property.label}</span>
+      {status && (
+        <span className={`comparison-item-status comparison-item-status-${status}`}>
+          {status === 'added' ? 'Added' : 'Removed'}
+        </span>
+      )}
+      {row.itemIdentity && !status && missingVersionIds.length > 0 && (
+        <span className="comparison-item-status comparison-item-status-missing">
+          Missing in {missingVersionIds.join(', ')}
+        </span>
+      )}
       <DifferenceIndicator row={row} indicator={row.differenceIndicator} />
       {expandable && row.nodeSearchable && (
         <Button
@@ -246,6 +275,7 @@ function renderValue(row: ComparisonRow, version: ComparisonVersion, registry: R
     value,
     level: row.property.level,
     type: row.property.type,
+    valueType: getPropertyType(value),
     version,
     property: row.property,
   };

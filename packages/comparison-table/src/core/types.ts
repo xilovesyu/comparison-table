@@ -25,8 +25,8 @@ export interface PropertyDefinition {
   path: PropertyPath;
   /** Visual nesting level for the supplied display tree. */
   level: number;
-  /** Value kind used to select a built-in renderer. */
-  type: PropertyType;
+  /** Value kind used to select a built-in or consumer-defined renderer. */
+  type: PropertyType | (string & {});
   /** Child nodes, which may flatten or reorder the source data tree. */
   children?: PropertyDefinition[];
   /** Optional label formatter for consumers building definitions programmatically. */
@@ -43,6 +43,10 @@ export interface PropertyDefinition {
   differenceIndicator?: DifferenceIndicatorSetting;
   /** Per-node subtree-search setting that overrides inherited configuration. */
   nodeSearchable?: boolean;
+  /** Template expanded once for each keyed-array item when this definition addresses that array. */
+  itemDefinition?: PropertyDefinition;
+  /** Omits this array container while expanding its keyed item template. */
+  flatten?: boolean;
 }
 
 /** Context used to select fields, match rules, and compare values. */
@@ -57,8 +61,10 @@ export interface PropertyContext {
   parent?: unknown;
   /** Zero-based nesting level. */
   level: number;
-  /** Detected type of `value`. */
-  type: PropertyType;
+  /** Effective display type, including an explicit property-definition override. */
+  type: PropertyDefinition['type'];
+  /** Runtime type detected from `value`, retained separately from display semantics. */
+  valueType: PropertyType;
 }
 /** Glob-like path, regular expression, or predicate used to match a field. */
 export type PropertyMatcher = string | RegExp | ((context: PropertyContext) => boolean);
@@ -118,6 +124,10 @@ export interface ComparisonRow {
   differenceIndicator?: DifferenceIndicatorSetting;
   /** Resolved setting that determines whether this row exposes subtree search. */
   nodeSearchable?: boolean;
+  /** Business identity for a keyed-array item, when this row belongs to one. */
+  itemIdentity?: string;
+  /** Whether the keyed item exists in each version. */
+  presence?: Record<string, boolean>;
 }
 
 /** Information passed to a custom Diff badge renderer. */
@@ -167,6 +177,8 @@ export interface BuildComparisonConfig {
   rules?: DisplayRule[];
   /** Explicit field tree used for custom ordering or flattened display. */
   propertyDefinitions?: PropertyDefinition[];
+  /** Maps an array's dot path to the field used to align its items between versions. */
+  arrayItemKeyFields?: Record<string, string>;
   /** Difference, baseline, and indicator options. */
   comparison?: DifferenceOptions;
   /** Default subtree-search setting inherited by nodes. Defaults to `true`. */

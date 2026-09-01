@@ -181,6 +181,28 @@ main {
   line-height: 10px;
   text-align: center;
 }
+
+.comparison-item-status {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.comparison-item-status-added {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.comparison-item-status-removed {
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.comparison-item-status-missing {
+  color: #344054;
+  background: #f2f4f7;
+}
 .ant-table-wrapper .ant-table-tbody > tr.comparison-row-difference > td {
   background: #fffcf5;
 }
