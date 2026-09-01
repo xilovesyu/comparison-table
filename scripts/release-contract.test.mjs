@@ -96,4 +96,7 @@ test('public documentation and JSDoc specify the display-only container summary 
   assert.match(packageReadme, /not.*search/i);
   assert.match(typeSource, /containerSummary\??:/);
   assert.match(typeSource, /display-only/i);
+  assert.match(typeSource, /undefined.*normal renderer fallback/i);
+  assert.match(packageReadme, /null.*false/i);
+  assert.match(packageReadme, /not.*search/i);
 });

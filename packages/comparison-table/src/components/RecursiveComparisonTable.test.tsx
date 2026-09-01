@@ -405,6 +405,19 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
   });
 
+  it('summarizes a collapsed keyed-array parent per runtime array cell without a formatter or after undefined', () => {
+    const versions = [
+      { id: 'base', label: 'Base', data: { lines: [{ sku: 'A' }] } },
+      { id: 'next', label: 'Next', data: { lines: [{ sku: 'A' }, { sku: 'B' }] } },
+    ];
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} />);
+    expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
+    expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
+    rerender(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} rules={[{ path: 'lines', expand: false }]} containerSummary={() => undefined} />);
+    expect(screen.getByText('[ 1 items ]')).toBeInTheDocument();
+    expect(screen.getByText('[ 2 items ]')).toBeInTheDocument();
+  });
+
   it('falls back to safe object and array summaries when a formatter returns undefined', () => {
     render(
       <RecursiveComparisonTable
