@@ -37,7 +37,7 @@ describe('documentation examples', () => {
     const card = screen
       .getByRole('heading', { name: '自定义顺序与扁平层级' })
       .closest('.ant-card') as HTMLElement;
-    expect(within(card).getAllByText('订单行').length).toBeGreaterThan(0);
+    expect(within(card).getByText('lines[0]')).toBeInTheDocument();
     expect(within(card).getByText('备注')).toBeInTheDocument();
     expect(within(card).getByText('lines[1]')).toBeInTheDocument();
     expect(within(card).queryByText(/^lines$/)).not.toBeInTheDocument();
@@ -50,7 +50,7 @@ describe('documentation examples', () => {
       .closest('.ant-card') as HTMLElement;
     expect(within(card).getByText('结算金额（可展开）')).toBeInTheDocument();
     expect(within(card).getByText('总计（仅一级）')).toBeInTheDocument();
-    expect(within(card).getByText('lines[0]')).toBeInTheDocument();
+    expect(within(card).getAllByText('订单行').length).toBeGreaterThan(0);
     expect(within(card).queryByText('secret')).not.toBeInTheDocument();
   });
 
