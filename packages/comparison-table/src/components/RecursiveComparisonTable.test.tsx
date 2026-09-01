@@ -240,6 +240,104 @@ describe('RecursiveComparisonTable', () => {
     expect(onExpandedChange).toHaveBeenCalled();
   });
 
+  it('uses a container summary formatter for collapsed keyed Added and Removed object and array cells', () => {
+    const summary = (
+      value: unknown,
+      context: { version: { id: string }; property: { path: unknown[] } },
+    ) =>
+      `summary:${context.version.id}:${context.property.path.join('.')}:${Array.isArray(value) ? 'array' : 'object'}`;
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          { id: 'base', label: 'Base', data: { lines: [{ sku: 'old', tags: ['a'] }] } },
+          { id: 'next', label: 'Next', data: { lines: [{ sku: 'new', tags: ['b', 'c'] }] } },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        rules={[{ path: 'lines', expand: false }]}
+        {...({ containerSummary: summary } as never)}
+      />,
+    );
+    expect(screen.getByText('summary:base:lines:array')).toBeInTheDocument();
+    expect(screen.getByText('summary:next:lines:array')).toBeInTheDocument();
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument();
+  });
+
+  it('resolves container summary formatter definition, rule, then table and keeps renderer overrides higher', () => {
+    const table = () => 'table summary';
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          { id: 'v1', label: 'V1', data: { defined: { a: 1 }, ruled: { b: 2 }, local: { c: 3 } } },
+        ]}
+        rules={[
+          {
+            path: 'ruled',
+            expand: false,
+            ...({ containerSummary: () => 'rule summary' } as never),
+          },
+        ]}
+        propertyDefinitions={[
+          {
+            key: 'defined',
+            label: 'Defined',
+            path: ['defined'],
+            level: 0,
+            type: 'object',
+            ...({ containerSummary: () => 'definition summary' } as never),
+          },
+          { key: 'ruled', label: 'Ruled', path: ['ruled'], level: 0, type: 'object' },
+          {
+            key: 'local',
+            label: 'Local',
+            path: ['local'],
+            level: 0,
+            type: 'object',
+            renderer: 'local',
+          },
+        ]}
+        renderers={{ local: () => 'named renderer' }}
+        {...({ containerSummary: table } as never)}
+      />,
+    );
+    expect(screen.getByText('definition summary')).toBeInTheDocument();
+    expect(screen.getByText('rule summary')).toBeInTheDocument();
+    expect(screen.getByText('named renderer')).toBeInTheDocument();
+    expect(screen.queryByText('table summary')).not.toBeInTheDocument();
+  });
+
+  it('uses each cell runtime type for summaries, falls back only on undefined, and never searches summary ReactNodes', () => {
+    const summary = (value: unknown) =>
+      value === undefined ? undefined : value === null ? null : value === false ? (
+        false
+      ) : (
+        <b>SECRET-SUMMARY</b>
+      );
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'a',
+            label: 'A',
+            data: { value: { nested: 1 }, absent: undefined, nullable: null, falsey: false },
+          },
+          {
+            id: 'b',
+            label: 'B',
+            data: { value: ['x'], absent: undefined, nullable: null, falsey: false },
+          },
+        ]}
+        rules={[{ path: '*', expand: false }]}
+        {...({ containerSummary: summary } as never)}
+      />,
+    );
+    expect(screen.getAllByText('SECRET-SUMMARY')).toHaveLength(2);
+    expect(screen.getByText('—')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search comparison'), {
+      target: { value: 'SECRET-SUMMARY' },
+    });
+    expect(screen.queryByText('value')).not.toBeInTheDocument();
+  });
+
   it('P1: does not collapse an item that returns after an intermediate absence into Removed', () => {
     render(
       <RecursiveComparisonTable
