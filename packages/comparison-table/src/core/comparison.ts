@@ -644,7 +644,7 @@ function ruleFor(c: PropertyContext, rules?: DisplayRule[]): DisplayRule | undef
           (Array.isArray(r.path)
             ? pathId(r.path) === pathId(c.path)
             : r.path === c.path.join('.'))) &&
-        (r.type === undefined || r.type === c.type) &&
+        (r.type === undefined || r.type === c.valueType) &&
         (!r.matcher || r.matcher(c)),
     )
     .sort((a, b) => score(a) - score(b))
