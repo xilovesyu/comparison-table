@@ -4,12 +4,25 @@ import { ExampleCard } from './ExampleCard';
 
 const keyedVersions = [
   {
-    id: 'initial', label: '初始版',
-    data: { lines: [{ sku: 'P-100', quantity: 1 }, { sku: 'P-200', quantity: 2 }] },
+    id: 'initial',
+    label: '初始版',
+    data: {
+      lines: [
+        { sku: 'P-100', quantity: 1 },
+        { sku: 'P-200', quantity: 2 },
+      ],
+    },
   },
   {
-    id: 'review', label: '复核版',
-    data: { lines: [{ sku: 'P-200', quantity: 2 }, { sku: 'P-100', quantity: 3 }, { sku: 'P-300', quantity: 1 }] },
+    id: 'review',
+    label: '复核版',
+    data: {
+      lines: [
+        { sku: 'P-200', quantity: 2 },
+        { sku: 'P-100', quantity: 3 },
+        { sku: 'P-300', quantity: 1 },
+      ],
+    },
   },
 ] satisfies ComparisonVersion[];
 

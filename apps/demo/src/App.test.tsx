@@ -118,7 +118,9 @@ describe('documentation examples', () => {
 
     expect(within(advancedCard).getByText(/const advancedVersions/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/const advancedDefinitions/)).toBeInTheDocument();
-    expect(within(advancedCard).getByText(/arrayItemKeyFields={{ lines: 'sku' }}/)).toBeInTheDocument();
+    expect(
+      within(advancedCard).getByText(/arrayItemKeyFields={{ lines: 'sku' }}/),
+    ).toBeInTheDocument();
     expect(within(advancedCard).getByText(/baseVersionId: 'baseline'/)).toBeInTheDocument();
     expect(within(advancedCard).getByText(/<RecursiveComparisonTable/)).toBeInTheDocument();
   });
@@ -129,7 +131,9 @@ describe('documentation examples', () => {
     const advancedHeading = screen.getByRole('heading', { name: '综合高级配置' });
     const keyedCard = keyedHeading.closest('.ant-card') as HTMLElement;
     const advancedCard = advancedHeading.closest('.ant-card') as HTMLElement;
-    expect(keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      keyedHeading.compareDocumentPosition(advancedHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(within(keyedCard).getByText('lines[P-100]')).toBeInTheDocument();
     fireEvent.click(within(keyedCard).getByRole('button', { name: '查看源代码' }));
     expect(within(keyedCard).getByText(/arrayItemKeyFields/)).toBeInTheDocument();

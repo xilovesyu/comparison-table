@@ -92,61 +92,144 @@ describe('buildComparisonRows', () => {
 
   describe('keyed array alignment', () => {
     const twoVersions = [
-      { id: 'base', label: 'Base', data: { lines: [{ sku: 'P-100', quantity: 1 }, { sku: 'P-200', quantity: 2 }] } },
-      { id: 'review', label: 'Review', data: { lines: [{ sku: 'P-200', quantity: 2 }, { sku: 'P-100', quantity: 1 }] } },
+      {
+        id: 'base',
+        label: 'Base',
+        data: {
+          lines: [
+            { sku: 'P-100', quantity: 1 },
+            { sku: 'P-200', quantity: 2 },
+          ],
+        },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: {
+          lines: [
+            { sku: 'P-200', quantity: 2 },
+            { sku: 'P-100', quantity: 1 },
+          ],
+        },
+      },
     ];
 
     it('preserves legacy index paths, labels, and differences when no key field is configured', () => {
       const rows = buildComparisonRows(twoVersions);
-      expect(rows[0].children?.map(({ id, property, hasDifference }) => [id, property.label, hasDifference])).toEqual([
-        ['["lines",0]', 'lines[0]', true], ['["lines",1]', 'lines[1]', true],
+      expect(
+        rows[0].children?.map(({ id, property, hasDifference }) => [
+          id,
+          property.label,
+          hasDifference,
+        ]),
+      ).toEqual([
+        ['["lines",0]', 'lines[0]', true],
+        ['["lines",1]', 'lines[1]', true],
       ]);
     });
 
     it('treats two- and three-version reorder-only keyed arrays as equal, including collapsed arrays', () => {
-      const threeVersions = [...twoVersions, {
-        id: 'final', label: 'Final', data: { lines: [{ sku: 'P-100', quantity: 1 }, { sku: 'P-200', quantity: 2 }] },
-      }];
+      const threeVersions = [
+        ...twoVersions,
+        {
+          id: 'final',
+          label: 'Final',
+          data: {
+            lines: [
+              { sku: 'P-100', quantity: 1 },
+              { sku: 'P-200', quantity: 2 },
+            ],
+          },
+        },
+      ];
       for (const versions of [twoVersions, threeVersions]) {
         const rows = buildComparisonRows(versions, { arrayItemKeyFields: { lines: 'sku' } });
         expect(rows[0]).toMatchObject({ hasDifference: false });
-        expect(rows[0].children?.map((row) => [row.id, row.property.label, row.hasDifference])).toEqual([
-          ['["lines","P-100"]', 'lines[P-100]', false], ['["lines","P-200"]', 'lines[P-200]', false],
+        expect(
+          rows[0].children?.map((row) => [row.id, row.property.label, row.hasDifference]),
+        ).toEqual([
+          ['["lines","P-100"]', 'lines[P-100]', false],
+          ['["lines","P-200"]', 'lines[P-200]', false],
         ]);
       }
-      expect(buildComparisonRows(twoVersions, {
-        arrayItemKeyFields: { lines: 'sku' }, rules: [{ path: 'lines', expand: false }],
-      })[0]).toMatchObject({ children: undefined, hasDifference: false });
+      expect(
+        buildComparisonRows(twoVersions, {
+          arrayItemKeyFields: { lines: 'sku' },
+          rules: [{ path: 'lines', expand: false }],
+        })[0],
+      ).toMatchObject({ children: undefined, hasDifference: false });
     });
 
     it('retains stable keyed row ids and detects a changed child under the same business key', () => {
-      const changed = [twoVersions[0], {
-        id: 'review', label: 'Review', data: { lines: [{ sku: 'P-200', quantity: 2 }, { sku: 'P-100', quantity: 9 }] },
-      }];
-      const reorderedRows = buildComparisonRows(twoVersions, { arrayItemKeyFields: { lines: 'sku' } });
+      const changed = [
+        twoVersions[0],
+        {
+          id: 'review',
+          label: 'Review',
+          data: {
+            lines: [
+              { sku: 'P-200', quantity: 2 },
+              { sku: 'P-100', quantity: 9 },
+            ],
+          },
+        },
+      ];
+      const reorderedRows = buildComparisonRows(twoVersions, {
+        arrayItemKeyFields: { lines: 'sku' },
+      });
       const changedRows = buildComparisonRows(changed, { arrayItemKeyFields: { lines: 'sku' } });
-      expect(reorderedRows[0].children?.map((row) => row.id)).toEqual(changedRows[0].children?.map((row) => row.id));
-      expect(changedRows[0].children?.[0]).toMatchObject({ id: '["lines","P-100"]', hasDifference: true });
-      expect(changedRows[0].children?.[0].children?.find((row) => row.property.key === 'quantity'))
-        .toMatchObject({ values: { base: 1, review: 9 }, hasDifference: true });
+      expect(reorderedRows[0].children?.map((row) => row.id)).toEqual(
+        changedRows[0].children?.map((row) => row.id),
+      );
+      expect(changedRows[0].children?.[0]).toMatchObject({
+        id: '["lines","P-100"]',
+        hasDifference: true,
+      });
+      expect(
+        changedRows[0].children?.[0].children?.find((row) => row.property.key === 'quantity'),
+      ).toMatchObject({ values: { base: 1, review: 9 }, hasDifference: true });
     });
 
     it('orders keys from baseline then later versions, with base-relative add/remove and per-version presence', () => {
-      const rows = buildComparisonRows([
-        { id: 'base', label: 'Base', data: { lines: [{ sku: 'B', quantity: 1 }, { sku: 'A', quantity: 1 }] } },
-        { id: 'mid', label: 'Mid', data: { lines: [{ sku: 'C', quantity: 1 }] } },
-        { id: 'last', label: 'Last', data: { lines: [{ sku: 'C', quantity: 2 }, { sku: 'D', quantity: 1 }] } },
-      ], { arrayItemKeyFields: { lines: 'sku' }, comparison: { baseVersionId: 'base' } });
+      const rows = buildComparisonRows(
+        [
+          {
+            id: 'base',
+            label: 'Base',
+            data: {
+              lines: [
+                { sku: 'B', quantity: 1 },
+                { sku: 'A', quantity: 1 },
+              ],
+            },
+          },
+          { id: 'mid', label: 'Mid', data: { lines: [{ sku: 'C', quantity: 1 }] } },
+          {
+            id: 'last',
+            label: 'Last',
+            data: {
+              lines: [
+                { sku: 'C', quantity: 2 },
+                { sku: 'D', quantity: 1 },
+              ],
+            },
+          },
+        ],
+        { arrayItemKeyFields: { lines: 'sku' }, comparison: { baseVersionId: 'base' } },
+      );
       expect(rows[0].children?.map((row) => [row.itemIdentity, row.presence])).toEqual([
-        ['B', { base: true, mid: false, last: false }], ['A', { base: true, mid: false, last: false }],
-        ['C', { base: false, mid: true, last: true }], ['D', { base: false, mid: false, last: true }],
+        ['B', { base: true, mid: false, last: false }],
+        ['A', { base: true, mid: false, last: false }],
+        ['C', { base: false, mid: true, last: true }],
+        ['D', { base: false, mid: false, last: true }],
       ]);
     });
 
     it('rejects duplicate, missing, and blank identities with path, version, field and offending value or position', () => {
-      const build = (lines: unknown[]) => buildComparisonRows(
-        [{ id: 'v1', label: 'V1', data: { lines } }], { arrayItemKeyFields: { lines: 'sku' } },
-      );
+      const build = (lines: unknown[]) =>
+        buildComparisonRows([{ id: 'v1', label: 'V1', data: { lines } }], {
+          arrayItemKeyFields: { lines: 'sku' },
+        });
       expect(() => build([{ sku: 'A' }, { sku: 'A' }])).toThrow(/lines.*v1.*sku.*A.*(?:0|1)/i);
       expect(() => build([{}])).toThrow(/lines.*v1.*sku.*(?:missing|index 0|0)/i);
       expect(() => build([{ sku: '  ' }])).toThrow(/lines.*v1.*sku.*(?:blank|index 0|0)/i);
@@ -154,24 +237,60 @@ describe('buildComparisonRows', () => {
 
     it('uses keyed item-definition templates while rejecting conflicting numeric definitions only for keyed arrays', () => {
       const versions = [{ id: 'v1', label: 'V1', data: { lines: [{ sku: 'A', quantity: 2 }] } }];
-      const numericDefinition: PropertyDefinition[] = [{
-        key: 'line0', label: 'lines[0]', path: ['lines', 0], level: 0, type: 'object',
-      }];
-      expect(buildComparisonRows(versions, { propertyDefinitions: numericDefinition })).toHaveLength(1);
-      expect(() => buildComparisonRows(versions, { arrayItemKeyFields: { lines: 'sku' }, propertyDefinitions: numericDefinition }))
-        .toThrow(/keyed.*array.*numeric|numeric.*index/i);
+      const numericDefinition: PropertyDefinition[] = [
+        {
+          key: 'line0',
+          label: 'lines[0]',
+          path: ['lines', 0],
+          level: 0,
+          type: 'object',
+        },
+      ];
+      expect(
+        buildComparisonRows(versions, { propertyDefinitions: numericDefinition }),
+      ).toHaveLength(1);
+      expect(() =>
+        buildComparisonRows(versions, {
+          arrayItemKeyFields: { lines: 'sku' },
+          propertyDefinitions: numericDefinition,
+        }),
+      ).toThrow(/keyed.*array.*numeric|numeric.*index/i);
       const rows = buildComparisonRows(versions, {
         arrayItemKeyFields: { lines: 'sku' },
-        propertyDefinitions: [{
-          key: 'lines', label: 'Lines', path: ['lines'], level: 0, type: 'array', flatten: true,
-          itemDefinition: { key: 'line', label: 'Line item', path: [], level: 0, type: 'object', children: [
-            { key: 'quantity', label: 'Quantity', path: ['quantity'], level: 1, type: 'number' },
-          ] },
-        }],
+        propertyDefinitions: [
+          {
+            key: 'lines',
+            label: 'Lines',
+            path: ['lines'],
+            level: 0,
+            type: 'array',
+            flatten: true,
+            itemDefinition: {
+              key: 'line',
+              label: 'Line item',
+              path: [],
+              level: 0,
+              type: 'object',
+              children: [
+                {
+                  key: 'quantity',
+                  label: 'Quantity',
+                  path: ['quantity'],
+                  level: 1,
+                  type: 'number',
+                },
+              ],
+            },
+          },
+        ],
       });
-      expect(rows).toMatchObject([{ id: '["lines","A"]', property: { label: 'Line item' }, children: [
-        { property: { label: 'Quantity' }, values: { v1: 2 } },
-      ] }]);
+      expect(rows).toMatchObject([
+        {
+          id: '["lines","A"]',
+          property: { label: 'Line item' },
+          children: [{ property: { label: 'Quantity' }, values: { v1: 2 } }],
+        },
+      ]);
     });
   });
 });

@@ -190,13 +190,22 @@ function PropertyCell({
 }) {
   const expandable = Boolean(row.children?.length);
   const baselinePresent = baselineId ? row.presence?.[baselineId] : undefined;
-  const status = row.itemIdentity && baselinePresent !== undefined
-    ? (baselinePresent ? (versionIds.some((id) => !row.presence?.[id]) ? 'removed' : undefined) : 'added')
-    : undefined;
+  const status =
+    row.itemIdentity && baselinePresent !== undefined
+      ? baselinePresent
+        ? versionIds.some((id) => !row.presence?.[id])
+          ? 'removed'
+          : undefined
+        : 'added'
+      : undefined;
   return (
     <div className="comparison-property-cell">
       <span>{row.property.label}</span>
-      {status && <span className={`comparison-item-status comparison-item-status-${status}`}>{status === 'added' ? 'Added' : 'Removed'}</span>}
+      {status && (
+        <span className={`comparison-item-status comparison-item-status-${status}`}>
+          {status === 'added' ? 'Added' : 'Removed'}
+        </span>
+      )}
       <DifferenceIndicator row={row} indicator={row.differenceIndicator} />
       {expandable && row.nodeSearchable && (
         <Button

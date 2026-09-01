@@ -123,9 +123,18 @@ const advancedDefinitions = [
     type: 'object',
   },
   {
-    key: 'lines', label: 'lines', path: ['lines'], level: 0, type: 'array', flatten: true,
+    key: 'lines',
+    label: 'lines',
+    path: ['lines'],
+    level: 0,
+    type: 'array',
+    flatten: true,
     itemDefinition: {
-      key: 'line', label: '订单行', path: [], level: 0, type: 'object',
+      key: 'line',
+      label: '订单行',
+      path: [],
+      level: 0,
+      type: 'object',
       children: [
         { key: 'sku', label: 'SKU', path: ['sku'], level: 1, type: 'string' },
         { key: 'quantity', label: '数量', path: ['quantity'], level: 1, type: 'number' },

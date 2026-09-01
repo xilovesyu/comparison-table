@@ -179,10 +179,35 @@ describe('RecursiveComparisonTable', () => {
 
   it('keeps keyed rows usable with renderers, baseline, difference-only and global/local search', () => {
     const versions = [
-      { id: 'base', label: 'Base', data: { lines: [{ sku: 'A', quantity: 1 }, { sku: 'B', quantity: 1 }] } },
-      { id: 'next', label: 'Next', data: { lines: [{ sku: 'B', quantity: 1 }, { sku: 'A', quantity: 2 }] } },
+      {
+        id: 'base',
+        label: 'Base',
+        data: {
+          lines: [
+            { sku: 'A', quantity: 1 },
+            { sku: 'B', quantity: 1 },
+          ],
+        },
+      },
+      {
+        id: 'next',
+        label: 'Next',
+        data: {
+          lines: [
+            { sku: 'B', quantity: 1 },
+            { sku: 'A', quantity: 2 },
+          ],
+        },
+      },
     ];
-    render(<RecursiveComparisonTable versions={versions} arrayItemKeyFields={{ lines: 'sku' }} comparison={{ baseVersionId: 'base' }} rules={[{ path: 'lines.*.quantity', renderer: 'number' }]} />);
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        comparison={{ baseVersionId: 'base' }}
+        rules={[{ path: 'lines.*.quantity', renderer: 'number' }]}
+      />,
+    );
     expect(screen.getByLabelText('Base')).toBeInTheDocument();
     expect(screen.getByText('lines[A]')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('switch', { name: 'Only show differences' }));
@@ -191,16 +216,25 @@ describe('RecursiveComparisonTable', () => {
     fireEvent.change(screen.getByLabelText('Search comparison'), { target: { value: '2' } });
     expect(screen.getByText('lines[A]')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Search within lines[A]' }));
-    fireEvent.change(screen.getByLabelText('Filter lines[A] children'), { target: { value: 'quantity' } });
+    fireEvent.change(screen.getByLabelText('Filter lines[A] children'), {
+      target: { value: 'quantity' },
+    });
     expect(screen.getByText('quantity')).toBeInTheDocument();
   });
 
   it('honors controlled expansion with stable keyed ids after version reorder', () => {
     const onExpandedChange = vi.fn();
-    render(<RecursiveComparisonTable versions={[
-      { id: 'base', label: 'Base', data: { lines: [{ sku: 'A', quantity: 1 }] } },
-      { id: 'next', label: 'Next', data: { lines: [{ sku: 'A', quantity: 2 }] } },
-    ]} arrayItemKeyFields={{ lines: 'sku' }} expandedKeys={['["lines"]', '["lines","A"]']} onExpandedChange={onExpandedChange} />);
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          { id: 'base', label: 'Base', data: { lines: [{ sku: 'A', quantity: 1 }] } },
+          { id: 'next', label: 'Next', data: { lines: [{ sku: 'A', quantity: 2 }] } },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        expandedKeys={['["lines"]', '["lines","A"]']}
+        onExpandedChange={onExpandedChange}
+      />,
+    );
     expect(screen.getByText('quantity')).toBeInTheDocument();
     fireEvent.click(document.querySelector('.ant-table-row-expand-icon') as HTMLElement);
     expect(onExpandedChange).toHaveBeenCalled();

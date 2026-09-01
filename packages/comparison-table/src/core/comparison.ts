@@ -93,7 +93,8 @@ function visit(
       const rule = ruleFor(context, config.rules);
       const controls = resolveRowDisplayControls(config, inheritedControls, rule);
       const expandable =
-        nodeValues.some(container) && !nodeValues.some((v) => container(v) && ancestors.includes(v));
+        nodeValues.some(container) &&
+        !nodeValues.some((v) => container(v) && ancestors.includes(v));
       const children =
         expandable && rule?.expand !== false
           ? visit(
@@ -174,12 +175,15 @@ function fromDefinitions(
     const context = ctx(def.key, path, values[0], undefined);
     const rule = ruleFor(context, config.rules);
     const controls = resolveRowDisplayControls(config, inheritedControls, rule, def);
-    const itemRows = def.itemDefinition && keyFieldFor(path, config.arrayItemKeyFields)
-      ? fromItemDefinition(def.itemDefinition, values, versions, path, config, controls)
-      : undefined;
-    const children = itemRows ?? (def.children && rule?.expand !== false
-      ? fromDefinitions(def.children, versions, config, path, controls)
-      : undefined);
+    const itemRows =
+      def.itemDefinition && keyFieldFor(path, config.arrayItemKeyFields)
+        ? fromItemDefinition(def.itemDefinition, values, versions, path, config, controls)
+        : undefined;
+    const children =
+      itemRows ??
+      (def.children && rule?.expand !== false
+        ? fromDefinitions(def.children, versions, config, path, controls)
+        : undefined);
     if (!selected(context, config.selection) && !children?.length) return [];
     if (def.flatten && itemRows) return itemRows;
     return [row(def.key, path, values, versions, context, children, rule, def, controls)];
@@ -201,11 +205,31 @@ function fromItemDefinition(
     const context = ctx(template.key, path, values[0], undefined);
     const rule = ruleFor(context, config.rules);
     const controls = resolveRowDisplayControls(config, inherited, rule, template);
-    const children = template.children && rule?.expand !== false
-      ? fromDefinitions(relativeDefinitions(template.children, path), versions, config, path, controls)
-      : undefined;
+    const children =
+      template.children && rule?.expand !== false
+        ? fromDefinitions(
+            relativeDefinitions(template.children, path),
+            versions,
+            config,
+            path,
+            controls,
+          )
+        : undefined;
     if (!selected(context, config.selection) && !children?.length) return [];
-    return [row(template.key, path, values, versions, context, children, rule, template, controls, identity)];
+    return [
+      row(
+        template.key,
+        path,
+        values,
+        versions,
+        context,
+        children,
+        rule,
+        template,
+        controls,
+        identity,
+      ),
+    ];
   });
 }
 function relativeDefinitions(
@@ -214,8 +238,12 @@ function relativeDefinitions(
 ): PropertyDefinition[] {
   return definitions.map((definition) => ({
     ...definition,
-    path: definition.path.length ? [...parentPath, ...definition.path] : [...parentPath, definition.key],
-    children: definition.children ? relativeDefinitions(definition.children, parentPath) : undefined,
+    path: definition.path.length
+      ? [...parentPath, ...definition.path]
+      : [...parentPath, definition.key],
+    children: definition.children
+      ? relativeDefinitions(definition.children, parentPath)
+      : undefined,
   }));
 }
 function row(
@@ -248,7 +276,9 @@ function row(
     nodeSearchable: controls?.nodeSearchable ?? true,
     itemIdentity,
     presence: itemIdentity
-      ? Object.fromEntries(versions.map((version, index) => [version.id, values[index] !== undefined]))
+      ? Object.fromEntries(
+          versions.map((version, index) => [version.id, values[index] !== undefined]),
+        )
       : undefined,
   };
 }
@@ -320,7 +350,9 @@ function keyedItems(
   const maps = values.map((value, index) => {
     if (value === undefined || value === null) return undefined;
     if (!Array.isArray(value)) {
-      throw new Error(`Keyed array "${path.join('.')}" in version "${versions[index].id}" must be an array`);
+      throw new Error(
+        `Keyed array "${path.join('.')}" in version "${versions[index].id}" must be an array`,
+      );
     }
     const map = new Map<string, unknown>();
     value.forEach((item, itemIndex) => {
@@ -339,12 +371,19 @@ function keyedItems(
     });
     return map;
   });
-  const baseline = baseVersionId ? versions.findIndex((version) => version.id === baseVersionId) : 0;
-  const order = [baseline, ...versions.map((_, index) => index).filter((index) => index !== baseline)];
+  const baseline = baseVersionId
+    ? versions.findIndex((version) => version.id === baseVersionId)
+    : 0;
+  const order = [
+    baseline,
+    ...versions.map((_, index) => index).filter((index) => index !== baseline),
+  ];
   const keys: string[] = [];
-  order.forEach((index) => maps[index]?.forEach((_, identity) => {
-    if (!keys.includes(identity)) keys.push(identity);
-  }));
+  order.forEach((index) =>
+    maps[index]?.forEach((_, identity) => {
+      if (!keys.includes(identity)) keys.push(identity);
+    }),
+  );
   return { keys, maps };
 }
 function resolvePath(
@@ -416,7 +455,9 @@ function markDifferences(
     const context = ctx(row.property.key, row.property.path, values[0], undefined);
     const detectedDifference = options?.comparator
       ? options.comparator(values, context)
-      : values.some((value) => !deepEqual(value, values[baseIndex ?? 0], row.property.path, keyFields));
+      : values.some(
+          (value) => !deepEqual(value, values[baseIndex ?? 0], row.property.path, keyFields),
+        );
     const ownDifference = children.length ? false : detectedDifference;
     const descendantDifferenceCount = children.reduce(
       (count, child) =>
@@ -447,12 +488,18 @@ function deepEqual(
       // when this container is intentionally not expanded.
       const leftMap = new Map(left.map((item) => [record(item) ? item[field] : undefined, item]));
       const rightMap = new Map(right.map((item) => [record(item) ? item[field] : undefined, item]));
-      return leftMap.size === rightMap.size && [...leftMap].every(([key, value]) =>
-        rightMap.has(key) && deepEqual(value, rightMap.get(key), [...path, String(key)], keyFields),
+      return (
+        leftMap.size === rightMap.size &&
+        [...leftMap].every(
+          ([key, value]) =>
+            rightMap.has(key) &&
+            deepEqual(value, rightMap.get(key), [...path, String(key)], keyFields),
+        )
       );
     }
     return (
-      left.length === right.length && left.every((value, index) => deepEqual(value, right[index], [...path, index], keyFields))
+      left.length === right.length &&
+      left.every((value, index) => deepEqual(value, right[index], [...path, index], keyFields))
     );
   }
   if (record(left) && record(right)) {
@@ -460,7 +507,9 @@ function deepEqual(
     const rightKeys = Object.keys(right);
     return (
       leftKeys.length === rightKeys.length &&
-      leftKeys.every((key) => key in right && deepEqual(left[key], right[key], [...path, key], keyFields))
+      leftKeys.every(
+        (key) => key in right && deepEqual(left[key], right[key], [...path, key], keyFields),
+      )
     );
   }
   return false;
