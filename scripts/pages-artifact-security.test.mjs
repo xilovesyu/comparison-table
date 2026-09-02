@@ -140,6 +140,12 @@ test('Playwright config load normalizes a missing trailing slash but discovers e
     'https://xilovesyu.github.io/wrong/',
     'https://xilovesyu.github.io/comparison-table/?preview=1',
     'https://xilovesyu.github.io/comparison-table/#example-keyed-array',
+    'https://xilovesyu.github.io:443/comparison-table/',
+    'https://xilovesyu.github.io:0443/comparison-table/',
+    'https://xilovesyu.github.io/comparison-table/%2e/',
+    'https:////xilovesyu.github.io/comparison-table/',
+    'https://viewer@xilovesyu.github.io/comparison-table/',
+    'HTTPS://xilovesyu.github.io/comparison-table/',
   ]) {
     await assert.rejects(listTests(invalid), /PAGES_URL|canonical|HTTPS|localhost/i);
   }
