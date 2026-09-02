@@ -10,7 +10,7 @@
     "test:pages-contract": "node --test scripts/pages-*.test.mjs",
     "test:pages-smoke": "playwright test apps/demo/e2e/pages-smoke.spec.ts",
     "test:release-contract": "node --test scripts/release-contract.test.mjs",
-    "test:performance-contract": "node --test scripts/performance-lab-contract.test.mjs",
+    "test:performance-contract": "node --test scripts/performance-lab-*.test.mjs",
     "perf:lab": "node scripts/performance-lab/run.mjs",
     "perf:lab:quick": "node scripts/performance-lab/host-smoke.mjs",
     "test:watch": "pnpm -r --if-present test:watch",

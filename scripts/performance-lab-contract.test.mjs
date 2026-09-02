@@ -59,7 +59,7 @@ test('Performance Lab schema separates environment and bundle fields and permits
 test('Performance Lab remains isolated from ordinary tests and demo/pages execution', async () => {
   const packageJson = JSON.parse(await read('package.json'));
   assert.match(packageJson.scripts['perf:lab'], /performance/i);
-  assert.match(packageJson.scripts['test:performance-contract'], /performance-lab-contract/);
+  assert.match(packageJson.scripts['test:performance-contract'], /performance-lab-\*\.test/);
   assert.doesNotMatch(packageJson.scripts.test, /performance|benchmark/i);
   assert.doesNotMatch(await read('apps/demo/package.json'), /performance|benchmark/i);
 });
