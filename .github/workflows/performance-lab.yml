@@ -1,0 +1,69 @@
+name: Performance Lab
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-lab-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium only
+        run: pnpm exec playwright install chromium
+
+      - name: Run the full Performance Lab
+        id: performance
+        run: pnpm run perf:lab -- --output .performance-lab/results/performance-lab.v1.json
+
+      - name: Upload reproducibility artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: performance-lab-${{ github.sha }}
+          path: .performance-lab/results
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Write run summary
+        if: always()
+        env:
+          PERFORMANCE_RESULT: ${{ steps.performance.outcome }}
+        run: |
+          summary_file="$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Performance Lab"
+            echo "- commit: ${{ github.sha }}"
+            echo "- seed: 20260902"
+            echo "- result: ${PERFORMANCE_RESULT:-not-run}"
+            echo "- artifact: performance-lab-${{ github.sha }}"
+            echo "- run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$summary_file"

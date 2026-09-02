@@ -119,6 +119,10 @@ pnpm run build
 pnpm test
 ```
 
+For deterministic large-data and adversarial browser measurements, use the private
+[Performance Lab](docs/performance-lab.md). It is isolated from the Demo, Pages deployment, npm package, and
+ordinary test discovery; its scheduled and manual runs record evidence without enforcing timing thresholds.
+
 ## Release locally
 
 Before publishing, increment `packages/comparison-table/package.json` using the intended semantic version.

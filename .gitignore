@@ -4,3 +4,4 @@ dist/
 *.tsbuildinfo
 artifacts/
 .playwright-cli/
+.performance-lab/

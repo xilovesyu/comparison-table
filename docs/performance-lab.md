@@ -1,0 +1,51 @@
+# Performance Lab
+
+The Performance Lab is a private, reproducible browser benchmark for the comparison table. It is not
+part of the Demo, GitHub Pages artifact, or published npm package, and ordinary `pnpm test` runs never
+execute its timing matrix.
+
+## Run locally
+
+Install Chromium once, then run the production Vite host and the full catalog:
+
+```bash
+pnpm exec playwright install chromium
+pnpm run perf:lab
+```
+
+The default JSON artifact is `.performance-lab/results/performance-lab.v1.json`. Override the deterministic
+seed or output path when reproducing a run:
+
+```bash
+pnpm run perf:lab -- --seed 20260902 --output .performance-lab/results/reproduction.json
+```
+
+Use `pnpm run perf:lab:quick` only to validate the production host, browser protocol, real ARIA table, and
+semantic oracle. It is not a performance result.
+
+## V1 catalog and protocol
+
+The checked-in manifest fixes seed `20260902`, three version profiles (2, 3, and 8 versions), and seven
+adversarial cases: empty data, null/missing/undefined values, a 10,240-character string, depth 20, width
+1,000, keyed presence/reorder, and a 1,024-item keyed array. The generator validates every keyed identity
+as a unique non-blank string and the browser runner checks an independent semantic oracle after rendering.
+
+Each full run uses two warmups and seven recorded samples. Scenario order rotates by Latin rotation on each
+round. A sample ends after React commits and two consecutive `requestAnimationFrame` callbacks. Protocol
+timeouts, stale tokens, browser errors, and partial results are explicit; they are not converted to timing
+values. R-7 summaries report finite min, median, p95, and max values with no pass/fail threshold.
+
+Long-task and Chromium heap telemetry are opt-in (`--longtask`, `--heap`) because availability and overhead
+vary by host. The schema always separates environment metadata from production bundle metadata, and keeps
+successfully collected scenarios when another scenario fails.
+
+## Scheduled operation
+
+`.github/workflows/performance-lab.yml` runs each Monday at 03:17 UTC and supports a main-guarded manual run.
+It installs Chromium only, does not cache browser binaries, has read-only repository permission, never
+publishes or deploys, and uploads the JSON evidence for 30 days. Concurrency is serialized without cancelling
+an older run. The 45-minute job limit is an operational guard, not a benchmark threshold.
+
+Compare artifacts only when seed, manifest version, commit, browser, OS, CPU, memory, and bundle metadata are
+understood. Host noise can move timings; this lab records evidence and trends but does not enforce release
+budgets.
