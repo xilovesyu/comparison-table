@@ -1,5 +1,5 @@
 import { ConfigProvider, Space, Typography } from 'antd';
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import {
   AdvancedExample,
@@ -15,6 +15,7 @@ import {
   RendererExample,
   SelectionExample,
 } from './examples';
+import { DemoExampleIdContext } from './demoContext';
 import './app.css';
 
 type ExampleGroup = '基础' | '配置' | '差异' | '高级' | '综合';
@@ -27,7 +28,7 @@ interface DemoExample {
 }
 
 const demoExamples: readonly DemoExample[] = [
-  { id: 'basic', title: '基础递归对比', group: '基础', Component: memo(BasicExample) },
+  { id: 'basic-recursive', title: '基础递归对比', group: '基础', Component: memo(BasicExample) },
   {
     id: 'selection',
     title: '属性选择与路径覆盖',
@@ -78,12 +79,16 @@ const demoExamples: readonly DemoExample[] = [
 
 const groups: readonly ExampleGroup[] = ['基础', '配置', '差异', '高级', '综合'];
 const exampleById = new Map(demoExamples.map((example) => [example.id, example]));
-const defaultExampleId = 'basic';
+const defaultExampleId = 'basic-recursive';
 
 function selectedIdFromHash() {
   if (typeof window === 'undefined') return defaultExampleId;
   const id = window.location.hash.replace(/^#example-/, '');
   return exampleById.has(id) ? id : defaultExampleId;
+}
+
+function isEmptyHash() {
+  return typeof window !== 'undefined' && window.location.hash === '';
 }
 
 function canonicalHash(id: string) {
@@ -93,39 +98,18 @@ function canonicalHash(id: string) {
 function useDemoNavigation() {
   const [selectedId, setSelectedId] = useState(selectedIdFromHash);
   const [visitedIds, setVisitedIds] = useState(() => new Set([selectedIdFromHash()]));
-  const selectedIdRef = useRef(selectedId);
-  const focusSelectedCard = useRef(false);
-  const historyIds = useRef([selectedIdFromHash()]);
-  const historyIndex = useRef(0);
-  const usedSyntheticHistoryFallback = useRef(false);
+  const focusSelectedHeading = useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const syncFromHash = () => {
       const id = selectedIdFromHash();
-      if (id === selectedIdRef.current && window.location.hash === canonicalHash(id)) {
-        const nextIndex = usedSyntheticHistoryFallback.current
-          ? Math.min(historyIndex.current + 1, historyIds.current.length - 1)
-          : Math.max(historyIndex.current - 1, 0);
-        usedSyntheticHistoryFallback.current = nextIndex !== historyIndex.current;
-        if (nextIndex !== historyIndex.current) {
-          historyIndex.current = nextIndex;
-          const fallbackId = historyIds.current[nextIndex];
-          window.history.replaceState({}, '', canonicalHash(fallbackId));
-          selectedIdRef.current = fallbackId;
-          setSelectedId(fallbackId);
-          setVisitedIds((visited) => new Set(visited).add(fallbackId));
-          return;
-        }
-      }
-      if (window.location.hash !== canonicalHash(id)) {
+      if (!isEmptyHash() && window.location.hash !== canonicalHash(id)) {
         window.history.replaceState({}, '', canonicalHash(id));
       }
-      const knownIndex = historyIds.current.lastIndexOf(id);
-      if (knownIndex >= 0) historyIndex.current = knownIndex;
-      selectedIdRef.current = id;
-      setSelectedId(id);
-      setVisitedIds((visited) => new Set(visited).add(id));
+      focusSelectedHeading.current = false;
+      setSelectedId((current) => (current === id ? current : id));
+      setVisitedIds((visited) => (visited.has(id) ? visited : new Set(visited).add(id)));
     };
     syncFromHash();
     window.addEventListener('hashchange', syncFromHash);
@@ -134,24 +118,21 @@ function useDemoNavigation() {
 
   const selectExample = (id: string, shouldFocus: boolean) => {
     if (id === selectedId) return;
-    focusSelectedCard.current = shouldFocus;
-    historyIds.current = [...historyIds.current.slice(0, historyIndex.current + 1), id];
-    historyIndex.current = historyIds.current.length - 1;
-    usedSyntheticHistoryFallback.current = false;
+    focusSelectedHeading.current = shouldFocus;
     window.history.pushState({}, '', canonicalHash(id));
-    selectedIdRef.current = id;
     setSelectedId(id);
     setVisitedIds((visited) => new Set(visited).add(id));
   };
 
-  return { selectedId, visitedIds, focusSelectedCard, selectExample };
+  return { selectedId, visitedIds, focusSelectedHeading, selectExample };
 }
 
 export function App() {
-  const { selectedId, visitedIds, focusSelectedCard, selectExample } = useDemoNavigation();
+  const { selectedId, visitedIds, focusSelectedHeading, selectExample } = useDemoNavigation();
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<ExampleGroup>>(new Set());
+  const navigationFrame = useRef<number | undefined>(undefined);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     for (const example of demoExamples) {
       const card = document.querySelector<HTMLElement>(`#example-${example.id} .example-card`);
       if (!card) continue;
@@ -160,12 +141,20 @@ export function App() {
       card.toggleAttribute('inert', !isActive);
       card.setAttribute('aria-hidden', String(!isActive));
     }
-    if (!focusSelectedCard.current) return;
     const card = document.querySelector<HTMLElement>(`#example-${selectedId} .example-card`);
-    card?.focus();
-    card?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-    focusSelectedCard.current = false;
-  }, [focusSelectedCard, selectedId]);
+    const heading = card?.querySelector<HTMLElement>('h2');
+    const shouldFocus = focusSelectedHeading.current;
+    navigationFrame.current = window.requestAnimationFrame(() => {
+      card?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      if (shouldFocus) heading?.focus();
+    });
+    focusSelectedHeading.current = false;
+    return () => {
+      if (navigationFrame.current !== undefined) {
+        window.cancelAnimationFrame(navigationFrame.current);
+      }
+    };
+  }, [focusSelectedHeading, selectedId]);
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#155eef', borderRadius: 8 } }}>
@@ -238,7 +227,9 @@ export function App() {
                 key={example.id}
                 {...({ inert: isActive ? undefined : '' } as Record<string, string | undefined>)}
               >
-                <Component />
+                <DemoExampleIdContext.Provider value={example.id}>
+                  <Component />
+                </DemoExampleIdContext.Provider>
               </section>
             );
           })}

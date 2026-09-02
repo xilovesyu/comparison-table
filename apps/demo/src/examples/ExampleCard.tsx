@@ -1,5 +1,6 @@
 import { Button, Card, Typography } from 'antd';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { DemoExampleIdContext } from '../demoContext';
 
 interface ExampleCardProps {
   title: string;
@@ -10,11 +11,12 @@ interface ExampleCardProps {
 
 export function ExampleCard({ title, description, code, children }: ExampleCardProps) {
   const [open, setOpen] = useState(false);
-  const headingId = `example-heading-${title}`;
+  const exampleId = useContext(DemoExampleIdContext);
+  const headingId = exampleId ? `example-${exampleId}-heading` : undefined;
 
   return (
-    <Card aria-labelledby={headingId} className="example-card" tabIndex={-1}>
-      <Typography.Title id={headingId} level={2}>
+    <Card aria-labelledby={headingId} className="example-card">
+      <Typography.Title id={headingId} level={2} tabIndex={-1}>
         {title}
       </Typography.Title>
       <Typography.Paragraph type="secondary">{description}</Typography.Paragraph>

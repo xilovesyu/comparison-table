@@ -80,14 +80,16 @@ Start localhost before opening a canonical example URL:
 pnpm --filter @jxi/comparison-table-demo dev
 ```
 
-- [Basic example](http://localhost:5173/#example-basic)
+- [Basic example](http://localhost:5173/#example-basic-recursive)
 - [Business-keyed array example](http://localhost:5173/#example-keyed-array)
+- [Container summary example](http://localhost:5173/#example-container-summary)
 - [Advanced configuration example](http://localhost:5173/#example-advanced-configuration)
 
 The directory uses stable fragment URLs, keeps visited examples mounted so their local state survives
 navigation, and leaves unvisited examples out of the initial render. Its catalog and examples are in
 [App.tsx](apps/demo/src/App.tsx), [KeyedArrayExample.tsx](apps/demo/src/examples/KeyedArrayExample.tsx),
-and [AdvancedExample.tsx](apps/demo/src/examples/AdvancedExample.tsx).
+[ContainerSummaryExample.tsx](apps/demo/src/examples/ContainerSummaryExample.tsx), and
+[AdvancedExample.tsx](apps/demo/src/examples/AdvancedExample.tsx).
 
 ## Component API
 

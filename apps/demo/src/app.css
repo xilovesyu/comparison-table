@@ -41,7 +41,7 @@ main {
   font-weight: 700;
 }
 
-.example-card:focus {
+.example-card h2:focus {
   outline: 3px solid #84adff;
   outline-offset: 3px;
 }
