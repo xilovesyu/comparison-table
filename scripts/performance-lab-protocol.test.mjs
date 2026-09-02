@@ -289,3 +289,29 @@ test('60 operation entries retain event-handler markers and non-overlapping data
     assert.notEqual(entry.oracle.token, entry.twoRaf.token);
   }
 });
+
+test('host marker matrix ends each operation in the final two-RAF callback, not its React event handler', () => {
+  const entries = createCatalog().flatMap((scenario) => scenario.expected.operationMarkers ?? []);
+  assert.equal(entries.length, 60);
+  for (const entry of entries) {
+    assert.equal(entry.start.source, 'react-event-handler');
+    assert.match(entry.end.source, /two-raf|browser-raf/);
+    assert.ok(entry.start.at < entry.end.at);
+  }
+});
+
+test('stages injection writes an observed schema-valid partial artifact for catalog failure', async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'comparison-table-stage-failure-'));
+  try {
+    await assert.rejects(
+      runPerformanceLab({
+        quick: true,
+        output: path.join(temporaryDirectory, 'partial.json'),
+        stages: { catalog: () => { throw new Error('catalog injected'); } },
+      }),
+      (error) => error.document?.status === 'partial' && error.document.failures[0]?.category === 'catalog',
+    );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
