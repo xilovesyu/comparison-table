@@ -6,6 +6,19 @@ const VERSION_COUNTS = {
   'eight-version': 8,
 };
 
+const CASE_ALIASES = {
+  'null-missing-undefined': 'null-missing-own-undefined',
+  'text-10240': 'text-10240-query',
+};
+
+const OPERATIONS = [
+  'global-search',
+  'only-differences',
+  'expand-collapse',
+  'node-search',
+  'controlled-expansion',
+];
+
 function deterministicText(seed, length) {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let state = seed >>> 0;
@@ -26,7 +39,7 @@ function nestedValue(depth, leaf) {
 function keyedLines(versionIndex, count) {
   const lines = Array.from({ length: count }, (_, index) => ({
     sku: `SKU-${String(index).padStart(4, '0')}`,
-    quantity: index + versionIndex,
+    quantity: index === 2 ? 10 + versionIndex : index + 1,
     active: index % 2 === 0,
   }));
   if (versionIndex % 2 === 1) lines.reverse();
@@ -43,11 +56,15 @@ function dataFor(caseId, versionIndex, seed) {
     case 'empty':
       return {};
     case 'null-missing-undefined':
+    case 'null-missing-own-undefined':
       return versionIndex === 0
         ? { nullValue: null, undefinedValue: undefined, stable: false }
         : { nullValue: null, missingInBase: `v${versionIndex}`, stable: false };
     case 'text-10240':
-      return { longText: deterministicText(seed + versionIndex, 10240) };
+    case 'text-10240-query': {
+      const text = deterministicText(seed + versionIndex, 10240);
+      return { longText: `${text.slice(0, 5120)}PERFORMANCE-QUERY${text.slice(5137)}` };
+    }
     case 'depth-20':
       return { deep: nestedValue(20, `leaf-${versionIndex}`) };
     case 'wide-1000':
@@ -89,7 +106,8 @@ export function validateKeyedIdentities(versions, arrayPath = 'lines', identityF
 }
 
 export function createScenario(caseId, profile, seed = manifest.seed) {
-  if (!manifest.cases.includes(caseId)) throw new Error(`Unknown case: ${caseId}`);
+  const supportedCases = new Set([...manifest.cases, ...Object.values(CASE_ALIASES)]);
+  if (!supportedCases.has(caseId)) throw new Error(`Unknown case: ${caseId}`);
   const count = VERSION_COUNTS[profile];
   if (!count) throw new Error(`Unknown version profile: ${profile}`);
   const versions = Array.from({ length: count }, (_, index) => ({
@@ -98,6 +116,7 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
     data: dataFor(caseId, index, seed),
   }));
   const keyed = caseId.includes('keyed');
+  const operationCase = caseId === 'keyed-presence';
   if (keyed) validateKeyedIdentities(versions);
   return {
     id: `${caseId}--${profile}`,
@@ -114,13 +133,42 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
       keyed,
       semantic: caseId === 'empty' ? 'empty' : 'populated',
       textIncludes: caseId === 'keyed-presence' ? ['lines[SKU-0000]', 'Added', 'Removed'] : [],
+      ownUndefined:
+        caseId === 'null-missing-own-undefined'
+          ? { versionId: 'v1', path: 'undefinedValue', hasOwn: true }
+          : undefined,
+      query:
+        caseId === 'text-10240-query'
+          ? { value: 'PERFORMANCE-QUERY', path: 'longText' }
+          : undefined,
+      keyedIdentity: operationCase
+        ? {
+            unchanged: 'SKU-0000',
+            modified: 'SKU-0002',
+            added: 'ADDED-ALL',
+            removed: 'SKU-0001',
+            middleMissing: 'SKU-0001',
+          }
+        : undefined,
+      operations: operationCase ? OPERATIONS : [],
+      operationFinalState: operationCase
+        ? {
+            globalQuery: '',
+            onlyDifferences: false,
+            linesExpanded: true,
+            nodeQuery: '',
+            controlledExpansion: true,
+          }
+        : undefined,
     },
   };
 }
 
 export function createCatalog(seed = manifest.seed) {
   return manifest.cases.flatMap((caseId) =>
-    manifest.profiles.map((profile) => createScenario(caseId, profile, seed)),
+    manifest.profiles.map((profile) =>
+      createScenario(CASE_ALIASES[caseId] ?? caseId, profile, seed),
+    ),
   );
 }
 
@@ -137,6 +185,22 @@ export function verifySemanticOracle(observation, expected) {
   for (const expectedText of expected.textIncludes) {
     if (!observation.text.includes(expectedText)) {
       throw new Error(`Semantic oracle expected rendered text: ${expectedText}`);
+    }
+  }
+  for (const operation of expected.operations ?? []) {
+    const metric = observation.operations?.[operation];
+    if (!metric) throw new Error(`Semantic oracle missing operation evidence: ${operation}`);
+    if (!Number.isFinite(metric.durationMs) || metric.durationMs < 0) {
+      throw new Error(`Semantic oracle requires a raw duration for ${operation}`);
+    }
+    if (!Number.isInteger(metric.rowCount) || metric.rowCount < 0) {
+      throw new Error(`Semantic oracle requires a raw row count for ${operation}`);
+    }
+    if (!Number.isInteger(metric.cellCount) || metric.cellCount < 0) {
+      throw new Error(`Semantic oracle requires a raw cell count for ${operation}`);
+    }
+    if (metric.ariaPassed !== true) {
+      throw new Error(`Semantic oracle failed ARIA evidence for ${operation}`);
     }
   }
   return true;

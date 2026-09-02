@@ -8,7 +8,12 @@ export function latinRotation(items, round) {
 }
 
 function percentile(sorted, fraction) {
-  return sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)];
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sorted[lower];
+  const interpolated = sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+  return Number(interpolated.toFixed(12));
 }
 
 export function summarizeR7(samples) {
@@ -21,7 +26,7 @@ export function summarizeR7(samples) {
   const sorted = [...samples].sort((left, right) => left - right);
   return {
     min: sorted[0],
-    median: sorted[Math.floor(sorted.length / 2)],
+    median: percentile(sorted, 0.5),
     p95: percentile(sorted, 0.95),
     max: sorted.at(-1),
   };

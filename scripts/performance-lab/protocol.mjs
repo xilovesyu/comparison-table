@@ -10,7 +10,8 @@ export function afterTwoAnimationFrames({
   return new Promise((resolve) => {
     const longtasks = [];
     let observer;
-    if (telemetry.longtask && typeof PerformanceObserver !== 'undefined') {
+    const observeLongtasks = telemetry.longtask !== false;
+    if (observeLongtasks && typeof PerformanceObserver !== 'undefined') {
       try {
         observer = new PerformanceObserver((list) => {
           longtasks.push(
@@ -29,7 +30,7 @@ export function afterTwoAnimationFrames({
         ...result,
         durationMs: performance.now() - startedAt,
         telemetry: {
-          longtasks: telemetry.longtask ? longtasks : undefined,
+          longtasks: observeLongtasks ? longtasks : undefined,
           heap:
             telemetry.heap && performance.memory
               ? { usedJSHeapSize: performance.memory.usedJSHeapSize }

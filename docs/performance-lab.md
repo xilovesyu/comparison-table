@@ -31,13 +31,18 @@ adversarial cases: empty data, null/missing/undefined values, a 10,240-character
 as a unique non-blank string and the browser runner checks an independent semantic oracle after rendering.
 
 Each full run uses two warmups and seven recorded samples. Scenario order rotates by Latin rotation on each
-round. A sample ends after React commits and two consecutive `requestAnimationFrame` callbacks. Protocol
-timeouts, stale tokens, browser errors, and partial results are explicit; they are not converted to timing
-values. R-7 summaries report finite min, median, p95, and max values with no pass/fail threshold.
+round. A sample ends only after React commits, the semantic oracle checks the real ARIA table, and two
+consecutive `requestAnimationFrame` callbacks complete. The keyed-presence case also records global search,
+only-differences, expand/collapse, node search, and controlled-expansion operations with raw duration and
+row/cell evidence. Protocol timeouts, stale tokens, browser errors, and partial results are explicit; they
+are not converted to timing values. R-7 summaries use linear interpolation and report finite min, median,
+p95, and max values with no pass/fail threshold.
 
-Long-task and Chromium heap telemetry are opt-in (`--longtask`, `--heap`) because availability and overhead
-vary by host. The schema always separates environment metadata from production bundle metadata, and keeps
-successfully collected scenarios when another scenario fails.
+Long-task telemetry is captured by default and can be disabled with `--no-longtask`; Chromium heap telemetry
+remains opt-in (`--heap`) because availability and overhead vary by host. The schema records the pnpm/browser
+runtime, viewport, device scale factor, headless mode, and separate raw/gzip/brotli partitions for the public
+library, Demo, and private host bundles. Build, preview, navigation, protocol, measurement, and report failures
+are written atomically as schema-valid partial evidence while retaining successfully collected scenarios.
 
 ## Scheduled operation
 
