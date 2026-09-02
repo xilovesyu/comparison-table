@@ -270,7 +270,13 @@ test('runner exposes only stages injection and rejects legacy injection aliases 
 test('60 operation entries retain event-handler markers and non-overlapping data-build, render, oracle, and two-RAF phases', () => {
   const profiles = ['two-version', 'three-version', 'eight-version'];
   const categories = ['depth-20', 'wide-1000', 'large-keyed-1024', 'keyed-presence'];
-  const operations = ['global-search', 'only-differences', 'expand-collapse', 'node-search', 'controlled-expansion'];
+  const operations = [
+    'global-search',
+    'only-differences',
+    'expand-collapse',
+    'node-search',
+    'controlled-expansion',
+  ];
   const expectedEntries = categories.length * profiles.length * operations.length;
   assert.equal(expectedEntries, 60);
   const matrix = createCatalog().flatMap((scenario) => scenario.expected.operationMarkers ?? []);

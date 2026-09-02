@@ -19,6 +19,18 @@ const OPERATIONS = [
   'controlled-expansion',
 ];
 
+function operationMarkers(scenarioId) {
+  return OPERATIONS.map((operation) => ({
+    operation,
+    start: { source: 'react-event-handler' },
+    end: { source: 'react-event-handler' },
+    dataBuild: { token: `${scenarioId}:${operation}:data-build` },
+    render: { token: `${scenarioId}:${operation}:render` },
+    oracle: { token: `${scenarioId}:${operation}:oracle` },
+    twoRaf: { token: `${scenarioId}:${operation}:two-raf` },
+  }));
+}
+
 function deterministicText(seed, length) {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let state = seed >>> 0;
@@ -134,9 +146,10 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
   const operationCase = ['depth-20', 'wide-1000', 'keyed-presence', 'large-keyed-1024'].includes(
     caseId,
   );
+  const scenarioId = `${caseId}--${profile}`;
   if (keyed) validateKeyedIdentities(versions);
   return {
-    id: `${caseId}--${profile}`,
+    id: scenarioId,
     caseId,
     profile,
     seed,
@@ -172,6 +185,7 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
             }
           : undefined,
       operations: operationCase ? OPERATIONS : [],
+      operationMarkers: operationCase ? operationMarkers(scenarioId) : [],
       dataBuild: operationCase ? { location: 'browser', seed } : undefined,
       publicOracle:
         caseId === 'keyed-presence'

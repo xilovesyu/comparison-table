@@ -73,6 +73,25 @@ export function validateResultDocument(result) {
     if (!Number.isInteger(metric?.cellCount) || metric.cellCount < 0) {
       throw new Error(`Invalid measurement cell count: ${label}.cellCount`);
     }
+    if (metric?.start || metric?.end || metric?.render || metric?.oracle || metric?.twoRaf) {
+      if (
+        metric.start?.source !== 'react-event-handler' ||
+        metric.end?.source !== 'react-event-handler'
+      ) {
+        throw new Error(`Invalid React event marker: ${label}`);
+      }
+      const phases = [metric.dataBuild, metric.render, metric.oracle, metric.twoRaf];
+      const tokens = phases.map((phase) => phase?.token);
+      if (
+        tokens.some((token) => typeof token !== 'string') ||
+        new Set(tokens).size !== tokens.length
+      ) {
+        throw new Error(`Invalid transaction phase tokens: ${label}`);
+      }
+      for (const [index, phase] of phases.entries()) {
+        finiteMeasurement(phase?.durationMs, `${label}.phases[${index}].durationMs`);
+      }
+    }
   };
   const validateSummary = (summary, label) => {
     for (const statistic of ['min', 'median', 'p95', 'max']) {

@@ -128,24 +128,21 @@ async function atomicWrite(outputPath, document) {
   await rename(temporaryPath, outputPath);
 }
 
-async function tableEvidence(page, ariaPassed) {
-  const section = page.locator('[aria-label="Recursive comparison table"]');
-  return {
-    ariaPassed,
-    rowCount: await section.locator('tbody tr[data-row-key]').count(),
-    cellCount: await section.locator('tbody td').count(),
-  };
-}
-
-async function measureOperation(page, { action, verify, cleanup }) {
-  const startedAt = await page.evaluate(() => performance.now());
+async function measureOperation(page, { operation, action, cleanup }) {
+  await page.evaluate((name) => window.performanceLab.armOperation(name), operation);
   await action();
-  const evidence = await tableEvidence(page, await verify());
-  await page.evaluate(() => window.performanceLab.settle());
-  const finishedAt = await page.evaluate(() => performance.now());
-  await cleanup?.();
-  if (cleanup) await page.evaluate(() => window.performanceLab.settle());
-  return { durationMs: finishedAt - startedAt, ...evidence };
+  const marker = await page.evaluate(
+    (name) => window.performanceLab.takeOperation(name),
+    operation,
+  );
+  await page.evaluate(() => window.performanceLab.setMarkerCapture(false));
+  try {
+    await cleanup?.();
+    if (cleanup) await page.evaluate(() => window.performanceLab.settle());
+  } finally {
+    await page.evaluate(() => window.performanceLab.setMarkerCapture(true));
+  }
+  return marker;
 }
 
 async function runOperations(page, expected) {
@@ -161,16 +158,14 @@ async function runOperations(page, expected) {
   for (const operation of expected.operations ?? []) {
     if (operation === 'global-search') {
       operations[operation] = await measureOperation(page, {
+        operation,
         action: () => search.fill('SKU-0000'),
-        verify: async () =>
-          (await search.getAttribute('aria-label')) === 'Search comparison' &&
-          (await search.inputValue()) === 'SKU-0000',
         cleanup: () => search.fill(expected.operationFinalState.globalQuery),
       });
     } else if (operation === 'only-differences') {
       operations[operation] = await measureOperation(page, {
+        operation,
         action: () => differenceSwitch.click(),
-        verify: async () => (await differenceSwitch.getAttribute('aria-checked')) === 'true',
         cleanup: async () => {
           if ((await differenceSwitch.getAttribute('aria-checked')) === 'true') {
             await differenceSwitch.click();
@@ -179,34 +174,27 @@ async function runOperations(page, expected) {
       });
     } else if (operation === 'expand-collapse') {
       operations[operation] = await measureOperation(page, {
+        operation,
         action: () => expandButton().click(),
-        verify: async () => (await expandButton().getAttribute('aria-expanded')) === 'false',
         cleanup: () => expandButton().click(),
       });
     } else if (operation === 'node-search') {
+      await page.evaluate(() => window.performanceLab.setMarkerCapture(false));
+      await nodeSearchButton.click();
+      await page.evaluate(() => window.performanceLab.settle());
+      await page.evaluate(() => window.performanceLab.setMarkerCapture(true));
       operations[operation] = await measureOperation(page, {
-        action: async () => {
-          await nodeSearchButton.click();
-          await nodeSearch.fill('quantity');
-        },
-        verify: async () =>
-          (await nodeSearch.getAttribute('aria-label')) === 'Filter lines[SKU-0000] children' &&
-          (await nodeSearch.inputValue()) === 'quantity',
+        operation,
+        action: () => nodeSearch.fill('quantity'),
         cleanup: async () => {
           await nodeSearch.fill(expected.operationFinalState.nodeQuery);
           await nodeSearchButton.click();
         },
       });
     } else if (operation === 'controlled-expansion') {
-      const before = Number(
-        (await page.locator('main').getAttribute('data-controlled-expansion-count')) ?? 0,
-      );
       operations[operation] = await measureOperation(page, {
+        operation,
         action: () => expandButton().click(),
-        verify: async () =>
-          Number(
-            (await page.locator('main').getAttribute('data-controlled-expansion-count')) ?? 0,
-          ) > before && (await expandButton().getAttribute('aria-expanded')) === 'false',
         cleanup: () => expandButton().click(),
       });
     }
@@ -290,7 +278,10 @@ function summarizeMeasurements(summarize, values) {
 }
 
 function stageOverrides(options) {
-  return options.stages ?? options.injections ?? options.adapters ?? {};
+  if ('injections' in options || 'adapters' in options) {
+    throw new Error('The stages option is the only supported Performance Lab injection API');
+  }
+  return options.stages ?? {};
 }
 
 export async function runPerformanceLab(options = {}) {
