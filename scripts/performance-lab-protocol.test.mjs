@@ -155,3 +155,104 @@ test('production host quick run records ARIA operation metrics before reporting 
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });
+
+test('all manifest pressure profiles schedule browser data-build and the full ARIA operation set', () => {
+  const pressureCases = new Set(['wide-1000', 'depth-20', 'large-keyed-1024']);
+  const requiredOperations = [
+    'global-search',
+    'only-differences',
+    'expand-collapse',
+    'node-search',
+    'controlled-expansion',
+  ];
+  for (const scenario of createCatalog().filter((item) => pressureCases.has(item.caseId))) {
+    assert.deepEqual(
+      scenario.expected.operations,
+      requiredOperations,
+      `${scenario.id} must execute every browser operation`,
+    );
+    assert.equal(scenario.expected.dataBuild?.location, 'browser');
+    assert.equal(scenario.expected.dataBuild?.seed, scenario.seed);
+  }
+});
+
+test('keyed fixture has a real v1-present/v2-missing/v3-present identity and public-oracle expectations', () => {
+  const scenario = createScenario('keyed-presence', 'three-version');
+  const availability = scenario.versions.map((version) =>
+    version.data.lines.some((line) => line.sku === 'SKU-0001'),
+  );
+  assert.deepEqual(availability, [true, false, true]);
+  assert.deepEqual(scenario.expected.publicOracle, {
+    ownUndefined: { path: 'undefinedValue', versionId: 'v1', hasOwn: true },
+    query: { path: 'longText', value: 'PERFORMANCE-QUERY' },
+    keyedIdentity: scenario.expected.keyedIdentity,
+    filters: ['search', 'differences'],
+  });
+});
+
+test('result documents retain seven operation samples and classify injected catalog, environment, measurement, and report failures', () => {
+  const document = createResultDocument({
+    catalog: { version: 1 },
+    seed: 20260902,
+    environment: {
+      platform: 'win32',
+      architecture: 'x64',
+      release: 'x',
+      cpuModel: 'x',
+      cpuCount: 1,
+      totalMemoryBytes: 1,
+      node: 'x',
+      pnpm: 'x',
+      browser: 'x',
+      viewport: { width: 1, height: 1 },
+      deviceScaleFactor: 1,
+      headless: true,
+      commit: 'x',
+    },
+    bundle: {
+      library: { raw: 1, gzip: 1, brotli: 1 },
+      demo: { raw: 1, gzip: 1, brotli: 1 },
+      host: { raw: 1, gzip: 1, brotli: 1 },
+    },
+    results: [
+      {
+        scenarioId: 'wide-1000--eight-version',
+        dataBuild: { durationMs: 1, transactionStart: 'browser-event' },
+        operationSamples: {
+          'global-search': Array.from({ length: 7 }, () => ({
+            durationMs: 1,
+            rowCount: 1,
+            cellCount: 1,
+          })),
+        },
+      },
+    ],
+    failures: [
+      { scenarioId: 'catalog', category: 'catalog', error: 'injected catalog failure' },
+      { scenarioId: 'environment', category: 'environment', error: 'injected environment failure' },
+      { scenarioId: 'measurement', category: 'measurement', error: 'injected nonfinite summary' },
+      { scenarioId: 'report', category: 'report', error: 'injected report failure' },
+    ],
+  });
+  assert.equal(validateResultDocument(document).status, 'partial');
+  assert.deepEqual(
+    document.failures.map((failure) => failure.category),
+    ['catalog', 'environment', 'measurement', 'report'],
+  );
+  assert.equal(document.results[0].dataBuild.transactionStart, 'browser-event');
+  assert.equal(document.results[0].operationSamples['global-search'].length, 7);
+  assert.deepEqual(
+    summarizeR7(
+      document.results[0].operationSamples['global-search'].map((item) => item.durationMs),
+    ),
+    {
+      min: 1,
+      median: 1,
+      p95: 1,
+      max: 1,
+    },
+  );
+  const nonfinite = structuredClone(document);
+  nonfinite.results[0].operationSamples['global-search'][0].durationMs = Number.NaN;
+  assert.throws(() => validateResultDocument(nonfinite), /non-?finite|measurement/i);
+});
