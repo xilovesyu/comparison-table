@@ -34,6 +34,17 @@ test('Pages workflow is main-only, least-privileged, SHA-pinned, and has build/d
   assert.doesNotMatch(workflow, /npm publish|NPM_TOKEN/);
 });
 
+test('Pages workflow pins the reviewed v6/v5 GitHub Pages action commits and writes an always-run deployment summary', async () => {
+  const workflow = await file('.github/workflows/pages.yml');
+  assert.match(workflow, /actions\/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d/);
+  assert.match(workflow, /actions\/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9/);
+  assert.match(workflow, /actions\/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346/);
+  assert.match(
+    workflow,
+    /name:\s*Write deployment summary[\s\S]*if:\s*always\(\)[\s\S]*GITHUB_STEP_SUMMARY[\s\S]*page_url[\s\S]*github\.sha[\s\S]*github\.server_url[\s\S]*github\.repository[\s\S]*github\.run_id[\s\S]*smoke/i,
+  );
+});
+
 test('Pages artifact contains exactly the demo distribution and rejects unsafe payload files', async () => {
   const workflow = await file('.github/workflows/pages.yml');
   assert.match(workflow, /path:\s*apps\/demo\/dist/);
@@ -53,7 +64,7 @@ test('CI validates the Pages build and artifact contract but cannot deploy Pages
   assert.match(ci, /pull_request:/);
   assert.match(ci, /push:[\s\S]*main/);
   assert.match(ci, /build:pages/);
-  assert.match(ci, /upload-pages-artifact@[a-f0-9]{40}/);
+  assert.match(ci, /actions\/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9/);
   assert.doesNotMatch(ci, /deploy-pages|github-pages|pages:\s*write|id-token:\s*write/);
 });
 
@@ -105,4 +116,9 @@ test('Playwright smoke configuration requires a non-local Pages URL and proves r
   assert.match(smoke, /heading|aria-current|Recursive comparison table/);
   assert.match(smoke, /asset|console|pageerror/i);
   assert.match(smoke, /screenshot|trace|video/i);
+});
+
+test('Playwright production smoke retries twice', async () => {
+  const config = await file('playwright.config.ts');
+  assert.match(config, /retries:\s*2/);
 });

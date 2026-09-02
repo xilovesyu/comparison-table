@@ -7,7 +7,7 @@
     "build": "pnpm --filter @jxi/comparison-table build && pnpm --filter @jxi/comparison-table-demo build",
     "build:pages": "pnpm --filter @jxi/comparison-table-demo build:pages",
     "test": "pnpm -r --if-present test && pnpm run test:release-contract && pnpm run test:pages-contract",
-    "test:pages-contract": "node --test scripts/pages-contract.test.mjs",
+    "test:pages-contract": "node --test scripts/pages-*.test.mjs",
     "test:pages-smoke": "playwright test apps/demo/e2e/pages-smoke.spec.ts",
     "test:release-contract": "node --test scripts/release-contract.test.mjs",
     "test:watch": "pnpm -r --if-present test:watch",
