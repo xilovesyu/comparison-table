@@ -19,6 +19,37 @@ test('R-7 uses the specified linear interpolation for p50, p95, min, and max', (
   });
 });
 
+test('malformed measurement marker is converted to a schema-valid measurement partial before persistence', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'comparison-table-marker-partial-'));
+  try {
+    await assert.rejects(
+      runPerformanceLab({
+        quick: true,
+        output: path.join(directory, 'marker.json'),
+        stages: {
+          measurement: () => ({
+            result: {
+              status: 'ok', durationMs: Number.NaN,
+              dataBuild: { durationMs: 1, transactionStart: 'browser-event' },
+              observation: { tablePresent: true, versionColumns: 2, rowCount: 1, text: '' },
+            },
+            operations: {},
+          }),
+        },
+      }),
+      async (error) => {
+        const persisted = JSON.parse(await readFile(error.outputPath, 'utf8'));
+        assert.equal(validateResultDocument(persisted).status, 'partial');
+        assert.match(persisted.failures[0]?.category ?? '', /protocol|measurement/);
+        assert.equal(persisted.results[0]?.status, 'partial');
+        return true;
+      },
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('two-RAF protocol observes long tasks by default and completes only after two consecutive frames', async () => {
   const previousRaf = globalThis.requestAnimationFrame;
   const previousObserver = globalThis.PerformanceObserver;
