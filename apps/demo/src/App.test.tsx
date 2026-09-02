@@ -1,6 +1,42 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+
+const navigationExamples = [
+  ['basic', '基础递归对比'],
+  ['selection', '属性选择与路径覆盖'],
+  ['renderer', '自定义渲染器'],
+  ['controlled', '受控展开、数组与缺失值'],
+  ['flattened', '自定义顺序与扁平层级'],
+  ['registry', '局部 Renderer Registry'],
+  ['diff', '自动 Diff 与自定义比较'],
+  ['baseline', '基准列高亮'],
+  ['presentation-controls', '显示控制与层级继承'],
+  ['keyed-array', '业务键数组对齐'],
+  ['container-summary', '容器摘要'],
+  ['advanced-configuration', '综合高级配置'],
+] as const;
+
+const navigationGroups = ['基础', '配置', '差异', '高级', '综合'] as const;
+
+function setExampleHash(id = 'basic') {
+  window.history.replaceState({}, '', `#example-${id}`);
+}
+
+function exampleCard(title: string) {
+  return screen.getByRole('heading', { name: title }).closest('.ant-card') as HTMLElement;
+}
+
+function navigation() {
+  return screen.getByRole('navigation', { name: '示例目录' });
+}
+
+afterEach(() => {
+  cleanup();
+  window.history.replaceState({}, '', '/');
+  vi.restoreAllMocks();
+});
 
 describe('documentation examples', () => {
   it('shows the documented comparison scenarios', () => {
@@ -218,5 +254,182 @@ describe('documentation examples', () => {
         .getByText(/const advancedVersions/)
         .closest('.source-panel'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('Issue #5 demo directory navigation', () => {
+  it('publishes the twelve actual examples as stable catalog links in five groups, with Advanced last', () => {
+    setExampleHash();
+    render(<App />);
+
+    const directory = navigation();
+    expect(within(directory).getAllByRole('group')).toHaveLength(5);
+    expect(within(directory).getAllByRole('button', { name: /展开|收起/ })).toHaveLength(5);
+
+    for (const [id, title] of navigationExamples) {
+      expect(within(directory).getByRole('link', { name: title })).toHaveAttribute(
+        'href',
+        `#example-${id}`,
+      );
+    }
+    expect(
+      within(directory)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(navigationExamples.map(([, title]) => title));
+    expect(navigationGroups.every((group) => directory.textContent?.includes(group))).toBe(true);
+    expect(within(directory).getAllByRole('link').at(-1)).toHaveTextContent('综合高级配置');
+  });
+
+  it.each([
+    ['', '基础递归对比', '#example-basic'],
+    ['#example-basic', '基础递归对比', '#example-basic'],
+    ['#example-keyed-array', '业务键数组对齐', '#example-keyed-array'],
+    ['#example-advanced-configuration', '综合高级配置', '#example-advanced-configuration'],
+    ['#unknown-example', '基础递归对比', '#example-basic'],
+  ])(
+    'cold starts at %s with exactly the canonical selected example',
+    (hash, title, canonicalHash) => {
+      window.history.replaceState({}, '', hash || '/');
+      render(<App />);
+
+      expect(window.location.hash).toBe(canonicalHash);
+      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+      expect(navigation()).toBeInTheDocument();
+      expect(within(navigation()).getByRole('link', { name: title })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
+    },
+  );
+
+  it('uses click, Enter, hashchange, Back and Forward consistently for regular, keyed, and Advanced examples', () => {
+    setExampleHash('basic');
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(<App />);
+
+    const directory = navigation();
+    const keyed = within(directory).getByRole('link', { name: '业务键数组对齐' });
+    fireEvent.click(keyed);
+    expect(window.location.hash).toBe('#example-keyed-array');
+    expect(keyed).toHaveAttribute('aria-current', 'page');
+    expect(exampleCard('业务键数组对齐')).toHaveFocus();
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    scrollIntoView.mockClear();
+    fireEvent.click(keyed);
+    expect(window.location.hash).toBe('#example-keyed-array');
+    expect(keyed).toHaveAttribute('aria-current', 'page');
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    const advanced = within(directory).getByRole('link', { name: '综合高级配置' });
+    fireEvent.keyDown(advanced, { key: 'Enter' });
+    expect(window.location.hash).toBe('#example-advanced-configuration');
+    expect(advanced).toHaveAttribute('aria-current', 'page');
+
+    window.history.back();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(window.location.hash).toBe('#example-keyed-array');
+    window.history.forward();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(window.location.hash).toBe('#example-advanced-configuration');
+  });
+
+  it('does not mount unvisited examples, but keeps every visited card mounted and inert while inactive', () => {
+    setExampleHash('basic');
+    render(<App />);
+    expect(screen.queryByRole('heading', { name: '业务键数组对齐' })).not.toBeInTheDocument();
+
+    fireEvent.click(within(navigation()).getByRole('link', { name: '业务键数组对齐' }));
+    const keyedCard = exampleCard('业务键数组对齐');
+    fireEvent.click(within(navigation()).getByRole('link', { name: '基础递归对比' }));
+
+    expect(keyedCard).toBeInTheDocument();
+    expect(keyedCard).toHaveAttribute('hidden');
+    expect(keyedCard).toHaveAttribute('aria-hidden', 'true');
+    expect(within(keyedCard).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('preserves Basic source, Controlled expansion, and Advanced source/table state across directory navigation', () => {
+    setExampleHash('basic');
+    render(<App />);
+
+    const basic = exampleCard('基础递归对比');
+    fireEvent.click(within(basic).getByRole('button', { name: '查看源代码' }));
+    fireEvent.click(within(navigation()).getByRole('link', { name: '受控展开、数组与缺失值' }));
+    const controlled = exampleCard('受控展开、数组与缺失值');
+    const expansionButton = within(controlled).getAllByRole('button', { name: /row/i })[0];
+    fireEvent.click(expansionButton);
+    fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
+    const advanced = exampleCard('综合高级配置');
+    fireEvent.click(within(advanced).getByRole('button', { name: '查看源代码' }));
+    expect(within(advanced).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+
+    fireEvent.click(within(navigation()).getByRole('link', { name: '基础递归对比' }));
+    expect(
+      within(exampleCard('基础递归对比')).getByRole('button', { name: '隐藏源代码' }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(navigation()).getByRole('link', { name: '受控展开、数组与缺失值' }));
+    expect(
+      within(exampleCard('受控展开、数组与缺失值')).getAllByRole('button', { name: /row/i })[0],
+    ).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
+    expect(
+      within(exampleCard('综合高级配置')).getByLabelText('Recursive comparison table'),
+    ).toBeInTheDocument();
+    expect(
+      within(exampleCard('综合高级配置')).getByRole('button', { name: '隐藏源代码' }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps group controls accessible, synchronised, and free of hidden keyboard traps', () => {
+    setExampleHash();
+    render(<App />);
+    const directory = navigation();
+
+    for (const control of within(directory).getAllByRole('button', { name: /展开|收起/ })) {
+      expect(control).toHaveAttribute('aria-expanded');
+      const controls = control.getAttribute('aria-controls');
+      expect(controls).toBeTruthy();
+      const group = document.getElementById(controls!);
+      expect(group).toBeInTheDocument();
+      fireEvent.click(control);
+      expect(group).toHaveAttribute('hidden');
+      expect(within(group!).queryAllByRole('link')).toHaveLength(0);
+    }
+  });
+
+  it('routes each existing example regression through its directory entry and retains source plus copy actions', () => {
+    setExampleHash();
+    render(<App />);
+
+    for (const [, title] of navigationExamples) {
+      fireEvent.click(within(navigation()).getByRole('link', { name: title }));
+      const card = exampleCard(title);
+      expect(card).toBeVisible();
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      expect(within(card).getByRole('button', { name: '复制源代码' })).toBeInTheDocument();
+    }
+  });
+
+  it('renders without browser globals and cleans its history listener after unmount', async () => {
+    const originalWindow = globalThis.window;
+    Reflect.deleteProperty(globalThis, 'window');
+    try {
+      expect(() => renderToString(<App />)).not.toThrow();
+    } finally {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    }
+
+    setExampleHash('basic');
+    const { unmount } = render(<App />);
+    unmount();
+    window.history.replaceState({}, '', '#example-keyed-array');
+    expect(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).not.toThrow();
   });
 });
