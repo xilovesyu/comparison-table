@@ -70,6 +70,27 @@ The library declares React, React DOM, Ant Design, and Ant Design Icons as peer 
 
 ![Advanced comparison with local money renderer, flattened array entries, selection, and controlled expansion](docs/images/advanced-configuration.png)
 
+### Demo directory navigation
+
+![Demo directory groups with the business-keyed array example selected](docs/images/demo-navigation.png)
+
+Start localhost before opening a canonical example URL:
+
+```bash
+pnpm --filter @jxi/comparison-table-demo dev
+```
+
+- [Basic example](http://localhost:5173/#example-basic-recursive)
+- [Business-keyed array example](http://localhost:5173/#example-keyed-array)
+- [Container summary example](http://localhost:5173/#example-container-summary)
+- [Advanced configuration example](http://localhost:5173/#example-advanced-configuration)
+
+The directory uses stable fragment URLs, keeps visited examples mounted so their local state survives
+navigation, and leaves unvisited examples out of the initial render. Its catalog and examples are in
+[App.tsx](apps/demo/src/App.tsx), [KeyedArrayExample.tsx](apps/demo/src/examples/KeyedArrayExample.tsx),
+[ContainerSummaryExample.tsx](apps/demo/src/examples/ContainerSummaryExample.tsx), and
+[AdvancedExample.tsx](apps/demo/src/examples/AdvancedExample.tsx).
+
 ## Component API
 
 The complete Props and configuration reference, including custom renderers, Diff comparators, baseline styling, field definitions, and search controls, is available in the [package README](./packages/comparison-table/README.md).

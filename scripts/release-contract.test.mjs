@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -78,7 +78,7 @@ test('documentation provides static screenshots and a complete component props r
     (match) => match[1],
   );
 
-  assert.equal(imagePaths.length, 3);
+  assert.equal(imagePaths.length, 4);
   await Promise.all(imagePaths.map((imagePath) => access(path.join(root, imagePath))));
   assert.match(packageReadme, /## Component props/);
   for (const propName of propNames) {
@@ -99,4 +99,47 @@ test('public documentation and JSDoc specify the display-only container summary 
   assert.match(typeSource, /undefined.*normal renderer fallback/i);
   assert.match(packageReadme, /null.*false/i);
   assert.match(packageReadme, /not.*search/i);
+});
+
+test('README and manual runbook document the canonical demo directory navigation', async () => {
+  const readme = await readWorkspaceFile('README.md');
+  const manualRunbook = await readWorkspaceFile('docs/manual-testing/README.md');
+  const screenshot = path.join(root, 'docs/images/demo-navigation.png');
+
+  for (const url of [
+    'http://localhost:5173/#example-keyed-array',
+    'http://localhost:5173/#example-container-summary',
+    'http://localhost:5173/#example-advanced-configuration',
+  ]) {
+    assert.match(readme, new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  for (const sourceLink of [
+    'apps/demo/src/examples/KeyedArrayExample.tsx',
+    'apps/demo/src/examples/ContainerSummaryExample.tsx',
+    'apps/demo/src/examples/AdvancedExample.tsx',
+  ]) {
+    assert.match(
+      readme,
+      new RegExp('\\]\\(' + sourceLink.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\)'),
+    );
+  }
+  assert.match(readme, /localhost.*before/i);
+  assert.match(readme, /!\[[^\]]+\]\(docs\/images\/demo-navigation\.png\)/);
+  await access(screenshot);
+  assert.ok(
+    (await stat(screenshot)).size <= 500 * 1024,
+    'navigation screenshot must not exceed 500 KB',
+  );
+  assert.match(manualRunbook, /1440\s*[×x]\s*1000/);
+  assert.match(manualRunbook, /#example-keyed-array/);
+  assert.match(manualRunbook, /MT-20/);
+  assert.match(manualRunbook, /Chromium/);
+  assert.match(manualRunbook, /1440\s*[×x]\s*1000/);
+  assert.match(manualRunbook, /#example-keyed-array/);
+  assert.match(manualRunbook, /五组|5\s*组/);
+  assert.match(manualRunbook, /当前项/);
+  assert.match(manualRunbook, /展开表/);
+  assert.match(manualRunbook, /demo-navigation\.png/);
+  assert.match(manualRunbook, /README.*render|render.*README/i);
+  assert.doesNotMatch(manualRunbook, /11\s*张完整表格/);
 });

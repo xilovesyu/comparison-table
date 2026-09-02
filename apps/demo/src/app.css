@@ -1,0 +1,47 @@
+main {
+  margin: 0 auto;
+  max-width: 1440px;
+  padding: 32px;
+}
+
+.demo-directory {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0 32px;
+}
+
+.demo-directory > section {
+  border-left: 3px solid #d0d5dd;
+  padding-left: 12px;
+}
+
+.demo-directory-group-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.demo-directory button {
+  background: transparent;
+  border: 0;
+  color: #155eef;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.demo-directory [role='group'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.demo-directory a[aria-current='page'] {
+  color: #155eef;
+  font-weight: 700;
+}
+
+.example-card h2:focus {
+  outline: 3px solid #84adff;
+  outline-offset: 3px;
+}
