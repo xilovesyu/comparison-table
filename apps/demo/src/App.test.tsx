@@ -404,18 +404,19 @@ describe('Issue #5 demo directory navigation', () => {
     }
   });
 
-  it('routes each existing example regression through its directory entry and retains source plus copy actions', () => {
-    setExampleHash();
-    render(<App />);
+  it.each(navigationExamples)(
+    'routes %s through its directory entry and retains source plus copy actions',
+    (_id, title) => {
+      setExampleHash();
+      render(<App />);
 
-    for (const [, title] of navigationExamples) {
       fireEvent.click(within(navigation()).getByRole('link', { name: title }));
       const card = exampleCard(title);
       expect(card).toBeVisible();
       fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
       expect(within(card).getByRole('button', { name: '复制源代码' })).toBeInTheDocument();
-    }
-  });
+    },
+  );
 
   it('renders without browser globals and cleans its history listener after unmount', async () => {
     const originalWindow = globalThis.window;

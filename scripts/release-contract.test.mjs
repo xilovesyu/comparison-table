@@ -78,7 +78,7 @@ test('documentation provides static screenshots and a complete component props r
     (match) => match[1],
   );
 
-  assert.equal(imagePaths.length, 3);
+  assert.equal(imagePaths.length, 4);
   await Promise.all(imagePaths.map((imagePath) => access(path.join(root, imagePath))));
   assert.match(packageReadme, /## Component props/);
   for (const propName of propNames) {

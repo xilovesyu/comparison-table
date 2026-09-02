@@ -17,16 +17,17 @@ pnpm --filter @jxi/comparison-table-demo dev --host 127.0.0.1 --port 4173
 
 ## 数据场景与操作约定
 
-| 场景 | Demo 卡片                     | 关键数据 / 预期                                                                       |
-| ---- | ----------------------------- | ------------------------------------------------------------------------------------- |
-| S1   | 基础递归对比                  | 三版本对象；`user.address.city` 为 Beijing/Shanghai/Shenzhen；`summaryMoney` 不展开。 |
-| S2   | 属性选择与路径覆盖            | `customer.password`、`internal.traceId` 必须不可见。                                  |
-| S3   | 受控展开、数组与缺失值        | 按索引数组、`null`、缺失值、后加字段。                                                |
-| S4   | 自定义顺序与扁平层级          | `lines` 容器消失，`lines[0]`、备注、`lines[1]` 顶层排列。                             |
-| S5   | Renderer / Registry           | 金额、百分比、日期；局部覆盖不会污染默认表。                                          |
-| S6   | Diff / baseline / inheritance | `onlyDifferences`、业务 comparator、Base 与继承的 Diff/搜索设置。                     |
-| S7   | 业务键数组对齐                | SKU `P-100` 修改，`P-200` 重排且不变，`P-300` Added，`P-400` Removed。                |
-| S8   | 综合高级配置                  | S2--S7 的组合：受控展开、扁平 keyed array、renderer、Base、源码。                     |
+| 场景 | Demo 卡片                     | 关键数据 / 预期                                                                        |
+| ---- | ----------------------------- | -------------------------------------------------------------------------------------- |
+| S1   | 基础递归对比                  | 三版本对象；`user.address.city` 为 Beijing/Shanghai/Shenzhen；`summaryMoney` 不展开。  |
+| S2   | 属性选择与路径覆盖            | `customer.password`、`internal.traceId` 必须不可见。                                   |
+| S3   | 受控展开、数组与缺失值        | 按索引数组、`null`、缺失值、后加字段。                                                 |
+| S4   | 自定义顺序与扁平层级          | `lines` 容器消失，`lines[0]`、备注、`lines[1]` 顶层排列。                              |
+| S5   | Renderer / Registry           | 金额、百分比、日期；局部覆盖不会污染默认表。                                           |
+| S6   | Diff / baseline / inheritance | `onlyDifferences`、业务 comparator、Base 与继承的 Diff/搜索设置。                      |
+| S7   | 业务键数组对齐                | SKU `P-100` 修改，`P-200` 重排且不变，`P-300` Added，`P-400` Removed。                 |
+| S8   | 综合高级配置                  | S2--S7 的组合：受控展开、扁平 keyed array、renderer、Base、源码。                      |
+| S9   | 示例目录导航                  | 1440×1000 视口下打开 `#example-keyed-array`；检查五组目录、选中状态、返回/前进及源码。 |
 
 ## 已执行正式用例
 

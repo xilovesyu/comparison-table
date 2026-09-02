@@ -29,7 +29,7 @@ const arrayVersions = [
 ] satisfies ComparisonVersion[];
 
 export function ControlledExample() {
-  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>(['["lines"]']);
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
   return (
     <ExampleCard
       title="受控展开、数组与缺失值"
