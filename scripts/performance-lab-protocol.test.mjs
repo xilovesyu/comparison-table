@@ -256,3 +256,30 @@ test('result documents retain seven operation samples and classify injected cata
   nonfinite.results[0].operationSamples['global-search'][0].durationMs = Number.NaN;
   assert.throws(() => validateResultDocument(nonfinite), /non-?finite|measurement/i);
 });
+
+test('runner exposes only stages injection and rejects legacy injection aliases before work starts', async () => {
+  await assert.rejects(
+    runPerformanceLab({
+      quick: true,
+      injections: { catalog: () => [] },
+    }),
+    /stages.*only|injections.*unsupported/i,
+  );
+});
+
+test('60 operation entries retain event-handler markers and non-overlapping data-build, render, oracle, and two-RAF phases', () => {
+  const profiles = ['two-version', 'three-version', 'eight-version'];
+  const categories = ['depth-20', 'wide-1000', 'large-keyed-1024', 'keyed-presence'];
+  const operations = ['global-search', 'only-differences', 'expand-collapse', 'node-search', 'controlled-expansion'];
+  const expectedEntries = categories.length * profiles.length * operations.length;
+  assert.equal(expectedEntries, 60);
+  const matrix = createCatalog().flatMap((scenario) => scenario.expected.operationMarkers ?? []);
+  assert.equal(matrix.length, expectedEntries);
+  for (const entry of matrix) {
+    assert.equal(entry.start.source, 'react-event-handler');
+    assert.equal(entry.end.source, 'react-event-handler');
+    assert.notEqual(entry.dataBuild.token, entry.render.token);
+    assert.notEqual(entry.render.token, entry.oracle.token);
+    assert.notEqual(entry.oracle.token, entry.twoRaf.token);
+  }
+});
