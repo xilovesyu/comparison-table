@@ -10,12 +10,10 @@ const pagesUrl = new URL(configuredPagesUrl);
 if (pagesUrl.hostname === 'localhost' || pagesUrl.hostname === '127.0.0.1') {
   throw new Error('PAGES_URL must identify the deployed site, not localhost or 127.0.0.1.');
 }
-if (
-  pagesUrl.search ||
-  pagesUrl.hash ||
-  pagesUrl.href !== canonicalPagesUrl ||
-  configuredPagesUrl !== canonicalPagesUrl
-) {
+if (pagesUrl.pathname === '/comparison-table') {
+  pagesUrl.pathname = '/comparison-table/';
+}
+if (pagesUrl.search || pagesUrl.hash || pagesUrl.href !== canonicalPagesUrl) {
   throw new Error(`PAGES_URL must exactly equal ${canonicalPagesUrl} without a query or hash.`);
 }
 

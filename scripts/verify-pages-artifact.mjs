@@ -27,6 +27,11 @@ async function listFiles(directory, relative = '') {
     if (entry.isDirectory() && entryStats.isDirectory()) {
       files.push(...(await listFiles(entryPath, entryRelative)));
     } else if (entry.isFile() && entryStats.isFile()) {
+      assert.equal(
+        entryStats.nlink,
+        1,
+        `Pages artifact regular files must not be hard linked: ${entryRelative}`,
+      );
       files.push(entryRelative);
     } else {
       assert.fail(`Pages artifact contains an unsupported filesystem node: ${entryRelative}`);
