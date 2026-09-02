@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
@@ -382,5 +383,127 @@ describe('Issue #5 demo directory navigation', () => {
     unmount();
     window.history.replaceState({}, '', '#example-keyed-array');
     expect(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).not.toThrow();
+  });
+});
+
+describe('Issue #5 architecture navigation compatibility', () => {
+  it('keeps all twelve stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
+    window.history.replaceState({}, '', '/');
+    render(<App />);
+
+    expect(window.location.hash).toBe('');
+    expect(within(navigation()).getByRole('link', { name: '基础递归对比' })).toHaveAttribute(
+      'href',
+      '#example-basic-recursive',
+    );
+    expect(
+      within(navigation())
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual([
+      '#example-basic-recursive',
+      '#example-selection',
+      '#example-renderer',
+      '#example-controlled',
+      '#example-flattened',
+      '#example-registry',
+      '#example-diff',
+      '#example-baseline',
+      '#example-presentation-controls',
+      '#example-keyed-array',
+      '#example-container-summary',
+      '#example-advanced-configuration',
+    ]);
+  });
+
+  it('replaces an invalid hash with basic-recursive but never moves focus for initial or browser history selection', async () => {
+    window.history.replaceState({}, '', '#unknown');
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(<App />);
+
+    await waitFor(() => expect(window.location.hash).toBe('#example-basic-recursive'));
+    const initialHeading = screen.getByRole('heading', { name: '基础递归对比' });
+    expect(initialHeading).toHaveAttribute('id', 'example-basic-recursive-heading');
+    expect(initialHeading).toHaveAttribute('tabindex', '-1');
+    expect(document.activeElement).not.toBe(initialHeading);
+
+    await act(async () => {
+      window.location.hash = '#example-keyed-array';
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: '业务键数组对齐' })).toBeInTheDocument(),
+    );
+    expect(document.activeElement).not.toBe(
+      screen.getByRole('heading', { name: '业务键数组对齐' }),
+    );
+    expect(scrollIntoView).toHaveBeenCalled();
+    await act(async () => {
+      window.history.back();
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: '基础递归对比' })).toBeVisible(),
+    );
+  });
+
+  it('moves focus to the stable H2 only for user click and Enter navigation', async () => {
+    setExampleHash('basic-recursive');
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(<App />);
+
+    const keyed = within(navigation()).getByRole('link', { name: '业务键数组对齐' });
+    await act(async () => fireEvent.click(keyed));
+    const keyedHeading = screen.getByRole('heading', { name: '业务键数组对齐' });
+    await waitFor(() => expect(keyedHeading).toHaveFocus());
+    expect(keyedHeading).toHaveAttribute('id', 'example-keyed-array-heading');
+    expect(keyedHeading).toHaveAttribute('tabindex', '-1');
+    expect(scrollIntoView).toHaveBeenCalled();
+
+    const advanced = within(navigation()).getByRole('link', { name: '综合高级配置' });
+    await act(async () => fireEvent.keyDown(advanced, { key: 'Enter' }));
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: '综合高级配置' })).toHaveFocus(),
+    );
+  });
+
+  it('starts Controlled from its established expanded lines state, then preserves a collapse and re-expand over navigation', () => {
+    const controlled = renderExample('controlled');
+    const row = within(controlled).getByRole('button', { name: /row/i });
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(row);
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+    navigateToExample('basic');
+    const restored = navigateToExample('controlled');
+    const restoredRow = within(restored).getByRole('button', { name: /row/i });
+    expect(restoredRow).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(restoredRow);
+    expect(restoredRow).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('does not emit SSR useLayoutEffect or client act warnings under StrictMode', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(() =>
+      renderToString(
+        <StrictMode>
+          <App />
+        </StrictMode>,
+      ),
+    ).not.toThrow();
+    setExampleHash('basic-recursive');
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+    expect(consoleError).not.toHaveBeenCalledWith(
+      expect.stringMatching(/useLayoutEffect|not wrapped in act/i),
+    );
   });
 });

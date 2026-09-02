@@ -107,15 +107,15 @@ test('README and manual runbook document the canonical demo directory navigation
   const screenshot = path.join(root, 'docs/images/demo-navigation.png');
 
   for (const url of [
-    'http://localhost:5173/#example-basic',
     'http://localhost:5173/#example-keyed-array',
+    'http://localhost:5173/#example-container-summary',
     'http://localhost:5173/#example-advanced-configuration',
   ]) {
     assert.match(readme, new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   for (const sourceLink of [
-    'apps/demo/src/App.tsx',
     'apps/demo/src/examples/KeyedArrayExample.tsx',
+    'apps/demo/src/examples/ContainerSummaryExample.tsx',
     'apps/demo/src/examples/AdvancedExample.tsx',
   ]) {
     assert.match(
@@ -132,5 +132,14 @@ test('README and manual runbook document the canonical demo directory navigation
   );
   assert.match(manualRunbook, /1440\s*[×x]\s*1000/);
   assert.match(manualRunbook, /#example-keyed-array/);
-  assert.match(manualRunbook, /S9/);
+  assert.match(manualRunbook, /MT-20/);
+  assert.match(manualRunbook, /Chromium/);
+  assert.match(manualRunbook, /1440\s*[×x]\s*1000/);
+  assert.match(manualRunbook, /#example-keyed-array/);
+  assert.match(manualRunbook, /五组|5\s*组/);
+  assert.match(manualRunbook, /当前项/);
+  assert.match(manualRunbook, /展开表/);
+  assert.match(manualRunbook, /demo-navigation\.png/);
+  assert.match(manualRunbook, /README.*render|render.*README/i);
+  assert.doesNotMatch(manualRunbook, /11\s*张完整表格/);
 });
