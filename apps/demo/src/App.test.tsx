@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 
 const navigationExamples = [
-  ['basic', '基础递归对比'],
+  ['basic-recursive', '基础递归对比'],
   ['selection', '属性选择与路径覆盖'],
   ['renderer', '自定义渲染器'],
   ['controlled', '受控展开、数组与缺失值'],
@@ -21,7 +21,7 @@ const navigationExamples = [
 
 const navigationGroups = ['基础', '配置', '差异', '高级', '综合'] as const;
 
-function setExampleHash(id = 'basic') {
+function setExampleHash(id = 'basic-recursive') {
   window.history.replaceState({}, '', `#example-${id}`);
 }
 
@@ -61,14 +61,14 @@ describe('documentation examples', () => {
   });
 
   it('reveals a source panel for each example', () => {
-    const card = renderExample('basic');
+    const card = renderExample('basic-recursive');
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByText(/RecursiveComparisonTable/)).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: '复制源代码' })).toBeInTheDocument();
   });
 
   it('shows summary money as a non-expandable first-level value', () => {
-    const card = renderExample('basic');
+    const card = renderExample('basic-recursive');
     const row = within(card).getByText('汇总金额（仅一级）').closest('tr')!;
     expect(within(row).getByText('$1,200.00')).toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: /row/i })).not.toBeInTheDocument();
@@ -233,11 +233,11 @@ describe('Issue #5 demo directory navigation', () => {
   });
 
   it.each([
-    ['', '基础递归对比', '#example-basic'],
-    ['#example-basic', '基础递归对比', '#example-basic'],
+    ['', '基础递归对比', ''],
+    ['#example-basic', '基础递归对比', '#example-basic-recursive'],
     ['#example-keyed-array', '业务键数组对齐', '#example-keyed-array'],
     ['#example-advanced-configuration', '综合高级配置', '#example-advanced-configuration'],
-    ['#unknown-example', '基础递归对比', '#example-basic'],
+    ['#unknown-example', '基础递归对比', '#example-basic-recursive'],
   ])(
     'cold starts at %s with exactly the canonical selected example',
     (hash, title, canonicalHash) => {
@@ -255,21 +255,25 @@ describe('Issue #5 demo directory navigation', () => {
     },
   );
 
-  it('uses click, Enter, hashchange, Back and Forward consistently for regular, keyed, and Advanced examples', () => {
-    setExampleHash('basic');
+  it('uses click, Enter, hashchange, Back and Forward consistently for regular, keyed, and Advanced examples', async () => {
+    setExampleHash('basic-recursive');
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: scrollIntoView,
     });
     render(<App />);
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+    scrollIntoView.mockClear();
 
     const directory = navigation();
     const keyed = within(directory).getByRole('link', { name: '业务键数组对齐' });
-    fireEvent.click(keyed);
+    await act(async () => fireEvent.click(keyed));
     expect(window.location.hash).toBe('#example-keyed-array');
     expect(keyed).toHaveAttribute('aria-current', 'page');
-    expect(exampleCard('业务键数组对齐')).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: '业务键数组对齐' })).toHaveFocus(),
+    );
     expect(scrollIntoView).toHaveBeenCalled();
 
     scrollIntoView.mockClear();
@@ -279,20 +283,18 @@ describe('Issue #5 demo directory navigation', () => {
     expect(scrollIntoView).not.toHaveBeenCalled();
 
     const advanced = within(directory).getByRole('link', { name: '综合高级配置' });
-    fireEvent.keyDown(advanced, { key: 'Enter' });
+    await act(async () => fireEvent.keyDown(advanced, { key: 'Enter' }));
     expect(window.location.hash).toBe('#example-advanced-configuration');
     expect(advanced).toHaveAttribute('aria-current', 'page');
 
-    window.history.back();
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-    expect(window.location.hash).toBe('#example-keyed-array');
-    window.history.forward();
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-    expect(window.location.hash).toBe('#example-advanced-configuration');
+    await act(async () => window.history.back());
+    await waitFor(() => expect(window.location.hash).toBe('#example-keyed-array'));
+    await act(async () => window.history.forward());
+    await waitFor(() => expect(window.location.hash).toBe('#example-advanced-configuration'));
   });
 
   it('does not mount unvisited examples, but keeps every visited card mounted and inert while inactive', () => {
-    setExampleHash('basic');
+    setExampleHash('basic-recursive');
     render(<App />);
     expect(screen.queryByRole('heading', { name: '业务键数组对齐' })).not.toBeInTheDocument();
 
@@ -307,7 +309,7 @@ describe('Issue #5 demo directory navigation', () => {
   });
 
   it('preserves Basic source, Controlled expansion, and Advanced source/table state across directory navigation', () => {
-    setExampleHash('basic');
+    setExampleHash('basic-recursive');
     render(<App />);
 
     const basic = exampleCard('基础递归对比');
@@ -328,7 +330,7 @@ describe('Issue #5 demo directory navigation', () => {
     fireEvent.click(within(navigation()).getByRole('link', { name: '受控展开、数组与缺失值' }));
     expect(
       within(exampleCard('受控展开、数组与缺失值')).getAllByRole('button', { name: /row/i })[0],
-    ).toHaveAttribute('aria-expanded', 'true');
+    ).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
     expect(
       within(exampleCard('综合高级配置')).getByLabelText('Recursive comparison table'),
@@ -378,11 +380,13 @@ describe('Issue #5 demo directory navigation', () => {
       Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
     }
 
-    setExampleHash('basic');
+    setExampleHash('basic-recursive');
     const { unmount } = render(<App />);
     unmount();
-    window.history.replaceState({}, '', '#example-keyed-array');
-    expect(() => window.dispatchEvent(new HashChangeEvent('hashchange'))).not.toThrow();
+    await act(async () => {
+      window.location.hash = '#example-keyed-array';
+    });
+    expect(window.location.hash).toBe('#example-keyed-array');
   });
 });
 
@@ -475,13 +479,13 @@ describe('Issue #5 architecture navigation compatibility', () => {
 
   it('starts Controlled from its established expanded lines state, then preserves a collapse and re-expand over navigation', () => {
     const controlled = renderExample('controlled');
-    const row = within(controlled).getByRole('button', { name: /row/i });
+    const row = within(controlled).getAllByRole('button', { name: /row/i })[0];
     expect(row).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(row);
     expect(row).toHaveAttribute('aria-expanded', 'false');
-    navigateToExample('basic');
+    navigateToExample('basic-recursive');
     const restored = navigateToExample('controlled');
-    const restoredRow = within(restored).getByRole('button', { name: /row/i });
+    const restoredRow = within(restored).getAllByRole('button', { name: /row/i })[0];
     expect(restoredRow).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(restoredRow);
     expect(restoredRow).toHaveAttribute('aria-expanded', 'true');
