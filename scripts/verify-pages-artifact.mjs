@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,20 +8,38 @@ const distributionRoot = path.join(workspaceRoot, 'apps', 'demo', 'dist');
 const unsafeName = /(?:^|\/)(?:\.|\.env(?:\.|$)|\.npmrc$)|\.map$/i;
 
 async function listFiles(directory, relative = '') {
+  const directoryStats = await lstat(directory);
+  assert(
+    directoryStats.isDirectory() && !directoryStats.isSymbolicLink(),
+    `Pages artifact directory must be a real directory: ${relative || 'apps/demo/dist'}`,
+  );
+
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const entryRelative = path.posix.join(relative, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await listFiles(path.join(directory, entry.name), entryRelative)));
-    } else {
+    const entryPath = path.join(directory, entry.name);
+    const entryStats = await lstat(entryPath);
+    assert(
+      !entry.isSymbolicLink() && !entryStats.isSymbolicLink(),
+      `Pages artifact must not contain symbolic links or junctions: ${entryRelative}`,
+    );
+    if (entry.isDirectory() && entryStats.isDirectory()) {
+      files.push(...(await listFiles(entryPath, entryRelative)));
+    } else if (entry.isFile() && entryStats.isFile()) {
       files.push(entryRelative);
+    } else {
+      assert.fail(`Pages artifact contains an unsupported filesystem node: ${entryRelative}`);
     }
   }
   return files;
 }
 
-assert((await stat(distributionRoot)).isDirectory(), 'apps/demo/dist must exist');
+const distributionStats = await lstat(distributionRoot);
+assert(
+  distributionStats.isDirectory() && !distributionStats.isSymbolicLink(),
+  'apps/demo/dist must be a real directory, not a symbolic link or junction',
+);
 const rootEntries = await readdir(distributionRoot);
 assert.deepEqual(
   [...rootEntries].sort(),
