@@ -5,19 +5,24 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @jxi/comparison-table build && pnpm --filter @jxi/comparison-table-demo build",
-    "test": "pnpm -r --if-present test && pnpm run test:release-contract",
+    "build:pages": "pnpm --filter @jxi/comparison-table-demo build:pages",
+    "test": "pnpm -r --if-present test && pnpm run test:release-contract && pnpm run test:pages-contract",
+    "test:pages-contract": "node --test scripts/pages-contract.test.mjs",
+    "test:pages-smoke": "playwright test apps/demo/e2e/pages-smoke.spec.ts",
     "test:release-contract": "node --test scripts/release-contract.test.mjs",
     "test:watch": "pnpm -r --if-present test:watch",
     "lint": "pnpm -r --if-present lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pack:check": "pnpm --filter @jxi/comparison-table pack --pack-destination ../../artifacts",
+    "verify:pages-artifact": "node scripts/verify-pages-artifact.mjs",
     "release:check": "pnpm run format:check && pnpm run build && pnpm test && pnpm run pack:check",
     "release:dry-run": "pnpm run release:check && pnpm --filter @jxi/comparison-table exec npm publish --dry-run --access public",
     "release:publish": "pnpm run release:check && pnpm --filter @jxi/comparison-table exec npm publish --provenance --access public"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^22.15.30",
@@ -30,9 +35,9 @@
     "globals": "^15.15.0",
     "jsdom": "^26.1.0",
     "prettier": "^3.9.6",
+    "tsup": "^8.5.0",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.34.0",
-    "tsup": "^8.5.0",
     "vite": "^6.3.5",
     "vitest": "^3.2.4"
   }

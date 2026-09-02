@@ -91,6 +91,20 @@ navigation, and leaves unvisited examples out of the initial render. Its catalog
 [ContainerSummaryExample.tsx](apps/demo/src/examples/ContainerSummaryExample.tsx), and
 [AdvancedExample.tsx](apps/demo/src/examples/AdvancedExample.tsx).
 
+### Live GitHub Pages demo
+
+The production demo is published from `main` at
+[https://xilovesyu.github.io/comparison-table/](https://xilovesyu.github.io/comparison-table/).
+Stable live deep links are available for the release-critical examples:
+
+- [Business-keyed arrays](https://xilovesyu.github.io/comparison-table/#example-keyed-array)
+- [Container summaries](https://xilovesyu.github.io/comparison-table/#example-container-summary)
+- [Advanced configuration](https://xilovesyu.github.io/comparison-table/#example-advanced-configuration)
+
+Deployment is isolated from npm publishing. See the
+[Pages deployment guide](docs/pages-deployment.md) for first-run repository setup, rollback, and the
+post-deployment Chromium smoke procedure.
+
 ## Component API
 
 The complete Props and configuration reference, including custom renderers, Diff comparators, baseline styling, field definitions, and search controls, is available in the [package README](./packages/comparison-table/README.md).

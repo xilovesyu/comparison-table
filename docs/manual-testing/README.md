@@ -28,6 +28,18 @@ pnpm --filter @jxi/comparison-table-demo dev --host 127.0.0.1 --port 4173
 | S7   | 业务键数组对齐                | SKU `P-100` 修改，`P-200` 重排且不变，`P-300` Added，`P-400` Removed。                 |
 | S8   | 综合高级配置                  | S2--S7 的组合：受控展开、扁平 keyed array、renderer、Base、源码。                      |
 | S9   | 示例目录导航                  | 1440×1000 视口下打开 `#example-keyed-array`；检查五组目录、选中状态、返回/前进及源码。 |
+| S10  | GitHub Pages 发布后 smoke     | live root 与 Keyed/Container/Advanced 深链 reload；检查 heading、current、表格与资源。 |
+
+## GitHub Pages 发布后验证
+
+Pages 验证只针对已部署的 HTTPS 地址，不以本地 Vite 服务代替。每次 `main` 部署由
+`.github/workflows/pages.yml` 自动执行 Chromium Playwright smoke；检查 root、
+`#example-keyed-array`、`#example-container-summary` 和 `#example-advanced-configuration` 的 reload、
+H2、`aria-current`、`Recursive comparison table`、静态资源、console 与 page error。失败时保留
+screenshot、trace 和 video。
+
+首次启用、证据留存与 rollback 步骤见 [Pages deployment guide](../pages-deployment.md)。该远端流程
+不计入下方已经执行的 20 个本地正式用例，也不能通过本地运行触发真实部署。
 
 ## 已执行正式用例
 

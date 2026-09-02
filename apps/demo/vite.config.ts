@@ -1,7 +1,10 @@
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
-export default defineConfig({
+const pagesConfig = { base: '/comparison-table/' } as const;
+
+export default defineConfig(({ mode }) => ({
+  ...(mode === 'pages' ? pagesConfig : {}),
   plugins: [react()],
   resolve: {
     alias: {
@@ -10,5 +13,10 @@ export default defineConfig({
       ),
     },
   },
-  test: { environment: 'jsdom', globals: true, setupFiles: './src/test/setup.ts' },
-});
+  test: {
+    environment: 'jsdom',
+    exclude: [...configDefaults.exclude, 'e2e/**'],
+    globals: true,
+    setupFiles: './src/test/setup.ts',
+  },
+}));
