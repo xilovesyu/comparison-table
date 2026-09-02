@@ -45,10 +45,16 @@ function keyedLines(versionIndex, count) {
   if (versionIndex % 2 === 1) lines.reverse();
   if (versionIndex > 0 && count < 1024) {
     lines.push({ sku: 'ADDED-ALL', quantity: versionIndex });
+  }
+  if (versionIndex % 2 === 1 && count < 1024) {
     const removedIndex = lines.findIndex((line) => line.sku === 'SKU-0001');
     lines.splice(removedIndex, 1);
   }
   return lines;
+}
+
+function operationFixture(versionIndex) {
+  return { lines: keyedLines(versionIndex, 4) };
 }
 
 function dataFor(caseId, versionIndex, seed) {
@@ -66,16 +72,25 @@ function dataFor(caseId, versionIndex, seed) {
       return { longText: `${text.slice(0, 5120)}PERFORMANCE-QUERY${text.slice(5137)}` };
     }
     case 'depth-20':
-      return { deep: nestedValue(20, `leaf-${versionIndex}`) };
+      return { ...operationFixture(versionIndex), deep: nestedValue(20, `leaf-${versionIndex}`) };
     case 'wide-1000':
-      return Object.fromEntries(
-        Array.from({ length: 1000 }, (_, index) => [
-          `field${String(index).padStart(4, '0')}`,
-          index + versionIndex,
-        ]),
-      );
-    case 'keyed-presence':
-      return { lines: keyedLines(versionIndex, 4) };
+      return {
+        ...operationFixture(versionIndex),
+        ...Object.fromEntries(
+          Array.from({ length: 1000 }, (_, index) => [
+            `field${String(index).padStart(4, '0')}`,
+            index + versionIndex,
+          ]),
+        ),
+      };
+    case 'keyed-presence': {
+      const text = deterministicText(seed + versionIndex, 256);
+      return {
+        lines: keyedLines(versionIndex, 4),
+        longText: `${text}PERFORMANCE-QUERY`,
+        ...(versionIndex === 0 ? { undefinedValue: undefined } : {}),
+      };
+    }
     case 'large-keyed-1024':
       return { lines: keyedLines(versionIndex, 1024) };
     default:
@@ -116,7 +131,9 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
     data: dataFor(caseId, index, seed),
   }));
   const keyed = caseId.includes('keyed');
-  const operationCase = caseId === 'keyed-presence';
+  const operationCase = ['depth-20', 'wide-1000', 'keyed-presence', 'large-keyed-1024'].includes(
+    caseId,
+  );
   if (keyed) validateKeyedIdentities(versions);
   return {
     id: `${caseId}--${profile}`,
@@ -124,7 +141,7 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
     profile,
     seed,
     versions,
-    config: keyed
+    config: operationCase
       ? { arrayItemKeyFields: { lines: 'sku' }, expandAll: caseId === 'keyed-presence' }
       : {},
     expected: {
@@ -132,7 +149,10 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
       tablePresent: true,
       keyed,
       semantic: caseId === 'empty' ? 'empty' : 'populated',
-      textIncludes: caseId === 'keyed-presence' ? ['lines[SKU-0000]', 'Added', 'Removed'] : [],
+      textIncludes:
+        caseId === 'keyed-presence'
+          ? ['lines[SKU-0000]', 'Added', ...(count === 2 ? ['Removed'] : [])]
+          : [],
       ownUndefined:
         caseId === 'null-missing-own-undefined'
           ? { versionId: 'v1', path: 'undefinedValue', hasOwn: true }
@@ -141,16 +161,33 @@ export function createScenario(caseId, profile, seed = manifest.seed) {
         caseId === 'text-10240-query'
           ? { value: 'PERFORMANCE-QUERY', path: 'longText' }
           : undefined,
-      keyedIdentity: operationCase
-        ? {
-            unchanged: 'SKU-0000',
-            modified: 'SKU-0002',
-            added: 'ADDED-ALL',
-            removed: 'SKU-0001',
-            middleMissing: 'SKU-0001',
-          }
-        : undefined,
+      keyedIdentity:
+        caseId === 'keyed-presence'
+          ? {
+              unchanged: 'SKU-0000',
+              modified: 'SKU-0002',
+              added: 'ADDED-ALL',
+              removed: 'SKU-0001',
+              middleMissing: 'SKU-0001',
+            }
+          : undefined,
       operations: operationCase ? OPERATIONS : [],
+      dataBuild: operationCase ? { location: 'browser', seed } : undefined,
+      publicOracle:
+        caseId === 'keyed-presence'
+          ? {
+              ownUndefined: { path: 'undefinedValue', versionId: 'v1', hasOwn: true },
+              query: { path: 'longText', value: 'PERFORMANCE-QUERY' },
+              keyedIdentity: {
+                unchanged: 'SKU-0000',
+                modified: 'SKU-0002',
+                added: 'ADDED-ALL',
+                removed: 'SKU-0001',
+                middleMissing: 'SKU-0001',
+              },
+              filters: ['search', 'differences'],
+            }
+          : undefined,
       operationFinalState: operationCase
         ? {
             globalQuery: '',

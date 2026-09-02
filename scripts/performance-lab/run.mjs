@@ -74,13 +74,19 @@ async function bundleMetadata() {
 async function runPnpm(args) {
   const pnpmEntrypoint = process.env.npm_execpath;
   const executableEntrypoint = pnpmEntrypoint?.toLowerCase().endsWith('.exe');
+  const pnpmHomeExecutable =
+    process.platform === 'win32' && process.env.PNPM_HOME
+      ? path.join(process.env.PNPM_HOME, 'pnpm.exe')
+      : undefined;
   const command = executableEntrypoint
     ? pnpmEntrypoint
-    : pnpmEntrypoint
-      ? process.execPath
-      : process.platform === 'win32'
-        ? 'pnpm.cmd'
-        : 'pnpm';
+    : pnpmHomeExecutable
+      ? pnpmHomeExecutable
+      : pnpmEntrypoint
+        ? process.execPath
+        : process.platform === 'win32'
+          ? 'pnpm.cmd'
+          : 'pnpm';
   const commandArgs = pnpmEntrypoint && !executableEntrypoint ? [pnpmEntrypoint, ...args] : args;
   return execFileAsync(command, commandArgs, {
     cwd: root,
@@ -229,15 +235,86 @@ function failure(scenarioId, category, error) {
   return { scenarioId, category, error };
 }
 
-export async function runPerformanceLab({ quick = false, output } = {}) {
+async function measureScenario({ page, scenario, telemetry }) {
+  const result = await page.evaluate(
+    ({ input, telemetry: browserTelemetry }) =>
+      window.performanceLab.run(input, { telemetry: browserTelemetry }),
+    {
+      input: {
+        caseId: scenario.caseId,
+        profile: scenario.profile,
+        seed: scenario.seed,
+      },
+      telemetry,
+    },
+  );
+  if (result.status !== 'ok') {
+    throw Object.assign(
+      new Error(
+        `Protocol ${result.category ?? result.status}${result.error ? `: ${result.error}` : ''}`,
+      ),
+      { category: result.category ?? 'protocol' },
+    );
+  }
+  verifySemanticOracle(result.observation, { ...scenario.expected, operations: [] });
+  const operations = await runOperations(page, scenario.expected);
+  verifySemanticOracle({ ...result.observation, operations }, scenario.expected);
+  if (
+    !Number.isFinite(result.dataBuild?.durationMs) ||
+    result.dataBuild.transactionStart !== 'browser-event'
+  ) {
+    throw new Error('Browser data-build transaction did not produce a finite measurement');
+  }
+  return { operations, result };
+}
+
+function validateMeasuredScenario({ operations, result }, scenario) {
+  if (!Number.isFinite(result?.durationMs)) {
+    throw new Error('Measurement produced a nonfinite render duration');
+  }
+  if (
+    !Number.isFinite(result.dataBuild?.durationMs) ||
+    result.dataBuild.transactionStart !== 'browser-event'
+  ) {
+    throw new Error('Browser data-build transaction did not produce a finite measurement');
+  }
+  verifySemanticOracle({ ...result.observation, operations }, scenario.expected);
+}
+
+function summarizeMeasurements(summarize, values) {
+  const summary = summarize(values);
+  if (['min', 'median', 'p95', 'max'].some((field) => !Number.isFinite(summary?.[field]))) {
+    throw new Error('Measurement summarizer produced a nonfinite R-7 statistic');
+  }
+  return summary;
+}
+
+function stageOverrides(options) {
+  return options.stages ?? options.injections ?? options.adapters ?? {};
+}
+
+export async function runPerformanceLab(options = {}) {
+  const { quick = false, output } = options;
+  const overrides = stageOverrides(options);
   const seed = Number(argument('--seed', String(performanceLabManifest.seed)));
   const requestedOutputPath = path.resolve(
     root,
     output ?? argument('--output', '.performance-lab/results/performance-lab.v1.json'),
   );
-  const catalog = quick
-    ? [createCatalog(seed).find((scenario) => scenario.id === 'keyed-presence--two-version')]
-    : createCatalog(seed);
+  const failures = [];
+  let catalog = [];
+  try {
+    const generatedCatalog = await (overrides.catalog ?? createCatalog)(seed);
+    catalog = quick
+      ? [generatedCatalog.find((scenario) => scenario.id === 'keyed-presence--two-version')].filter(
+          Boolean,
+        )
+      : generatedCatalog;
+    if (quick && catalog.length !== 1)
+      throw new Error('Quick scenario is missing from the catalog');
+  } catch (error) {
+    failures.push(failure('catalog', 'catalog', error));
+  }
   const telemetry = {
     longtask: !process.argv.includes('--no-longtask'),
     heap: process.argv.includes('--heap'),
@@ -249,10 +326,11 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
       Object.fromEntries((scenario.expected.operations ?? []).map((operation) => [operation, []])),
     ]),
   );
+  const dataBuildSamples = new Map(catalog.map((scenario) => [scenario.id, []]));
+  const latestDataBuild = new Map();
   const latestOperations = new Map();
   const latestObservations = new Map();
   const telemetryByScenario = new Map(catalog.map((scenario) => [scenario.id, []]));
-  const failures = [];
   let bundle = emptyBundle();
   let environment = await environmentMetadata();
   let server;
@@ -261,6 +339,8 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
   let stage = 'build';
 
   try {
+    if (catalog.length === 0)
+      throw Object.assign(new Error('Catalog stage failed'), { handled: true });
     await runPnpm(['build']);
     await build({ configFile, logLevel: quick ? 'silent' : 'info' });
     bundle = await bundleMetadata();
@@ -273,7 +353,14 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
     });
     stage = 'infrastructure';
     browser = await chromium.launch({ headless: true });
-    environment = await environmentMetadata(`Chromium ${browser.version()}`);
+    try {
+      environment = await (overrides.environment ?? environmentMetadata)(
+        `Chromium ${browser.version()}`,
+      );
+    } catch (error) {
+      failures.push(failure('environment', 'environment', error));
+      environment = await environmentMetadata(`Chromium ${browser.version()}`);
+    }
     page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
     stage = 'goto';
     await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'networkidle' });
@@ -286,23 +373,20 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
       for (const scenario of latinRotation(catalog, round)) {
         stage = 'protocol';
         try {
-          const result = await page.evaluate(
-            ({ scenario, telemetry }) => window.performanceLab.run(scenario, { telemetry }),
-            { scenario, telemetry },
-          );
-          if (result.status !== 'ok') {
-            throw Object.assign(new Error(`Protocol ${result.category ?? result.status}`), {
-              category: result.category ?? 'protocol',
-            });
-          }
-          verifySemanticOracle(result.observation, { ...scenario.expected, operations: [] });
           stage = 'measurement';
-          const operations = await runOperations(page, scenario.expected);
-          verifySemanticOracle({ ...result.observation, operations }, scenario.expected);
+          const measured = await (overrides.measurement ?? measureScenario)({
+            page,
+            scenario,
+            telemetry,
+          });
+          validateMeasuredScenario(measured, scenario);
+          const { operations, result } = measured;
           latestObservations.set(scenario.id, result.observation);
           latestOperations.set(scenario.id, operations);
+          latestDataBuild.set(scenario.id, result.dataBuild);
           if (!quick && round >= WARMUP_RUNS) {
             samples.get(scenario.id).push(result.durationMs);
+            dataBuildSamples.get(scenario.id).push(result.dataBuild.durationMs);
             for (const [name, metric] of Object.entries(operations)) {
               operationSamples.get(scenario.id)[name].push(metric);
             }
@@ -314,7 +398,7 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
       }
     }
   } catch (error) {
-    failures.push(failure(stage, stage, error));
+    if (!error.handled) failures.push(failure(stage, stage, error));
   } finally {
     for (const resource of [page, browser, server]) {
       try {
@@ -334,6 +418,7 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
         quick: true,
         observation: latestObservations.get(scenario.id),
         operations: latestOperations.get(scenario.id),
+        dataBuild: latestDataBuild.get(scenario.id),
       };
     }
     if (recorded.length !== RECORDED_RUNS) {
@@ -346,15 +431,37 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
       );
       return { scenarioId: scenario.id, status: 'partial', samples: recorded };
     }
-    return {
-      scenarioId: scenario.id,
-      status: 'ok',
-      samples: recorded,
-      summary: summarizeR7(recorded),
-      operations: latestOperations.get(scenario.id),
-      operationSamples: operationSamples.get(scenario.id),
-      telemetry: telemetryByScenario.get(scenario.id),
-    };
+    try {
+      const summarize = overrides.summarize ?? summarizeR7;
+      return {
+        scenarioId: scenario.id,
+        status: 'ok',
+        samples: recorded,
+        summary: summarizeMeasurements(summarize, recorded),
+        dataBuild: latestDataBuild.get(scenario.id),
+        dataBuildSamples: dataBuildSamples.get(scenario.id),
+        dataBuildSummary: summarizeMeasurements(summarize, dataBuildSamples.get(scenario.id)),
+        operations: latestOperations.get(scenario.id),
+        operationSamples: operationSamples.get(scenario.id),
+        operationSummaries: Object.fromEntries(
+          Object.entries(operationSamples.get(scenario.id)).map(([name, metrics]) => [
+            name,
+            {
+              duration: summarizeMeasurements(
+                summarize,
+                metrics.map((metric) => metric.durationMs),
+              ),
+              rowCount: metrics.at(-1)?.rowCount,
+              cellCount: metrics.at(-1)?.cellCount,
+            },
+          ]),
+        ),
+        telemetry: telemetryByScenario.get(scenario.id),
+      };
+    } catch (error) {
+      failures.push(failure(scenario.id, 'measurement', error));
+      return { scenarioId: scenario.id, status: 'partial', samples: recorded };
+    }
   });
 
   const catalogMetadata = {
@@ -373,7 +480,7 @@ export async function runPerformanceLab({ quick = false, output } = {}) {
   let outputPath = requestedOutputPath;
   try {
     validateResultDocument(document);
-    await atomicWrite(outputPath, document);
+    await (overrides.report ?? atomicWrite)(outputPath, document);
   } catch (error) {
     failures.push(failure('report', 'report', error));
     document = createResultDocument({

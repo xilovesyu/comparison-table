@@ -62,5 +62,54 @@ export function validateResultDocument(result) {
   if (!Array.isArray(result.results) || !Array.isArray(result.failures)) {
     throw new Error('Results and failures must be arrays');
   }
+  const finiteMeasurement = (value, label) => {
+    if (!Number.isFinite(value)) throw new Error(`Nonfinite measurement: ${label}`);
+  };
+  const validateMetric = (metric, label) => {
+    finiteMeasurement(metric?.durationMs, `${label}.durationMs`);
+    if (!Number.isInteger(metric?.rowCount) || metric.rowCount < 0) {
+      throw new Error(`Invalid measurement row count: ${label}.rowCount`);
+    }
+    if (!Number.isInteger(metric?.cellCount) || metric.cellCount < 0) {
+      throw new Error(`Invalid measurement cell count: ${label}.cellCount`);
+    }
+  };
+  const validateSummary = (summary, label) => {
+    for (const statistic of ['min', 'median', 'p95', 'max']) {
+      finiteMeasurement(summary?.[statistic], `${label}.${statistic}`);
+    }
+  };
+  for (const entry of result.results) {
+    if (entry.dataBuild) {
+      finiteMeasurement(entry.dataBuild.durationMs, `${entry.scenarioId}.dataBuild.durationMs`);
+      if (entry.dataBuild.transactionStart !== 'browser-event') {
+        throw new Error(`Invalid data-build transaction start: ${entry.scenarioId}`);
+      }
+    }
+    for (const [name, metric] of Object.entries(entry.operations ?? {})) {
+      validateMetric(metric, `${entry.scenarioId}.operations.${name}`);
+    }
+    for (const [name, metrics] of Object.entries(entry.operationSamples ?? {})) {
+      if (!Array.isArray(metrics)) {
+        throw new Error(`Invalid measurement samples: ${entry.scenarioId}.${name}`);
+      }
+      metrics.forEach((metric, index) =>
+        validateMetric(metric, `${entry.scenarioId}.operationSamples.${name}[${index}]`),
+      );
+    }
+    for (const [name, summary] of Object.entries(entry.operationSummaries ?? {})) {
+      validateSummary(summary.duration, `${entry.scenarioId}.operationSummaries.${name}.duration`);
+    }
+    for (const [index, duration] of (entry.samples ?? []).entries()) {
+      finiteMeasurement(duration, `${entry.scenarioId}.samples[${index}]`);
+    }
+    for (const [index, duration] of (entry.dataBuildSamples ?? []).entries()) {
+      finiteMeasurement(duration, `${entry.scenarioId}.dataBuildSamples[${index}]`);
+    }
+    if (entry.summary) validateSummary(entry.summary, `${entry.scenarioId}.summary`);
+    if (entry.dataBuildSummary) {
+      validateSummary(entry.dataBuildSummary, `${entry.scenarioId}.dataBuildSummary`);
+    }
+  }
   return result;
 }

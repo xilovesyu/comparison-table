@@ -1,10 +1,16 @@
 import { useLayoutEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
+  buildComparisonRows,
+  filterComparisonRows,
+  filterDifferenceRows,
+  pathId,
   RecursiveComparisonTable,
+  type ComparisonRow,
   type ComparisonVersion,
   type RecursiveComparisonTableProps,
 } from '../../../packages/comparison-table/src/index';
+import { createScenario } from '../catalog.mjs';
 import { afterTwoAnimationFrames, protocolError } from '../protocol.mjs';
 import './styles.css';
 
@@ -17,12 +23,23 @@ interface LabScenario {
     semantic: 'empty' | 'populated';
     textIncludes: string[];
     versionColumns: number;
+    publicOracle?: {
+      ownUndefined: { path: string; versionId: string; hasOwn: boolean };
+      query: { path: string; value: string };
+      keyedIdentity: { added: string; middleMissing: string; modified: string; unchanged: string };
+    };
   };
 }
 
 interface LabOptions {
   timeoutMs?: number;
   telemetry?: { longtask?: boolean; heap?: boolean };
+}
+
+interface ScenarioInput {
+  caseId: string;
+  profile: string;
+  seed: number;
 }
 
 let activeToken = 0;
@@ -55,17 +72,87 @@ function validateCommittedObservation(
   if (missingText) throw new Error(`ARIA semantic oracle did not find text: ${missingText}`);
 }
 
+function flatten(rows: readonly ComparisonRow[]): ComparisonRow[] {
+  return rows.flatMap((row) => [row, ...flatten(row.children ?? [])]);
+}
+
+function runPublicOracle(scenario: LabScenario) {
+  const rows = buildComparisonRows(scenario.versions, scenario.config);
+  const allRows = flatten(rows);
+  const expected = scenario.expected.publicOracle;
+  if (!expected) return undefined;
+
+  const undefinedRow = allRows.find(
+    (row) => row.property.path.join('.') === expected.ownUndefined.path,
+  );
+  const ownsUndefined = Boolean(
+    undefinedRow &&
+    Object.prototype.hasOwnProperty.call(undefinedRow.values, expected.ownUndefined.versionId),
+  );
+  if (ownsUndefined !== expected.ownUndefined.hasOwn) {
+    throw new Error('Public oracle failed own undefined-value presence');
+  }
+
+  const queryRows = flatten(filterComparisonRows(rows, expected.query.value));
+  if (
+    queryRows.length !== 1 ||
+    queryRows[0]?.property.path.join('.') !== expected.query.path ||
+    !Object.values(queryRows[0]?.values ?? {}).some((value) =>
+      String(value).includes(expected.query.value),
+    )
+  ) {
+    throw new Error('Public oracle failed raw-value query filtering');
+  }
+
+  const keyedRow = (identity: string) => allRows.find((row) => row.itemIdentity === identity);
+  const middle = keyedRow(expected.keyedIdentity.middleMissing);
+  const unchanged = keyedRow(expected.keyedIdentity.unchanged);
+  const modified = keyedRow(expected.keyedIdentity.modified);
+  const added = keyedRow(expected.keyedIdentity.added);
+  const expectedMiddlePresence = Object.fromEntries(
+    scenario.versions.map((version, index) => [version.id, index % 2 === 0]),
+  );
+  if (
+    !middle ||
+    middle.id !== pathId(['lines', expected.keyedIdentity.middleMissing]) ||
+    JSON.stringify(middle.presence) !== JSON.stringify(expectedMiddlePresence) ||
+    !unchanged ||
+    unchanged.hasDifference ||
+    !modified?.hasDifference ||
+    added?.presence?.[scenario.versions[0].id] !== false
+  ) {
+    throw new Error('Public oracle failed keyed path, row id, presence, or status semantics');
+  }
+
+  const differenceCount = flatten(filterDifferenceRows(rows)).length;
+  if (differenceCount < 1) throw new Error('Public oracle failed difference filtering');
+  return {
+    differenceCount,
+    middlePresence: middle.presence,
+    middleStatus:
+      scenario.versions.length >= 3 && middle.presence?.[scenario.versions[2].id]
+        ? 'Present'
+        : 'Removed',
+    queryResultCount: queryRows.length,
+    stableRowId: middle.id,
+  };
+}
+
 function LabHost({
   scenario,
   token,
   startedAt,
   options,
+  dataBuild,
+  publicOracle,
   resolve,
 }: {
   scenario: LabScenario;
   token: number;
   startedAt: number;
   options: LabOptions;
+  dataBuild: { durationMs: number; transactionStart: 'browser-event' };
+  publicOracle: ReturnType<typeof runPublicOracle>;
   resolve: (result: unknown) => void;
 }) {
   const controlled = Boolean(scenario.expected.operations?.includes('controlled-expansion'));
@@ -87,7 +174,9 @@ function LabHost({
       timeoutMs: options.timeoutMs,
       telemetry: options.telemetry,
     })
-      .then((result) => resolve({ ...result, observation: committedObservation }))
+      .then((result) =>
+        resolve({ ...result, dataBuild, observation: committedObservation, publicOracle }),
+      )
       .catch((error) => resolve(protocolError(error)));
   }, [options, resolve, scenario.expected, startedAt, token]);
 
@@ -116,14 +205,29 @@ function LabHost({
 }
 
 window.performanceLab = {
-  run(scenario: LabScenario, options: LabOptions = {}) {
+  run(input: ScenarioInput, options: LabOptions = {}) {
     const token = ++activeToken;
     const startedAt = performance.now();
     return new Promise((resolve) => {
+      let scenario: LabScenario;
+      let publicOracle: ReturnType<typeof runPublicOracle>;
+      try {
+        scenario = createScenario(input.caseId, input.profile, input.seed) as LabScenario;
+        publicOracle = runPublicOracle(scenario);
+      } catch (error) {
+        resolve(protocolError(error));
+        return;
+      }
+      const dataBuild = {
+        durationMs: performance.now() - startedAt,
+        transactionStart: 'browser-event' as const,
+      };
       root.render(
         <LabHost
+          dataBuild={dataBuild}
           key={token}
           scenario={scenario}
+          publicOracle={publicOracle}
           token={token}
           startedAt={startedAt}
           options={options}
@@ -146,7 +250,7 @@ document.documentElement.dataset.performanceLabReady = 'true';
 declare global {
   interface Window {
     performanceLab: {
-      run: (scenario: LabScenario, options?: LabOptions) => Promise<unknown>;
+      run: (scenario: ScenarioInput, options?: LabOptions) => Promise<unknown>;
       settle: () => Promise<unknown>;
     };
   }
