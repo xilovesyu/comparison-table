@@ -29,8 +29,9 @@ The checked-in manifest fixes seed `20260902`, three version profiles (2, 3, and
 adversarial cases: empty data, null/missing/undefined values, a 10,240-character string, depth 20, width
 1,000, keyed presence/reorder, and a 1,024-item keyed array. The generator validates every keyed identity
 as a unique non-blank string. The host rebuilds each fixture from its seed inside a measured browser-event
-transaction; fixture generation is the complete data-build phase and rendering starts separately afterward.
-The Node runner sends only the case/profile/seed descriptor and drives user operations. A pure oracle
+transaction; the Node runner first prepares only the case/profile/seed descriptor, then clicks the host's
+stable controller. Its React click handler starts fixture generation as the complete data-build phase and
+starts rendering separately afterward; the runner only takes the completed browser marker. A pure oracle
 exercises the package's public row builder, search filter, and difference filter after React commits, before
 the separate ARIA DOM oracle checks the committed table.
 
@@ -40,7 +41,8 @@ consecutive `requestAnimationFrame` callbacks complete. The keyed-presence case 
 only-differences, expand/collapse, node search, and controlled-expansion operations with raw duration and
 row/cell evidence. Each operation starts in its real React event handler (and records the controlled callback
 where applicable), then records separately tokenized render, oracle, and two-RAF phases in the browser. The
-runner triggers the action and reads that marker; Playwright/CDP round-trip time is not part of the duration.
+runner triggers the action and reads that marker; each transaction starts at the React event and ends in the
+final browser RAF, so Playwright/CDP round-trip time is not part of the duration.
 The depth-20, width-1,000, keyed-presence, and 1,024-item keyed pressure profiles retain seven raw samples and
 an R-7 summary for every operation, yielding 60 operation series across four cases, three profiles, and five
 operations. Protocol timeouts, stale tokens, browser errors, and partial results are explicit; they are not

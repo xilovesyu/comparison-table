@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -138,6 +138,12 @@ test('production host quick run records ARIA operation metrics before reporting 
       output: path.join(temporaryDirectory, 'result.json'),
     });
     const result = document.results[0];
+    assert.equal(result.start?.source, 'react-event-handler');
+    assert.match(result.end?.source ?? '', /two-raf|browser-raf/);
+    assert.ok(result.start.at < result.end.at);
+    assert.notEqual(result.dataBuild.token, result.phases.render.token);
+    assert.notEqual(result.phases.render.token, result.phases.oracle.token);
+    assert.notEqual(result.phases.oracle.token, result.phases.twoRaf.token);
     for (const operation of [
       'global-search',
       'only-differences',
@@ -150,6 +156,9 @@ test('production host quick run records ARIA operation metrics before reporting 
       assert.ok(metric.rowCount >= 0, `${operation} raw row count`);
       assert.ok(metric.cellCount >= 0, `${operation} raw cell count`);
       assert.ok(Number.isFinite(metric.durationMs), `${operation} raw duration`);
+      assert.equal(metric.start?.source, 'react-event-handler', `${operation} React start`);
+      assert.match(metric.end?.source ?? '', /two-raf|browser-raf/, `${operation} RAF end`);
+      assert.ok(metric.start.at < metric.end.at, `${operation} marker order`);
     }
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -190,7 +199,7 @@ test('keyed fixture has a real v1-present/v2-missing/v3-present identity and pub
   });
 });
 
-test('result documents retain seven operation samples and classify injected catalog, environment, measurement, and report failures', () => {
+test('result schema retains seven operation samples and rejects nonfinite operation durations', () => {
   const document = createResultDocument({
     catalog: { version: 1 },
     seed: 20260902,
@@ -227,18 +236,9 @@ test('result documents retain seven operation samples and classify injected cata
         },
       },
     ],
-    failures: [
-      { scenarioId: 'catalog', category: 'catalog', error: 'injected catalog failure' },
-      { scenarioId: 'environment', category: 'environment', error: 'injected environment failure' },
-      { scenarioId: 'measurement', category: 'measurement', error: 'injected nonfinite summary' },
-      { scenarioId: 'report', category: 'report', error: 'injected report failure' },
-    ],
+    failures: [{ scenarioId: 'fixture', category: 'fixture', error: 'schema partial fixture' }],
   });
   assert.equal(validateResultDocument(document).status, 'partial');
-  assert.deepEqual(
-    document.failures.map((failure) => failure.category),
-    ['catalog', 'environment', 'measurement', 'report'],
-  );
   assert.equal(document.results[0].dataBuild.transactionStart, 'browser-event');
   assert.equal(document.results[0].operationSamples['global-search'].length, 7);
   assert.deepEqual(
@@ -267,7 +267,7 @@ test('runner exposes only stages injection and rejects legacy injection aliases 
   );
 });
 
-test('60 operation entries retain event-handler markers and non-overlapping data-build, render, oracle, and two-RAF phases', () => {
+test('60 operation expectations require event-to-RAF markers and non-overlapping phase tokens', () => {
   const profiles = ['two-version', 'three-version', 'eight-version'];
   const categories = ['depth-20', 'wide-1000', 'large-keyed-1024', 'keyed-presence'];
   const operations = [
@@ -283,14 +283,14 @@ test('60 operation entries retain event-handler markers and non-overlapping data
   assert.equal(matrix.length, expectedEntries);
   for (const entry of matrix) {
     assert.equal(entry.start.source, 'react-event-handler');
-    assert.equal(entry.end.source, 'react-event-handler');
+    assert.match(entry.end.source, /two-raf|browser-raf/);
     assert.notEqual(entry.dataBuild.token, entry.render.token);
     assert.notEqual(entry.render.token, entry.oracle.token);
     assert.notEqual(entry.oracle.token, entry.twoRaf.token);
   }
 });
 
-test('host marker matrix ends each operation in the final two-RAF callback, not its React event handler', () => {
+test('catalog marker expectations end each operation in the final two-RAF callback', () => {
   const entries = createCatalog().flatMap((scenario) => scenario.expected.operationMarkers ?? []);
   assert.equal(entries.length, 60);
   for (const entry of entries) {
@@ -301,17 +301,65 @@ test('host marker matrix ends each operation in the final two-RAF callback, not 
 });
 
 test('stages injection writes an observed schema-valid partial artifact for catalog failure', async () => {
-  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'comparison-table-stage-failure-'));
+  const temporaryDirectory = await mkdtemp(
+    path.join(os.tmpdir(), 'comparison-table-stage-failure-'),
+  );
   try {
     await assert.rejects(
       runPerformanceLab({
         quick: true,
         output: path.join(temporaryDirectory, 'partial.json'),
-        stages: { catalog: () => { throw new Error('catalog injected'); } },
+        stages: {
+          catalog: () => {
+            throw new Error('catalog injected');
+          },
+        },
       }),
-      (error) => error.document?.status === 'partial' && error.document.failures[0]?.category === 'catalog',
+      (error) =>
+        error.document?.status === 'partial' && error.document.failures[0]?.category === 'catalog',
     );
   } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test('the single stages hook observes environment, measurement, and report failures in one atomic partial artifact', async () => {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'comparison-table-stages-'));
+  let fallbackPath;
+  try {
+    await assert.rejects(
+      runPerformanceLab({
+        quick: true,
+        output: path.join(temporaryDirectory, 'partial.json'),
+        stages: {
+          environment: () => {
+            throw new Error('environment injected');
+          },
+          measurement: () => {
+            throw new Error('measurement injected');
+          },
+          report: () => {
+            throw new Error('report injected');
+          },
+        },
+      }),
+      (error) => {
+        fallbackPath = error.outputPath;
+        assert.deepEqual(
+          error.document?.failures.map((failure) => failure.category),
+          ['environment', 'measurement', 'report'],
+        );
+        return true;
+      },
+    );
+    const artifact = JSON.parse(await readFile(fallbackPath, 'utf8'));
+    assert.equal(validateResultDocument(artifact).status, 'partial');
+    assert.deepEqual(
+      artifact.failures.map((failure) => failure.category),
+      ['environment', 'measurement', 'report'],
+    );
+  } finally {
+    if (fallbackPath) await rm(fallbackPath, { force: true });
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
 });

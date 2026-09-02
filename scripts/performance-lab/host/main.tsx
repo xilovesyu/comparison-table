@@ -53,6 +53,27 @@ interface DataBuildMarker extends PhaseMarker {
   transactionStart: 'browser-event';
 }
 
+interface EventMarker {
+  at: number;
+  source: 'react-event-handler';
+}
+
+interface PreparedRun {
+  input: ScenarioInput;
+  options: LabOptions;
+  resolve: (result: unknown) => void;
+}
+
+interface ActiveRun {
+  dataBuild: DataBuildMarker;
+  options: LabOptions;
+  renderPhase: { token: string; startedAt: number };
+  resolve: (result: unknown) => void;
+  scenario: LabScenario;
+  start: EventMarker;
+  token: number;
+}
+
 interface PendingOperation {
   operation: string;
   start: { at: number; source: 'react-event-handler' };
@@ -66,6 +87,8 @@ let markerCaptureEnabled = true;
 let armedOperation: string | undefined;
 let pendingOperation: PendingOperation | undefined;
 let activeDataBuild: DataBuildMarker | undefined;
+let preparedRun: PreparedRun | undefined;
+let pendingInitialPromise: Promise<unknown> | undefined;
 const completedOperations = new Map<string, unknown>();
 const operationWaiters = new Map<string, (marker: unknown) => void>();
 const root = createRoot(document.getElementById('root')!);
@@ -155,7 +178,7 @@ function beginOperation() {
           ...evidence,
           durationMs: endedAt - pending.start.at,
           start: pending.start,
-          end: { at: endedAt, source: 'react-event-handler' },
+          end: { at: endedAt, source: 'two-raf' },
           controlledCallback: pending.controlledCallback,
           dataBuild: activeDataBuild,
           render,
@@ -265,6 +288,7 @@ function LabHost({
   options,
   dataBuild,
   renderPhase,
+  start,
   resolve,
 }: {
   scenario: LabScenario;
@@ -272,6 +296,7 @@ function LabHost({
   options: LabOptions;
   dataBuild: DataBuildMarker;
   renderPhase: { token: string; startedAt: number };
+  start: EventMarker;
   resolve: (result: unknown) => void;
 }) {
   const controlled = Boolean(scenario.expected.operations?.includes('controlled-expansion'));
@@ -302,10 +327,13 @@ function LabHost({
       timeoutMs: options.timeoutMs,
       telemetry: options.telemetry,
     })
-      .then((result) =>
+      .then((result) => {
+        const endedAt = performance.now();
         resolve({
           ...result,
-          durationMs: render.durationMs,
+          durationMs: endedAt - start.at,
+          start,
+          end: { at: endedAt, source: 'two-raf' },
           dataBuild,
           observation: committedObservation,
           publicOracle,
@@ -320,10 +348,10 @@ function LabHost({
               durationMs: result.durationMs,
             },
           },
-        }),
-      )
+        });
+      })
       .catch((error) => resolve(protocolError(error)));
-  }, [dataBuild, options, renderPhase, resolve, scenario, token]);
+  }, [dataBuild, options, renderPhase, resolve, scenario, start, token]);
 
   return (
     <main
@@ -352,42 +380,86 @@ function LabHost({
   );
 }
 
-window.performanceLab = {
-  run(input: ScenarioInput, options: LabOptions = {}) {
+function PerformanceLabController() {
+  const [run, setRun] = useState<ActiveRun>();
+
+  const trigger = () => {
+    const prepared = preparedRun;
+    if (!prepared) return;
+    preparedRun = undefined;
     const token = ++activeToken;
     phaseSequence = 0;
+    const startedAt = performance.now();
+    const start: EventMarker = { at: startedAt, source: 'react-event-handler' };
     const dataBuildPhase = {
       token: phaseToken('initial:data-build'),
-      startedAt: performance.now(),
+      startedAt,
     };
-    return new Promise((resolve) => {
-      let scenario: LabScenario;
-      try {
-        scenario = createScenario(input.caseId, input.profile, input.seed) as LabScenario;
-      } catch (error) {
-        resolve(protocolError(error));
-        return;
-      }
-      const dataBuild: DataBuildMarker = {
-        ...completePhase(dataBuildPhase),
-        transactionStart: 'browser-event' as const,
-      };
-      activeDataBuild = dataBuild;
-      const renderPhase = {
-        token: phaseToken('initial:render'),
-        startedAt: performance.now(),
-      };
-      root.render(
+    let scenario: LabScenario;
+    try {
+      scenario = createScenario(
+        prepared.input.caseId,
+        prepared.input.profile,
+        prepared.input.seed,
+      ) as LabScenario;
+    } catch (error) {
+      prepared.resolve(protocolError(error));
+      return;
+    }
+    const dataBuild: DataBuildMarker = {
+      ...completePhase(dataBuildPhase),
+      transactionStart: 'browser-event',
+    };
+    activeDataBuild = dataBuild;
+    setRun({
+      dataBuild,
+      options: prepared.options,
+      renderPhase: { token: phaseToken('initial:render'), startedAt: performance.now() },
+      resolve: prepared.resolve,
+      scenario,
+      start,
+      token,
+    });
+  };
+
+  return (
+    <>
+      <button aria-label="Run prepared performance scenario" onClick={trigger} type="button">
+        Run prepared scenario
+      </button>
+      {run ? (
         <LabHost
-          dataBuild={dataBuild}
-          key={token}
-          scenario={scenario}
-          token={token}
-          renderPhase={renderPhase}
-          options={options}
-          resolve={resolve}
-        />,
-      );
+          dataBuild={run.dataBuild}
+          key={run.token}
+          options={run.options}
+          renderPhase={run.renderPhase}
+          resolve={run.resolve}
+          scenario={run.scenario}
+          start={run.start}
+          token={run.token}
+        />
+      ) : null}
+    </>
+  );
+}
+
+window.performanceLab = {
+  prepare(input: ScenarioInput, options: LabOptions = {}) {
+    if (preparedRun || pendingInitialPromise) {
+      throw new Error('A prepared performance transaction is already active');
+    }
+    let resolveRun: (result: unknown) => void = () => undefined;
+    const promise = new Promise<unknown>((resolve) => {
+      resolveRun = resolve;
+    });
+    preparedRun = { input, options, resolve: resolveRun };
+    pendingInitialPromise = promise;
+  },
+  take() {
+    if (!pendingInitialPromise) throw new Error('No prepared performance transaction');
+    const promise = pendingInitialPromise;
+    return promise.finally(() => {
+      if (pendingInitialPromise === promise) pendingInitialPromise = undefined;
     });
   },
   armOperation(operation: string) {
@@ -416,12 +488,14 @@ window.performanceLab = {
   },
 };
 
+root.render(<PerformanceLabController />);
 document.documentElement.dataset.performanceLabReady = 'true';
 
 declare global {
   interface Window {
     performanceLab: {
-      run: (scenario: ScenarioInput, options?: LabOptions) => Promise<unknown>;
+      prepare: (scenario: ScenarioInput, options?: LabOptions) => void;
+      take: () => Promise<unknown>;
       armOperation: (operation: string) => void;
       takeOperation: (operation: string) => Promise<unknown>;
       setMarkerCapture: (enabled: boolean) => void;

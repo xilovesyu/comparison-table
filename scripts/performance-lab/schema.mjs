@@ -76,7 +76,7 @@ export function validateResultDocument(result) {
     if (metric?.start || metric?.end || metric?.render || metric?.oracle || metric?.twoRaf) {
       if (
         metric.start?.source !== 'react-event-handler' ||
-        metric.end?.source !== 'react-event-handler'
+        !['two-raf', 'browser-raf'].includes(metric.end?.source)
       ) {
         throw new Error(`Invalid React event marker: ${label}`);
       }
@@ -93,12 +93,46 @@ export function validateResultDocument(result) {
       }
     }
   };
+  const validateTransaction = (entry) => {
+    if (entry.start?.source !== 'react-event-handler') {
+      throw new Error(`Invalid transaction start marker: ${entry.scenarioId}`);
+    }
+    if (!['two-raf', 'browser-raf'].includes(entry.end?.source)) {
+      throw new Error(`Invalid transaction end marker: ${entry.scenarioId}`);
+    }
+    finiteMeasurement(entry.start.at, `${entry.scenarioId}.start.at`);
+    finiteMeasurement(entry.end.at, `${entry.scenarioId}.end.at`);
+    if (entry.start.at >= entry.end.at) {
+      throw new Error(`Invalid transaction marker order: ${entry.scenarioId}`);
+    }
+    const tokens = [
+      entry.dataBuild?.token,
+      entry.phases?.render?.token,
+      entry.phases?.oracle?.token,
+      entry.phases?.twoRaf?.token,
+    ];
+    if (
+      tokens.some((token) => typeof token !== 'string') ||
+      new Set(tokens).size !== tokens.length
+    ) {
+      throw new Error(`Invalid transaction phase tokens: ${entry.scenarioId}`);
+    }
+    for (const [name, phase] of Object.entries({
+      dataBuild: entry.dataBuild,
+      render: entry.phases?.render,
+      oracle: entry.phases?.oracle,
+      twoRaf: entry.phases?.twoRaf,
+    })) {
+      finiteMeasurement(phase?.durationMs, `${entry.scenarioId}.phases.${name}.durationMs`);
+    }
+  };
   const validateSummary = (summary, label) => {
     for (const statistic of ['min', 'median', 'p95', 'max']) {
       finiteMeasurement(summary?.[statistic], `${label}.${statistic}`);
     }
   };
   for (const entry of result.results) {
+    if (entry.status === 'ok') validateTransaction(entry);
     if (entry.dataBuild) {
       finiteMeasurement(entry.dataBuild.durationMs, `${entry.scenarioId}.dataBuild.durationMs`);
       if (entry.dataBuild.transactionStart !== 'browser-event') {

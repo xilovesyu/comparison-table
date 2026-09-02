@@ -22,8 +22,8 @@ const OPERATIONS = [
 function operationMarkers(scenarioId) {
   return OPERATIONS.map((operation) => ({
     operation,
-    start: { source: 'react-event-handler' },
-    end: { source: 'react-event-handler' },
+    start: { at: 0, source: 'react-event-handler' },
+    end: { at: 1, source: 'two-raf' },
     dataBuild: { token: `${scenarioId}:${operation}:data-build` },
     render: { token: `${scenarioId}:${operation}:render` },
     oracle: { token: `${scenarioId}:${operation}:oracle` },

@@ -224,9 +224,9 @@ function failure(scenarioId, category, error) {
 }
 
 async function measureScenario({ page, scenario, telemetry }) {
-  const result = await page.evaluate(
+  await page.evaluate(
     ({ input, telemetry: browserTelemetry }) =>
-      window.performanceLab.run(input, { telemetry: browserTelemetry }),
+      window.performanceLab.prepare(input, { telemetry: browserTelemetry }),
     {
       input: {
         caseId: scenario.caseId,
@@ -236,6 +236,8 @@ async function measureScenario({ page, scenario, telemetry }) {
       telemetry,
     },
   );
+  await page.getByRole('button', { name: 'Run prepared performance scenario' }).click();
+  const result = await page.evaluate(() => window.performanceLab.take());
   if (result.status !== 'ok') {
     throw Object.assign(
       new Error(
@@ -319,6 +321,7 @@ export async function runPerformanceLab(options = {}) {
   );
   const dataBuildSamples = new Map(catalog.map((scenario) => [scenario.id, []]));
   const latestDataBuild = new Map();
+  const latestTransactions = new Map();
   const latestOperations = new Map();
   const latestObservations = new Map();
   const telemetryByScenario = new Map(catalog.map((scenario) => [scenario.id, []]));
@@ -375,6 +378,11 @@ export async function runPerformanceLab(options = {}) {
           latestObservations.set(scenario.id, result.observation);
           latestOperations.set(scenario.id, operations);
           latestDataBuild.set(scenario.id, result.dataBuild);
+          latestTransactions.set(scenario.id, {
+            start: result.start,
+            end: result.end,
+            phases: result.phases,
+          });
           if (!quick && round >= WARMUP_RUNS) {
             samples.get(scenario.id).push(result.durationMs);
             dataBuildSamples.get(scenario.id).push(result.dataBuild.durationMs);
@@ -410,6 +418,7 @@ export async function runPerformanceLab(options = {}) {
         observation: latestObservations.get(scenario.id),
         operations: latestOperations.get(scenario.id),
         dataBuild: latestDataBuild.get(scenario.id),
+        ...latestTransactions.get(scenario.id),
       };
     }
     if (recorded.length !== RECORDED_RUNS) {
@@ -430,6 +439,7 @@ export async function runPerformanceLab(options = {}) {
         samples: recorded,
         summary: summarizeMeasurements(summarize, recorded),
         dataBuild: latestDataBuild.get(scenario.id),
+        ...latestTransactions.get(scenario.id),
         dataBuildSamples: dataBuildSamples.get(scenario.id),
         dataBuildSummary: summarizeMeasurements(summarize, dataBuildSamples.get(scenario.id)),
         operations: latestOperations.get(scenario.id),
