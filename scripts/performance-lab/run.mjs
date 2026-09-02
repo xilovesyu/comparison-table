@@ -10,7 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
 import { build, preview } from 'vite';
 import { createCatalog, performanceLabManifest, verifySemanticOracle } from './catalog.mjs';
-import { createResultDocument, validateResultDocument } from './schema.mjs';
+import {
+  createResultDocument,
+  validateMetricMarker,
+  validateResultDocument,
+  validateTransactionMarker,
+} from './schema.mjs';
 import { latinRotation, RECORDED_RUNS, summarizeR7, WARMUP_RUNS } from './stats.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -267,6 +272,10 @@ function validateMeasuredScenario({ operations, result }, scenario) {
     result.dataBuild.transactionStart !== 'browser-event'
   ) {
     throw new Error('Browser data-build transaction did not produce a finite measurement');
+  }
+  validateTransactionMarker(result, scenario.id);
+  for (const [name, metric] of Object.entries(operations)) {
+    validateMetricMarker(metric, `${scenario.id}.operations.${name}`, { requireMarker: true });
   }
   verifySemanticOracle({ ...result.observation, operations }, scenario.expected);
 }

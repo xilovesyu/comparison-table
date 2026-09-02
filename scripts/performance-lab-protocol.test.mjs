@@ -22,6 +22,7 @@ test('R-7 uses the specified linear interpolation for p50, p95, min, and max', (
 test('malformed measurement marker is converted to a schema-valid measurement partial before persistence', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'comparison-table-marker-partial-'));
   try {
+    let failure;
     await assert.rejects(
       runPerformanceLab({
         quick: true,
@@ -29,7 +30,8 @@ test('malformed measurement marker is converted to a schema-valid measurement pa
         stages: {
           measurement: () => ({
             result: {
-              status: 'ok', durationMs: Number.NaN,
+              status: 'ok',
+              durationMs: Number.NaN,
               dataBuild: { durationMs: 1, transactionStart: 'browser-event' },
               observation: { tablePresent: true, versionColumns: 2, rowCount: 1, text: '' },
             },
@@ -37,14 +39,15 @@ test('malformed measurement marker is converted to a schema-valid measurement pa
           }),
         },
       }),
-      async (error) => {
-        const persisted = JSON.parse(await readFile(error.outputPath, 'utf8'));
-        assert.equal(validateResultDocument(persisted).status, 'partial');
-        assert.match(persisted.failures[0]?.category ?? '', /protocol|measurement/);
-        assert.equal(persisted.results[0]?.status, 'partial');
+      (error) => {
+        failure = error;
         return true;
       },
     );
+    const persisted = JSON.parse(await readFile(failure.outputPath, 'utf8'));
+    assert.equal(validateResultDocument(persisted).status, 'partial');
+    assert.match(persisted.failures[0]?.category ?? '', /protocol|measurement/);
+    assert.equal(persisted.results[0]?.status, 'partial');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -336,6 +339,7 @@ test('stages injection writes an observed schema-valid partial artifact for cata
     path.join(os.tmpdir(), 'comparison-table-stage-failure-'),
   );
   try {
+    let failure;
     await assert.rejects(
       runPerformanceLab({
         quick: true,
@@ -346,9 +350,16 @@ test('stages injection writes an observed schema-valid partial artifact for cata
           },
         },
       }),
-      (error) =>
-        error.document?.status === 'partial' && error.document.failures[0]?.category === 'catalog',
+      (error) => {
+        failure = error;
+        return (
+          error.document?.status === 'partial' && error.document.failures[0]?.category === 'catalog'
+        );
+      },
     );
+    const persisted = JSON.parse(await readFile(failure.outputPath, 'utf8'));
+    assert.equal(validateResultDocument(persisted).status, 'partial');
+    assert.equal(persisted.failures[0]?.category, 'catalog');
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
   }

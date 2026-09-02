@@ -1,5 +1,70 @@
 export const PERFORMANCE_RESULT_VERSION = 1;
 
+function finiteMeasurement(value, label) {
+  if (!Number.isFinite(value)) throw new Error(`Nonfinite measurement: ${label}`);
+}
+
+function transactionPhases(marker) {
+  return {
+    dataBuild: marker?.dataBuild,
+    render: marker?.phases?.render ?? marker?.render,
+    oracle: marker?.phases?.oracle ?? marker?.oracle,
+    twoRaf: marker?.phases?.twoRaf ?? marker?.twoRaf,
+  };
+}
+
+export function validateTransactionMarker(marker, label = 'transaction') {
+  if (marker?.start?.source !== 'react-event-handler') {
+    throw new Error(`Invalid transaction start marker: ${label}`);
+  }
+  if (!['two-raf', 'browser-raf'].includes(marker?.end?.source)) {
+    throw new Error(`Invalid transaction end marker: ${label}`);
+  }
+  finiteMeasurement(marker.start.at, `${label}.start.at`);
+  finiteMeasurement(marker.end.at, `${label}.end.at`);
+  if (marker.start.at >= marker.end.at) {
+    throw new Error(`Invalid transaction marker order: ${label}`);
+  }
+
+  const phases = transactionPhases(marker);
+  const tokens = Object.values(phases).map((phase) => phase?.token);
+  if (tokens.some((token) => typeof token !== 'string') || new Set(tokens).size !== tokens.length) {
+    throw new Error(`Invalid transaction phase tokens: ${label}`);
+  }
+  for (const [name, phase] of Object.entries(phases)) {
+    finiteMeasurement(phase?.startedAt, `${label}.phases.${name}.startedAt`);
+    finiteMeasurement(phase?.endedAt, `${label}.phases.${name}.endedAt`);
+    finiteMeasurement(phase?.durationMs, `${label}.phases.${name}.durationMs`);
+    if (phase.startedAt > phase.endedAt || phase.durationMs < 0) {
+      throw new Error(`Invalid transaction phase order: ${label}.phases.${name}`);
+    }
+  }
+  if (
+    phases.dataBuild.endedAt > phases.render.startedAt ||
+    phases.render.endedAt > phases.oracle.startedAt ||
+    phases.oracle.endedAt > phases.twoRaf.startedAt ||
+    phases.twoRaf.endedAt > marker.end.at
+  ) {
+    throw new Error(`Invalid transaction phase order: ${label}`);
+  }
+  return marker;
+}
+
+export function validateMetricMarker(metric, label = 'metric', { requireMarker = false } = {}) {
+  finiteMeasurement(metric?.durationMs, `${label}.durationMs`);
+  if (!Number.isInteger(metric?.rowCount) || metric.rowCount < 0) {
+    throw new Error(`Invalid measurement row count: ${label}.rowCount`);
+  }
+  if (!Number.isInteger(metric?.cellCount) || metric.cellCount < 0) {
+    throw new Error(`Invalid measurement cell count: ${label}.cellCount`);
+  }
+  const hasMarker = Boolean(
+    metric?.start || metric?.end || metric?.render || metric?.oracle || metric?.twoRaf,
+  );
+  if (requireMarker || hasMarker) validateTransactionMarker(metric, label);
+  return metric;
+}
+
 export function createResultDocument({ catalog, environment, bundle, seed, results, failures }) {
   const partial = failures.length > 0;
   return {
@@ -62,77 +127,13 @@ export function validateResultDocument(result) {
   if (!Array.isArray(result.results) || !Array.isArray(result.failures)) {
     throw new Error('Results and failures must be arrays');
   }
-  const finiteMeasurement = (value, label) => {
-    if (!Number.isFinite(value)) throw new Error(`Nonfinite measurement: ${label}`);
-  };
-  const validateMetric = (metric, label) => {
-    finiteMeasurement(metric?.durationMs, `${label}.durationMs`);
-    if (!Number.isInteger(metric?.rowCount) || metric.rowCount < 0) {
-      throw new Error(`Invalid measurement row count: ${label}.rowCount`);
-    }
-    if (!Number.isInteger(metric?.cellCount) || metric.cellCount < 0) {
-      throw new Error(`Invalid measurement cell count: ${label}.cellCount`);
-    }
-    if (metric?.start || metric?.end || metric?.render || metric?.oracle || metric?.twoRaf) {
-      if (
-        metric.start?.source !== 'react-event-handler' ||
-        !['two-raf', 'browser-raf'].includes(metric.end?.source)
-      ) {
-        throw new Error(`Invalid React event marker: ${label}`);
-      }
-      const phases = [metric.dataBuild, metric.render, metric.oracle, metric.twoRaf];
-      const tokens = phases.map((phase) => phase?.token);
-      if (
-        tokens.some((token) => typeof token !== 'string') ||
-        new Set(tokens).size !== tokens.length
-      ) {
-        throw new Error(`Invalid transaction phase tokens: ${label}`);
-      }
-      for (const [index, phase] of phases.entries()) {
-        finiteMeasurement(phase?.durationMs, `${label}.phases[${index}].durationMs`);
-      }
-    }
-  };
-  const validateTransaction = (entry) => {
-    if (entry.start?.source !== 'react-event-handler') {
-      throw new Error(`Invalid transaction start marker: ${entry.scenarioId}`);
-    }
-    if (!['two-raf', 'browser-raf'].includes(entry.end?.source)) {
-      throw new Error(`Invalid transaction end marker: ${entry.scenarioId}`);
-    }
-    finiteMeasurement(entry.start.at, `${entry.scenarioId}.start.at`);
-    finiteMeasurement(entry.end.at, `${entry.scenarioId}.end.at`);
-    if (entry.start.at >= entry.end.at) {
-      throw new Error(`Invalid transaction marker order: ${entry.scenarioId}`);
-    }
-    const tokens = [
-      entry.dataBuild?.token,
-      entry.phases?.render?.token,
-      entry.phases?.oracle?.token,
-      entry.phases?.twoRaf?.token,
-    ];
-    if (
-      tokens.some((token) => typeof token !== 'string') ||
-      new Set(tokens).size !== tokens.length
-    ) {
-      throw new Error(`Invalid transaction phase tokens: ${entry.scenarioId}`);
-    }
-    for (const [name, phase] of Object.entries({
-      dataBuild: entry.dataBuild,
-      render: entry.phases?.render,
-      oracle: entry.phases?.oracle,
-      twoRaf: entry.phases?.twoRaf,
-    })) {
-      finiteMeasurement(phase?.durationMs, `${entry.scenarioId}.phases.${name}.durationMs`);
-    }
-  };
   const validateSummary = (summary, label) => {
     for (const statistic of ['min', 'median', 'p95', 'max']) {
       finiteMeasurement(summary?.[statistic], `${label}.${statistic}`);
     }
   };
   for (const entry of result.results) {
-    if (entry.status === 'ok') validateTransaction(entry);
+    if (entry.status === 'ok') validateTransactionMarker(entry, entry.scenarioId);
     if (entry.dataBuild) {
       finiteMeasurement(entry.dataBuild.durationMs, `${entry.scenarioId}.dataBuild.durationMs`);
       if (entry.dataBuild.transactionStart !== 'browser-event') {
@@ -140,14 +141,14 @@ export function validateResultDocument(result) {
       }
     }
     for (const [name, metric] of Object.entries(entry.operations ?? {})) {
-      validateMetric(metric, `${entry.scenarioId}.operations.${name}`);
+      validateMetricMarker(metric, `${entry.scenarioId}.operations.${name}`);
     }
     for (const [name, metrics] of Object.entries(entry.operationSamples ?? {})) {
       if (!Array.isArray(metrics)) {
         throw new Error(`Invalid measurement samples: ${entry.scenarioId}.${name}`);
       }
       metrics.forEach((metric, index) =>
-        validateMetric(metric, `${entry.scenarioId}.operationSamples.${name}[${index}]`),
+        validateMetricMarker(metric, `${entry.scenarioId}.operationSamples.${name}[${index}]`),
       );
     }
     for (const [name, summary] of Object.entries(entry.operationSummaries ?? {})) {
