@@ -6,6 +6,16 @@ if (!configuredPagesUrl) {
 }
 
 const canonicalPagesUrl = 'https://xilovesyu.github.io/comparison-table/';
+const acceptedPagesUrls = new Set([
+  'https://xilovesyu.github.io/comparison-table',
+  canonicalPagesUrl,
+]);
+if (!acceptedPagesUrls.has(configuredPagesUrl)) {
+  throw new Error(
+    `PAGES_URL must exactly equal ${canonicalPagesUrl} with an optional trailing slash.`,
+  );
+}
+
 const pagesUrl = new URL(configuredPagesUrl);
 if (pagesUrl.hostname === 'localhost' || pagesUrl.hostname === '127.0.0.1') {
   throw new Error('PAGES_URL must identify the deployed site, not localhost or 127.0.0.1.');
