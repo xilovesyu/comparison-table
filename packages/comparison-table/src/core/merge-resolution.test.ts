@@ -254,4 +254,35 @@ describe('frozen MergeResolutions keyed semantics', () => {
     expect(result.unresolvedPaths).toContainEqual(['lines', 'P-300']);
     expect(result.scope.some((entry) => entry.resolutionKey === oldKey)).toBe(false);
   });
+
+  it('keeps keyed child decisions through exclude and restores only still-valid children on re-include', () => {
+    const p300 = keyedId('P-300');
+    const p400 = keyedId('P-400');
+    const selected: MergeResolutions = {
+      [p300]: source('review'),
+      [p400]: exclude(),
+      [childId('P-300', 'quantity')]: source('final'),
+      [childId('P-300', 'note')]: source('review'),
+    };
+    const included = buildMergeResult(keyedRows(), keyedVersions, selected, undefined, {
+      lines: 'sku',
+    });
+    const excluded = buildMergeResult(
+      keyedRows(),
+      keyedVersions,
+      { ...selected, [p300]: exclude() },
+      undefined,
+      { lines: 'sku' },
+    );
+    const restored = buildMergeResult(keyedRows(), keyedVersions, selected, undefined, {
+      lines: 'sku',
+    });
+
+    expect(included).toMatchObject({ isComplete: true, unresolvedPaths: [] });
+    expect(excluded.scope).toContainEqual(
+      expect.objectContaining({ resolutionKey: childId('P-300', 'quantity'), active: false }),
+    );
+    expect(excluded.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
+    expect(restored).toMatchObject({ isComplete: true, unresolvedPaths: [] });
+  });
 });
