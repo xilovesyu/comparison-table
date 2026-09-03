@@ -140,6 +140,64 @@ export interface ComparisonRow {
   presence?: Record<string, boolean>;
 }
 
+/** A caller-controlled source choice for one mergeable property. */
+export interface MergeResolution {
+  /** Stable property path identifying the mergeable leaf. */
+  path: PropertyPath;
+  /** Version whose raw value supplies the final value. */
+  versionId: string;
+}
+
+/** One raw-value update included in a merge result. */
+export interface MergePatch extends MergeResolution {
+  /** Deeply independent value selected from the source version. */
+  value: unknown;
+  /** `true` when an unchanged leaf was resolved automatically to the baseline. */
+  automatic: boolean;
+}
+
+/** Describes the source used for a resolved property. */
+export interface MergeSourceDecision extends MergeResolution {
+  /** Stable comparison row id derived from `path`. */
+  rowId: string;
+  /** `true` when the baseline was selected without user input. */
+  automatic: boolean;
+}
+
+/** Immutable raw-value result produced from the current merge resolutions. */
+export interface MergeResult<T = unknown> {
+  /** Baseline version used for automatic decisions and the merged-data root. */
+  baseVersionId: string;
+  /** Deeply independent merged data. */
+  mergedData: T;
+  /** Resolved raw-value updates within the current scope. */
+  resolvedPatch: MergePatch[];
+  /** Leaf paths included by the current comparison configuration. */
+  scope: PropertyPath[];
+  /** Direct-difference paths that still require a source choice. */
+  unresolvedPaths: PropertyPath[];
+  /** Whether every direct difference in `scope` has a source choice. */
+  isComplete: boolean;
+  /** Automatic and user-selected sources for resolved paths. */
+  sourceDecisions: MergeSourceDecision[];
+}
+
+/** Opt-in Final-column configuration for merge resolution. */
+export interface MergeOptions<T = unknown> {
+  /** Enables merge resolution only when exactly `true`. */
+  enabled?: boolean;
+  /** Final column heading. Defaults to `Final`. */
+  finalLabel?: React.ReactNode;
+  /** Controlled source choices. */
+  value?: readonly MergeResolution[];
+  /** Initial source choices for uncontrolled usage. */
+  defaultValue?: readonly MergeResolution[];
+  /** Receives the next source choices and derived immutable result. */
+  onChange?: (resolutions: MergeResolution[], result: MergeResult<T>) => void;
+  /** Fires for a user transition from incomplete to complete. */
+  onComplete?: (result: MergeResult<T>) => void;
+}
+
 /** Information passed to a custom Diff badge renderer. */
 export interface DifferenceIndicatorContext {
   /** Current normalized row. */

@@ -7,12 +7,16 @@ import {
   filterComparisonRows,
   filterDifferenceRows,
   getPropertyType,
+  pathId,
   type BuildComparisonConfig,
   type ComparisonRow,
   type ComparisonVersion,
   type DifferenceOptions,
+  type MergeOptions,
+  type MergeResolution,
   type SearchOptions,
 } from '../core/comparison';
+import { buildMergeResult } from '../core/merge';
 import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
 import {
   createRendererRegistry,
@@ -38,6 +42,8 @@ export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
   expandedKeys?: React.Key[];
   /** Reports expansion changes for controlled or uncontrolled usage. */
   onExpandedChange?: (keys: React.Key[]) => void;
+  /** Opt-in Final-column merge resolution. */
+  merge?: MergeOptions;
 }
 
 /**
@@ -55,6 +61,7 @@ export function RecursiveComparisonTable({
   defaultExpandedKeys,
   expandedKeys,
   onExpandedChange,
+  merge,
   ...config
 }: RecursiveComparisonTableProps) {
   const [query, setQuery] = useState('');
@@ -84,6 +91,28 @@ export function RecursiveComparisonTable({
       : (expandedKeys ?? internalExpanded);
   const registry = useMemo(() => createRendererRegistry(renderers), [renderers]);
   const baselineId = config.comparison?.baseVersionId;
+  const mergeEnabled = merge?.enabled === true;
+  const [internalResolutions, setInternalResolutions] = useState<MergeResolution[]>(() => [
+    ...(merge?.defaultValue ?? []),
+  ]);
+  const activeResolutions = merge?.value ?? internalResolutions;
+  const mergeResult = useMemo(
+    () =>
+      mergeEnabled ? buildMergeResult(rows, versions, activeResolutions, baselineId) : undefined,
+    [activeResolutions, baselineId, mergeEnabled, rows, versions],
+  );
+  const selectMergeSource = (row: ComparisonRow, versionId: string) => {
+    if (!mergeEnabled || !mergeResult) return;
+    const nextResolution = { path: [...row.property.path], versionId };
+    const nextResolutions = [
+      ...activeResolutions.filter((resolution) => pathId(resolution.path) !== row.id),
+      nextResolution,
+    ];
+    const nextResult = buildMergeResult(rows, versions, nextResolutions, baselineId);
+    if (merge?.value === undefined) setInternalResolutions(nextResolutions);
+    merge?.onChange?.(nextResolutions, nextResult);
+    if (!mergeResult.isComplete && nextResult.isComplete) merge?.onComplete?.(nextResult);
+  };
   const columns: ColumnsType<ComparisonRow> = [
     {
       title: 'Property',
@@ -125,17 +154,61 @@ export function RecursiveComparisonTable({
         className: isBaseline
           ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')
           : undefined,
-        render: (_: unknown, row: ComparisonRow) =>
-          renderValue(
+        render: (_: unknown, row: ComparisonRow) => {
+          const value = renderValue(
             row,
             version,
             registry,
             renderers,
             containerSummaries.get(row.id),
             config.containerSummary,
-          ),
+          );
+          if (!mergeEnabled || !isMergeDecisionRow(row)) return value;
+          const checked = activeResolutions.some(
+            (resolution) =>
+              pathId(resolution.path) === row.id && resolution.versionId === version.id,
+          );
+          return (
+            <label>
+              <input
+                type="radio"
+                name={`merge-source-${row.id}`}
+                aria-label={`${row.property.path.join('.')} ${version.label}`}
+                checked={checked}
+                onChange={() => selectMergeSource(row, version.id)}
+              />
+              {value}
+            </label>
+          );
+        },
       };
     }),
+    ...(mergeEnabled
+      ? [
+          {
+            title: merge?.finalLabel ?? 'Final',
+            key: 'merge-final',
+            render: (_: unknown, row: ComparisonRow) => {
+              if (row.children?.length) return null;
+              const decision = mergeResult?.sourceDecisions.find(
+                (candidate) => candidate.rowId === row.id,
+              );
+              if (!decision) return 'Unresolved';
+              const version = versions.find((candidate) => candidate.id === decision.versionId);
+              return version
+                ? renderValue(
+                    row,
+                    version,
+                    registry,
+                    renderers,
+                    containerSummaries.get(row.id),
+                    config.containerSummary,
+                  )
+                : 'Unresolved';
+            },
+          },
+        ]
+      : []),
   ];
   return (
     <section aria-label="Recursive comparison table">
@@ -181,6 +254,9 @@ export function RecursiveComparisonTable({
       />
     </section>
   );
+}
+function isMergeDecisionRow(row: ComparisonRow): boolean {
+  return Boolean(row.hasOwnDifference && !row.children?.length);
 }
 function PropertyCell({
   row,
