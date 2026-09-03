@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildComparisonRows } from './comparison';
 import { buildMergeResult } from './merge';
-import type { MergeResolutions } from './types';
+import type { ComparisonVersion, MergeResolution, MergeResolutions } from './types';
 
 const keyedVersions = [
   {
@@ -40,15 +40,33 @@ const keyedRows = () =>
   buildComparisonRows(keyedVersions, { arrayItemKeyFields: { lines: 'sku' } });
 const keyedId = (sku: string) => JSON.stringify(['lines', sku]);
 const childId = (sku: string, field: string) => JSON.stringify(['lines', sku, field]);
+const source = (versionId: string): MergeResolution => ({ kind: 'source', versionId });
+const exclude = (): MergeResolution => ({ kind: 'exclude' });
+const noResolutions: MergeResolutions = {};
+
+function expectUnsupportedValue(field: string, value: unknown, type: 'function' | 'symbol'): void {
+  const baseData: Record<string, unknown> = {};
+  const reviewData: Record<string, unknown> = {};
+  baseData[field] = 'base';
+  reviewData[field] = value;
+  const versions: readonly ComparisonVersion<Record<string, unknown>>[] = [
+    { id: 'base', label: 'Base', data: baseData },
+    { id: 'review', label: 'Review', data: reviewData },
+  ];
+  const resolutions: MergeResolutions = { [JSON.stringify([field])]: source('review') };
+  expect(() => buildMergeResult(buildComparisonRows(versions), versions, resolutions)).toThrow(
+    new RegExp(`${field}.*${type}|${type}.*${field}`, 'i'),
+  );
+}
 
 describe('frozen MergeResolutions keyed semantics', () => {
   it('models P-300 include and P-400 exclude as keyed-presence entries before their children', () => {
-    const resolutions = {
-      [keyedId('P-300')]: { kind: 'source', versionId: 'review' },
-      [keyedId('P-400')]: { kind: 'exclude' },
-      [childId('P-300', 'quantity')]: { kind: 'source', versionId: 'final' },
-      [childId('P-300', 'note')]: { kind: 'source', versionId: 'review' },
-    } satisfies MergeResolutions;
+    const resolutions: MergeResolutions = {
+      [keyedId('P-300')]: source('review'),
+      [keyedId('P-400')]: exclude(),
+      [childId('P-300', 'quantity')]: source('final'),
+      [childId('P-300', 'note')]: source('review'),
+    };
     const result = buildMergeResult(keyedRows(), keyedVersions, resolutions);
 
     expect(result.scope).toEqual(
@@ -96,11 +114,12 @@ describe('frozen MergeResolutions keyed semantics', () => {
   it('makes a keyed presence entry unresolved again when clear omits it, and reports each stale record precisely', () => {
     const p300 = keyedId('P-300');
     const p100Quantity = childId('P-100', 'quantity');
-    const result = buildMergeResult(keyedRows(), keyedVersions, {
-      [p100Quantity]: { kind: 'exclude' },
-      [childId('P-300', 'quantity')]: { kind: 'source', versionId: 'base' },
-      ['["lines","unknown"]']: { kind: 'source', versionId: 'review' },
-    } satisfies MergeResolutions);
+    const resolutions: MergeResolutions = {
+      [p100Quantity]: exclude(),
+      [childId('P-300', 'quantity')]: source('base'),
+      ['["lines","unknown"]']: source('review'),
+    };
+    const result = buildMergeResult(keyedRows(), keyedVersions, resolutions);
 
     expect(result.unresolvedPaths).toContainEqual(['lines', 'P-300']);
     expect(result.sourceDecisions).toEqual(
@@ -126,14 +145,16 @@ describe('frozen MergeResolutions keyed semantics', () => {
   });
 
   it('uses a delete patch for undefined while retaining null as a set value and deleting the own property', () => {
-    const versions = [
+    type OptionalData = { optional?: string; nullable: string | null };
+    const versions: readonly ComparisonVersion<OptionalData>[] = [
       { id: 'base', label: 'Base', data: { optional: 'present', nullable: 'before' } },
       { id: 'review', label: 'Review', data: { optional: undefined, nullable: null } },
     ];
-    const result = buildMergeResult(buildComparisonRows(versions), versions, {
-      [JSON.stringify(['optional'])]: { kind: 'source', versionId: 'review' },
-      [JSON.stringify(['nullable'])]: { kind: 'source', versionId: 'review' },
-    } satisfies MergeResolutions);
+    const resolutions: MergeResolutions = {
+      [JSON.stringify(['optional'])]: source('review'),
+      [JSON.stringify(['nullable'])]: source('review'),
+    };
+    const result = buildMergeResult(buildComparisonRows(versions), versions, resolutions);
 
     expect(result.resolvedPatch).toEqual(
       expect.arrayContaining([
@@ -156,27 +177,11 @@ describe('frozen MergeResolutions keyed semantics', () => {
       { id: 'base', label: 'Base', data: { date } },
       { id: 'review', label: 'Review', data: { date: new Date(date) } },
     ];
-    const dateResult = buildMergeResult(
-      buildComparisonRows(supported),
-      supported,
-      {} satisfies MergeResolutions,
-    );
+    const dateResult = buildMergeResult(buildComparisonRows(supported), supported, noResolutions);
     expect(dateResult.mergedData.date).not.toBe(date);
 
-    for (const [field, value] of [
-      ['fn', () => undefined],
-      ['token', Symbol('token')],
-    ] as const) {
-      const versions = [
-        { id: 'base', label: 'Base', data: { [field]: 'base' } },
-        { id: 'review', label: 'Review', data: { [field]: value } },
-      ];
-      expect(() =>
-        buildMergeResult(buildComparisonRows(versions), versions, {
-          [JSON.stringify([field])]: { kind: 'source', versionId: 'review' },
-        } satisfies MergeResolutions),
-      ).toThrow(new RegExp(`${field}.*(function|symbol)|(?:function|symbol).*${field}`, 'i'));
-    }
+    expectUnsupportedValue('fn', () => undefined, 'function');
+    expectUnsupportedValue('token', Symbol('token'), 'symbol');
   });
 
   it('keeps unkeyed expand:false arrays atomic and auto-resolves comparator-equivalent leaves to baseline', () => {
@@ -188,9 +193,8 @@ describe('frozen MergeResolutions keyed semantics', () => {
       rules: [{ path: 'lines', expand: false }],
       comparison: { comparator: (values) => values[0] !== values[1] },
     });
-    const result = buildMergeResult(rows, versions, {
-      [JSON.stringify(['lines'])]: { kind: 'source', versionId: 'review' },
-    } satisfies MergeResolutions);
+    const resolutions: MergeResolutions = { [JSON.stringify(['lines'])]: source('review') };
+    const result = buildMergeResult(rows, versions, resolutions);
 
     expect(result.scope).toEqual(
       expect.arrayContaining([
