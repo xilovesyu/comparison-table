@@ -36,7 +36,8 @@ export function buildMergeResult<T>(
   if (!baseline) throw new Error('Merge mode requires at least one comparison version');
 
   const versionIds = new Set(versions.map((version) => version.id));
-  const keyFields = collectKeyFields(rows, arrayItemKeyFields);
+  const keyFields = collectKeyFields(arrayItemKeyFields);
+  validateKeyedRows(rows, keyFields);
   const mergedData = cloneValue(baseline.data, []);
   const resolvedPatch: MergePatch[] = [];
   const sourceDecisions: MergeSourceDecision[] = [];
@@ -60,7 +61,7 @@ export function buildMergeResult<T>(
     keyedItem?: KeyedItemContext,
     dormant = false,
   ): void => {
-    const role = roleFor(row);
+    const role = roleFor(row, keyFields);
     const allowedSourceVersionIds = keyedItem
       ? keyedItem.presentVersionIds
       : versions.map((version) => version.id);
@@ -136,7 +137,7 @@ export function buildMergeResult<T>(
     const sourceVersionId =
       resolution?.kind === 'source'
         ? resolution.versionId
-        : !row.hasOwnDifference
+        : !(role === 'non-keyed-array' ? row.hasDifference : row.hasOwnDifference)
           ? baseline.id
           : undefined;
     if (!sourceVersionId) {
@@ -185,7 +186,7 @@ export function buildMergeResult<T>(
       const keyedItem = keyedItemContext(row, versions, keyFields);
       if (keyedItem) {
         let childrenActive = active;
-        let childrenDormant = dormant;
+        let childrenDormant = dormant || keyedItem.requiresPresenceDecision;
         if (keyedItem.requiresPresenceDecision) {
           scope.push({
             resolutionKey: row.id,
@@ -306,9 +307,14 @@ export function buildMergeResult<T>(
   };
 }
 
-function roleFor(row: ComparisonRow): Exclude<MergeScopeRole, 'keyed-presence'> {
+function roleFor(
+  row: ComparisonRow,
+  keyFields: KeyFields,
+): Exclude<MergeScopeRole, 'keyed-presence'> {
   const values = Object.values(row.values);
-  if (values.some(Array.isArray)) return 'non-keyed-array';
+  if (values.some(Array.isArray)) {
+    return keyFields.has(pathKey(row.property.path)) ? 'container' : 'non-keyed-array';
+  }
   if (values.some((value) => value !== null && typeof value === 'object')) return 'container';
   return 'value';
 }
@@ -321,7 +327,11 @@ function keyedItemContext(
   if (row.itemIdentity === undefined || !row.presence) return undefined;
   const arrayPath = row.property.path.slice(0, -1);
   const identityField = keyFields.get(pathKey(arrayPath));
-  if (!identityField) return undefined;
+  if (!identityField) {
+    throw new Error(
+      `Keyed array "${arrayPath.join('.')}" requires an explicit arrayItemKeyFields entry`,
+    );
+  }
   const presentVersionIds = versions
     .filter((version) => row.presence?.[version.id] === true)
     .map((version) => version.id);
@@ -333,44 +343,26 @@ function keyedItemContext(
   };
 }
 
-function collectKeyFields(
-  rows: readonly ComparisonRow[],
-  configured?: Readonly<Record<string, string>>,
-): Map<string, string> {
+function collectKeyFields(configured?: Readonly<Record<string, string>>): Map<string, string> {
   const result = new Map<string, string>();
   Object.entries(configured ?? {}).forEach(([path, field]) => {
     result.set(pathKey(path ? path.split('.') : []), field);
   });
-  const visit = (currentRows: readonly ComparisonRow[]) => {
-    currentRows.forEach((row) => {
-      if (row.itemIdentity !== undefined && row.presence) {
-        const arrayPath = row.property.path.slice(0, -1);
-        const key = pathKey(arrayPath);
-        if (!result.has(key)) {
-          const field = inferIdentityField(row);
-          if (field) result.set(key, field);
-        }
-      }
-      visit(row.children ?? []);
-    });
-  };
-  visit(rows);
   return result;
 }
 
-function inferIdentityField(row: ComparisonRow): string | undefined {
-  const child = row.children?.find(
-    (candidate) =>
-      typeof candidate.property.path.at(-1) === 'string' &&
-      Object.values(candidate.values).some((value) => value === row.itemIdentity),
-  );
-  if (child) return child.property.path.at(-1) as string;
-  for (const value of Object.values(row.values)) {
-    if (!isRecord(value)) continue;
-    const field = Object.keys(value).find((key) => value[key] === row.itemIdentity);
-    if (field) return field;
-  }
-  return undefined;
+function validateKeyedRows(rows: readonly ComparisonRow[], keyFields: KeyFields): void {
+  rows.forEach((row) => {
+    if (row.itemIdentity !== undefined && row.presence) {
+      const arrayPath = row.property.path.slice(0, -1);
+      if (!keyFields.has(pathKey(arrayPath))) {
+        throw new Error(
+          `Keyed array "${arrayPath.join('.')}" requires an explicit arrayItemKeyFields entry`,
+        );
+      }
+    }
+    validateKeyedRows(row.children ?? [], keyFields);
+  });
 }
 
 function assignPath(root: unknown, path: PropertyPath, value: unknown, keyFields: KeyFields): void {
