@@ -897,4 +897,75 @@ describe('RecursiveComparisonTable', () => {
     fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+
+  it('Issue #14 preserves controlled row-id and version-id decisions when version columns reorder', () => {
+    const value: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    const propsFor = (orderedVersions: typeof versions) =>
+      ({
+        versions: orderedVersions,
+        comparison: { baseVersionId: 'before' },
+        merge: { enabled: true, value },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(versions)} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(screen.getAllByText('No')).toHaveLength(2);
+
+    rerender(<RecursiveComparisonTable {...propsFor([versions[1], versions[0]])} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /^enabled Before$/i })).not.toBeChecked();
+    expect(screen.getAllByText('No')).toHaveLength(2);
+  });
+
+  it('Issue #14 never treats external controlled replacements as user submissions', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const enabledAfter: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+    };
+    const completeAfter: MergeResolutions = {
+      ...enabledAfter,
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    const completeBefore: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'before' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'before' },
+    };
+    const propsFor = (value: MergeResolutions) =>
+      ({
+        versions,
+        merge: { enabled: true, value, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(enabledAfter)} />);
+
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(completeAfter)} />);
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+    expect(screen.getAllByText('Jack')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(completeBefore)} />);
+    expect(screen.getByRole('radio', { name: /^enabled Before$/i })).toBeChecked();
+    expect(screen.getAllByText('John')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor({})} />);
+    expect(screen.getByRole('radio', { name: /^enabled Before$/i })).not.toBeChecked();
+    expect(screen.getAllByText('Unresolved')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(completeAfter)} />);
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+    expect(screen.getAllByText('Jack')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
 });
