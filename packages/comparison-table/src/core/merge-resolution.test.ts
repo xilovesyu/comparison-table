@@ -305,7 +305,7 @@ describe('frozen MergeResolutions keyed semantics', () => {
     expect(excluded.scope).toContainEqual(
       expect.objectContaining({ resolutionKey: childId('P-300', 'quantity'), active: false }),
     );
-    expect(excluded.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
+    expect(excluded).toMatchObject({ isComplete: true, unresolvedPaths: [] });
     expect(restored).toMatchObject({ isComplete: true, unresolvedPaths: [] });
   });
 
@@ -333,7 +333,11 @@ describe('frozen MergeResolutions keyed semantics', () => {
     expect(excluded.scope).toContainEqual(
       expect.objectContaining({ resolutionKey: quantity, active: false }),
     );
+    expect(excluded.sourceDecisions).not.toContainEqual(
+      expect.objectContaining({ resolutionKey: quantity, kind: 'stale' }),
+    );
     expect(excluded.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
+    expect(excluded.isComplete).toBe(true);
 
     const reIncluded = buildMergeResult(rowsWithoutFinal, withoutFinal, selected, undefined, {
       lines: 'sku',
@@ -348,4 +352,61 @@ describe('frozen MergeResolutions keyed semantics', () => {
     expect(reIncluded.unresolvedPaths).toContainEqual(['lines', 'P-300', 'quantity']);
     expect(reIncluded.isComplete).toBe(false);
   });
+
+  it.each([
+    {
+      caseName: 'source not present on the keyed item',
+      childResolution: source('base'),
+      staleReason: 'source-not-present',
+    },
+    {
+      caseName: 'exclude on a value child',
+      childResolution: exclude(),
+      staleReason: 'exclude-not-allowed',
+    },
+  ] as const)(
+    'ignores retained $caseName while excluded and validates it only after re-include',
+    ({ childResolution, staleReason }) => {
+      const p300 = keyedId('P-300');
+      const quantity = childId('P-300', 'quantity');
+      const retained: MergeResolutions = {
+        [p300]: exclude(),
+        [keyedId('P-400')]: exclude(),
+        [quantity]: childResolution,
+        [childId('P-300', 'note')]: source('review'),
+      };
+
+      const excluded = buildMergeResult(keyedRows(), keyedVersions, retained, undefined, {
+        lines: 'sku',
+      });
+      expect(excluded.scope).toContainEqual(
+        expect.objectContaining({ resolutionKey: quantity, active: false }),
+      );
+      expect(excluded.sourceDecisions).not.toContainEqual(
+        expect.objectContaining({ resolutionKey: quantity, kind: 'stale' }),
+      );
+      expect(excluded.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
+      expect(excluded.isComplete).toBe(true);
+
+      const reIncluded = buildMergeResult(
+        keyedRows(),
+        keyedVersions,
+        { ...retained, [p300]: source('review') },
+        undefined,
+        { lines: 'sku' },
+      );
+      expect(reIncluded.scope).toContainEqual(
+        expect.objectContaining({ resolutionKey: quantity, active: true }),
+      );
+      expect(reIncluded.sourceDecisions).toContainEqual(
+        expect.objectContaining({
+          resolutionKey: quantity,
+          kind: 'stale',
+          reason: staleReason,
+        }),
+      );
+      expect(reIncluded.unresolvedPaths).toContainEqual(['lines', 'P-300', 'quantity']);
+      expect(reIncluded.isComplete).toBe(false);
+    },
+  );
 });
