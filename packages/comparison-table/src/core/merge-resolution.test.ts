@@ -212,4 +212,46 @@ describe('frozen MergeResolutions keyed semantics', () => {
       ]),
     );
   });
+
+  it('marks a decision stale when its selected source version disappears without remapping it', () => {
+    const versions = [
+      { id: 'base', label: 'Base', data: { amount: 1 } },
+      { id: 'final', label: 'Final', data: { amount: 3 } },
+    ];
+    const resolutionKey = JSON.stringify(['amount']);
+    const result = buildMergeResult(buildComparisonRows(versions), versions, {
+      [resolutionKey]: source('review'),
+    });
+
+    expect(result.sourceDecisions).toContainEqual(
+      expect.objectContaining({
+        kind: 'stale',
+        resolutionKey,
+        reason: 'source-version-unavailable',
+      }),
+    );
+    expect(result.unresolvedPaths).toContainEqual(['amount']);
+    expect(result.isComplete).toBe(false);
+  });
+
+  it('does not migrate a keyed decision when its business identity is renamed', () => {
+    const versions = [
+      { id: 'base', label: 'Base', data: { lines: [{ sku: 'P-200', quantity: 2 }] } },
+      { id: 'review', label: 'Review', data: { lines: [{ sku: 'P-300', quantity: 3 }] } },
+    ];
+    const oldKey = keyedId('P-100');
+    const result = buildMergeResult(
+      buildComparisonRows(versions, { arrayItemKeyFields: { lines: 'sku' } }),
+      versions,
+      { [oldKey]: source('base') },
+      undefined,
+      { lines: 'sku' },
+    );
+
+    expect(result.sourceDecisions).toContainEqual(
+      expect.objectContaining({ kind: 'stale', resolutionKey: oldKey, reason: 'unknown-row' }),
+    );
+    expect(result.unresolvedPaths).toContainEqual(['lines', 'P-300']);
+    expect(result.scope.some((entry) => entry.resolutionKey === oldKey)).toBe(false);
+  });
 });
