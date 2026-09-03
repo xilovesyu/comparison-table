@@ -968,4 +968,154 @@ describe('RecursiveComparisonTable', () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(onComplete).not.toHaveBeenCalled();
   });
+
+  it('Issue #14 exposes native keyboard-capable radios and clear buttons with logical names', () => {
+    const value: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+    };
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        merge={{ enabled: true, defaultValue: value }}
+      />,
+    );
+
+    const before = screen.getByRole('radio', { name: /^enabled Before$/i });
+    const after = screen.getByRole('radio', { name: /^enabled After$/i });
+    expect(before).toHaveAttribute('type', 'radio');
+    expect(after).toHaveAttribute('type', 'radio');
+    expect(before).toHaveAttribute('name', after.getAttribute('name'));
+    before.focus();
+    expect(before).toHaveFocus();
+
+    const clear = screen.getByRole('button', { name: /^Clear enabled$/i });
+    expect(clear).toHaveAttribute('type', 'button');
+    clear.focus();
+    expect(clear).toHaveFocus();
+  });
+
+  it('Issue #14 preserves merge decisions through difference, global, node-search, and expansion visibility changes', () => {
+    const complete: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        merge={{ enabled: true, defaultValue: complete }}
+      />,
+    );
+
+    const search = screen.getByLabelText('Search comparison');
+    fireEvent.click(screen.getByRole('switch', { name: 'Only show differences' }));
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+
+    fireEvent.change(search, { target: { value: 'enabled' } });
+    expect(screen.queryByRole('radio', { name: /^user\.name After$/i })).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search within user' }));
+    const nodeSearch = screen.getByLabelText('Filter user children');
+    fireEvent.change(nodeSearch, { target: { value: 'absent' } });
+    expect(screen.queryByRole('radio', { name: /^user\.name After$/i })).not.toBeInTheDocument();
+    fireEvent.change(nodeSearch, { target: { value: '' } });
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+
+    const userRow = screen.getByText('user').closest('tr')!;
+    fireEvent.click(userRow.querySelector('.ant-table-row-expand-icon') as HTMLElement);
+    expect(screen.queryByRole('radio', { name: /^user\.name After$/i })).not.toBeInTheDocument();
+    fireEvent.click(userRow.querySelector('.ant-table-row-expand-icon') as HTMLElement);
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+    expect(screen.getAllByText('Jack')).toHaveLength(2);
+  });
+
+  it('Issue #14 renders Final through existing value priorities while callbacks retain raw merged data', () => {
+    const onChange = vi.fn();
+    const renderFinalCell = (label: string) =>
+      screen.getByText(label).closest('tr')!.querySelectorAll('td').item(3);
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'before',
+            label: 'Before',
+            data: {
+              defined: 'before',
+              named: 'before',
+              localPayload: { id: 1 },
+              summaryPayload: { id: 1 },
+            },
+          },
+          {
+            id: 'after',
+            label: 'After',
+            data: {
+              defined: 'after',
+              named: 'after',
+              localPayload: { id: 2 },
+              summaryPayload: { id: 2 },
+            },
+          },
+        ]}
+        propertyDefinitions={[
+          {
+            key: 'defined',
+            label: 'Defined',
+            path: ['defined'],
+            level: 0,
+            type: 'string',
+            renderValue: (value) => `definition:${String(value)}`,
+          },
+          { key: 'named', label: 'Named', path: ['named'], level: 0, type: 'string' },
+          {
+            key: 'localPayload',
+            label: 'Local payload',
+            path: ['localPayload'],
+            level: 0,
+            type: 'object',
+            renderer: 'local',
+          },
+          {
+            key: 'summaryPayload',
+            label: 'Summary payload',
+            path: ['summaryPayload'],
+            level: 0,
+            type: 'object',
+          },
+        ]}
+        rules={[
+          { path: 'named', renderer: 'named' },
+          { path: 'localPayload', expand: false },
+          { path: 'summaryPayload', expand: false },
+        ]}
+        renderers={{
+          named: (value) => `named:${String(value)}`,
+          local: (value) => `local:${String((value as { id: number }).id)}`,
+        }}
+        containerSummary={(value) => `summary:${String((value as { id: number }).id)}`}
+        merge={{ enabled: true, onChange }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('radio', { name: /^defined After$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^named After$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^localPayload After$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^summaryPayload After$/i }));
+
+    expect(within(renderFinalCell('Defined')).getByText('definition:after')).toBeInTheDocument();
+    expect(within(renderFinalCell('Named')).getByText('named:after')).toBeInTheDocument();
+    expect(within(renderFinalCell('Local payload')).getByText('local:2')).toBeInTheDocument();
+    expect(within(renderFinalCell('Summary payload')).getByText('summary:2')).toBeInTheDocument();
+    const result = onChange.mock.calls.at(-1)?.[1];
+    expect(result).toMatchObject({
+      isComplete: true,
+      mergedData: {
+        defined: 'after',
+        named: 'after',
+        localPayload: { id: 2 },
+        summaryPayload: { id: 2 },
+      },
+    });
+  });
 });

@@ -285,4 +285,44 @@ describe('frozen MergeResolutions keyed semantics', () => {
     expect(excluded.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
     expect(restored).toMatchObject({ isComplete: true, unresolvedPaths: [] });
   });
+
+  it('does not restore a keyed child source that became invalid while its parent was excluded', () => {
+    const p300 = keyedId('P-300');
+    const quantity = childId('P-300', 'quantity');
+    const selected: MergeResolutions = {
+      [p300]: source('review'),
+      [keyedId('P-400')]: exclude(),
+      [quantity]: source('final'),
+      [childId('P-300', 'note')]: source('review'),
+    };
+    const withoutFinal = keyedVersions.slice(0, 2);
+    const rowsWithoutFinal = buildComparisonRows(withoutFinal, {
+      arrayItemKeyFields: { lines: 'sku' },
+    });
+
+    const excluded = buildMergeResult(
+      rowsWithoutFinal,
+      withoutFinal,
+      { ...selected, [p300]: exclude() },
+      undefined,
+      { lines: 'sku' },
+    );
+    expect(excluded.scope).toContainEqual(
+      expect.objectContaining({ resolutionKey: quantity, active: false }),
+    );
+    expect(excluded.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
+
+    const reIncluded = buildMergeResult(rowsWithoutFinal, withoutFinal, selected, undefined, {
+      lines: 'sku',
+    });
+    expect(reIncluded.sourceDecisions).toContainEqual(
+      expect.objectContaining({
+        resolutionKey: quantity,
+        kind: 'stale',
+        reason: 'source-version-unavailable',
+      }),
+    );
+    expect(reIncluded.unresolvedPaths).toContainEqual(['lines', 'P-300', 'quantity']);
+    expect(reIncluded.isComplete).toBe(false);
+  });
 });
