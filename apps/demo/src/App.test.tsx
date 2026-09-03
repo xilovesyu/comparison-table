@@ -230,9 +230,13 @@ describe('documentation examples', () => {
       expect(sourceText).toMatch(/arrayItemKeyFields/);
       expect(sourceText).toMatch(/onChange/);
       expect(sourceText).toMatch(/onComplete/);
+      expect(sourceText).toMatch(/reviewSteps/);
+      expect(sourceText).toMatch(/defaultValue/);
       fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
       expect(writeText).toHaveBeenCalledTimes(1);
       expect(writeText.mock.calls[0]?.[0]).toContain('merge={{');
+      expect(writeText.mock.calls[0]?.[0]).toContain('reviewSteps');
+      expect(writeText.mock.calls[0]?.[0]).toContain('defaultValue');
 
       navigateToExample('advanced-configuration');
       expect(mergeCard).toHaveAttribute('hidden');
@@ -260,6 +264,110 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/renderers=/);
     expect(sourcePanel.textContent).toMatch(/containerSummary=/);
   });
+
+  it('offers one whole-array Final decision for an unkeyed changing array without numeric child controls', () => {
+    const card = renderExample('final-merge');
+    const arrayRow = within(card).getByText('reviewSteps').closest('tr') as HTMLElement;
+
+    expect(within(arrayRow).getAllByRole('radio')).toHaveLength(3);
+    expect(
+      within(arrayRow).getByRole('radio', { name: /^reviewSteps 初始版$/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(arrayRow).getByRole('radio', { name: /^reviewSteps 复核版$/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(arrayRow).getByRole('radio', { name: /^reviewSteps 最终版$/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole('radio', { name: /reviewSteps(?:\.|\[)\d+/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+    const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+    expect(sourcePanel.textContent).toMatch(/reviewSteps:\s*\[/);
+    expect(sourcePanel.textContent).toMatch(/arrayItemKeyFields={{ lines: 'sku' }}/);
+  });
+
+  it('provides an operable uncontrolled defaultValue mode without treating mount as submission', () => {
+    const card = renderExample('final-merge');
+
+    fireEvent.click(within(card).getByRole('button', { name: /演示 uncontrolled defaultValue/i }));
+    expect(within(card).getByText('默认方案已加载，未触发完成提交')).toBeInTheDocument();
+    const selected = within(card).getByRole('radio', {
+      name: /^approvalStatus 复核版$/i,
+    });
+    expect(selected).toBeChecked();
+    expect(within(card).queryByText('合并已完成')).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: /^Clear approvalStatus$/i }));
+    expect(selected).not.toBeChecked();
+    expect(within(card).getByText(/仍有差异待选择|Needs selection/)).toBeInTheDocument();
+
+    fireEvent.click(selected);
+    expect(selected).toBeChecked();
+    expect(within(card).getByText('合并已完成')).toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+    const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+    expect(sourcePanel.textContent).toMatch(/defaultValue/);
+    expect(sourcePanel.textContent).toMatch(/approvalStatus/);
+  });
+
+  it.each([
+    {
+      id: 'final-merge' as const,
+      radioName: /^customer\.name 复核版$/i,
+      parentLabel: 'customer',
+      finalValue: 'Mia Zhang',
+    },
+    {
+      id: 'advanced-configuration' as const,
+      radioName: /^billing\.money\.amount 复核版$/i,
+      parentLabel: '结算金额（可展开）',
+      finalValue: '1,100',
+    },
+  ])(
+    'keeps the $id Final decision and raw value through difference, search, node-search, and expansion visibility',
+    ({ id, radioName, parentLabel, finalValue }) => {
+      const card = renderExample(id);
+      const radio = within(card).getByRole('radio', { name: radioName });
+      fireEvent.click(radio);
+      expect(radio).toBeChecked();
+
+      const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(finalValue)).toBeInTheDocument();
+
+      fireEvent.click(within(card).getByRole('switch', { name: 'Only show differences' }));
+      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+
+      const globalSearch = within(card).getByLabelText('Search comparison');
+      fireEvent.change(globalSearch, { target: { value: '__no_matching_property__' } });
+      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      fireEvent.change(globalSearch, { target: { value: '' } });
+      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+
+      fireEvent.click(within(card).getByRole('button', { name: `Search within ${parentLabel}` }));
+      const nodeSearch = within(card).getByLabelText(`Filter ${parentLabel} children`);
+      fireEvent.change(nodeSearch, { target: { value: '__no_matching_child__' } });
+      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      fireEvent.change(nodeSearch, { target: { value: '' } });
+      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+
+      const parentRow = within(card).getByText(parentLabel).closest('tr') as HTMLElement;
+      const expandButton = parentRow.querySelector('.ant-table-row-expand-icon') as HTMLElement;
+      fireEvent.click(expandButton);
+      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      fireEvent.click(expandButton);
+      const restoredRadio = within(card).getByRole('radio', { name: radioName });
+      expect(restoredRadio).toBeChecked();
+      expect(
+        within(
+          restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement,
+        ).getByText(finalValue),
+      ).toBeInTheDocument();
+    },
+  );
 });
 
 describe('Issue #5 demo directory navigation', () => {
