@@ -119,12 +119,8 @@ export function RecursiveComparisonTable({
     }
     pendingControlledCompletion.current = undefined;
   }, [merge, mergeEnabled, mergeResult]);
-  const updateMergeResolution = (resolutionKey: string, resolution: MergeResolution) => {
+  const publishMergeResolutions = (nextResolutions: MergeResolutions) => {
     if (!mergeEnabled || !mergeResult) return;
-    const nextResolutions: MergeResolutions = {
-      ...activeResolutions,
-      [resolutionKey]: resolution,
-    };
     const nextResult = buildMergeResult(
       rows,
       versions,
@@ -142,6 +138,17 @@ export function RecursiveComparisonTable({
       merge?.onComplete?.(nextResult);
     }
   };
+  const updateMergeResolution = (resolutionKey: string, resolution: MergeResolution) => {
+    publishMergeResolutions({
+      ...activeResolutions,
+      [resolutionKey]: resolution,
+    });
+  };
+  const clearMergeResolution = (resolutionKey: string) => {
+    const nextResolutions: Record<string, MergeResolution> = { ...activeResolutions };
+    delete nextResolutions[resolutionKey];
+    publishMergeResolutions(nextResolutions);
+  };
   const selectMergeSource = (row: ComparisonRow, versionId: string) => {
     updateMergeResolution(row.id, { kind: 'source', versionId });
   };
@@ -149,10 +156,9 @@ export function RecursiveComparisonTable({
     () => new Map(mergeResult?.scope.map((entry) => [entry.resolutionKey, entry]) ?? []),
     [mergeResult],
   );
-  const needsPresenceSelection = Boolean(
+  const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
       (entry) =>
-        entry.role === 'keyed-presence' &&
         entry.active &&
         mergeResult.sourceDecisions.some(
           (decision) =>
@@ -245,6 +251,19 @@ export function RecursiveComparisonTable({
             key: 'merge-final',
             render: (_: unknown, row: ComparisonRow) => {
               const scopeEntry = mergeScopeByRowId.get(row.id);
+              const hasManualResolution = Object.prototype.hasOwnProperty.call(
+                activeResolutions,
+                row.id,
+              );
+              const clearButton = hasManualResolution ? (
+                <button
+                  type="button"
+                  aria-label={`Clear ${row.property.path.join('.')}`}
+                  onClick={() => clearMergeResolution(row.id)}
+                >
+                  Clear
+                </button>
+              ) : null;
               if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
                 const resolution = activeResolutions[row.id];
                 const pathLabel = row.property.path.join('.');
@@ -280,6 +299,7 @@ export function RecursiveComparisonTable({
                       />
                       Exclude
                     </label>
+                    {clearButton}
                   </div>
                 );
               }
@@ -287,20 +307,32 @@ export function RecursiveComparisonTable({
               const decision = mergeResult?.sourceDecisions.find(
                 (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
               );
-              if (!decision || !('sourceVersionId' in decision)) return 'Unresolved';
+              if (!decision || !('sourceVersionId' in decision)) {
+                return (
+                  <>
+                    Unresolved
+                    {clearButton}
+                  </>
+                );
+              }
               const version = versions.find(
                 (candidate) => candidate.id === decision.sourceVersionId,
               );
-              return version
-                ? renderValue(
-                    row,
-                    version,
-                    registry,
-                    renderers,
-                    containerSummaries.get(row.id),
-                    config.containerSummary,
-                  )
-                : 'Unresolved';
+              return (
+                <>
+                  {version
+                    ? renderValue(
+                        row,
+                        version,
+                        registry,
+                        renderers,
+                        containerSummaries.get(row.id),
+                        config.containerSummary,
+                      )
+                    : 'Unresolved'}
+                  {clearButton}
+                </>
+              );
             },
           },
         ]
@@ -326,7 +358,7 @@ export function RecursiveComparisonTable({
           />
           <Typography.Text>仅显示差异（{countRows(differenceRows)}）</Typography.Text>
         </Space>
-        {mergeEnabled && needsPresenceSelection && <span aria-live="polite">Needs selection</span>}
+        {mergeEnabled && needsMergeSelection && <span aria-live="polite">Needs selection</span>}
       </div>
       <Table<ComparisonRow>
         rowKey="id"
