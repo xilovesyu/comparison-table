@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RecursiveComparisonTable } from './RecursiveComparisonTable';
+import type { MergeResolutions } from '../core/types';
 
 describe('RecursiveComparisonTable', () => {
   const versions = [
@@ -833,5 +834,42 @@ describe('RecursiveComparisonTable', () => {
     expect(result.unresolvedPaths).toContainEqual(['enabled']);
     expect(screen.getByText('Needs selection')).toHaveAttribute('aria-live', 'polite');
     expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('Issue #14 keeps controlled decisions ineffective until the parent writes back, then completes once', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const empty: MergeResolutions = {};
+    const propsFor = (value: MergeResolutions) =>
+      ({
+        versions,
+        merge: { enabled: true, value, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(empty)} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const afterEnabled: MergeResolutions = onChange.mock.calls[0]?.[0];
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(afterEnabled)} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('radio', { name: /^user\.name After$/i }));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    const complete: MergeResolutions = onChange.mock.calls[1]?.[0];
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(complete)} />);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    rerender(<RecursiveComparisonTable {...propsFor({ ...complete })} />);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    rerender(<RecursiveComparisonTable {...propsFor(empty)} />);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
   });
 });
