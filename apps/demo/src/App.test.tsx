@@ -265,6 +265,75 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/containerSummary=/);
   });
 
+  it('integrates the unkeyed atomic array into Advanced and keeps its raw source and copy action in sync', () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    try {
+      const card = renderExample('advanced-configuration');
+      const arrayRow = within(card).getByText('reviewSteps').closest('tr') as HTMLElement;
+
+      expect(within(arrayRow).getAllByRole('radio')).toHaveLength(3);
+      expect(
+        within(arrayRow).getByRole('radio', { name: /^reviewSteps 初始版$/i }),
+      ).toBeInTheDocument();
+      expect(
+        within(arrayRow).getByRole('radio', { name: /^reviewSteps 复核版$/i }),
+      ).toBeInTheDocument();
+      expect(
+        within(arrayRow).getByRole('radio', { name: /^reviewSteps 最终版$/i }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: /reviewSteps(?:\.|\[)\d+/i }),
+      ).not.toBeInTheDocument();
+
+      expect(
+        within(card).getByRole('radio', { name: /^lines\.P-300 Include from 复核版$/i }),
+      ).toBeInTheDocument();
+      expect(within(card).getByText('本地金额：USD 980')).toBeInTheDocument();
+
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+      expect(sourcePanel.textContent).toMatch(/reviewSteps:\s*\[/);
+      expect(sourcePanel.textContent).toMatch(/defaultValue/);
+      expect(sourcePanel.textContent).toMatch(/arrayItemKeyFields={{ lines: 'sku' }}/);
+      expect(sourcePanel.textContent).toMatch(/renderers=/);
+      expect(sourcePanel.textContent).toMatch(/containerSummary=/);
+
+      fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain('reviewSteps');
+      expect(writeText.mock.calls[0]?.[0]).toContain('defaultValue');
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('provides an operable Advanced uncontrolled defaultValue mode without treating mount as submission', () => {
+    const card = renderExample('advanced-configuration');
+
+    fireEvent.click(within(card).getByRole('button', { name: /uncontrolled defaultValue/i }));
+    expect(within(card).getByText('默认方案已加载，未触发完成提交')).toBeInTheDocument();
+    const selected = within(card).getByRole('radio', {
+      name: /^approvalStatus 复核版$/i,
+    });
+    expect(selected).toBeChecked();
+    expect(within(card).queryByText('合并已完成')).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: /^Clear approvalStatus$/i }));
+    expect(selected).not.toBeChecked();
+    expect(within(card).getByText(/仍有差异待选择|Needs selection/)).toBeInTheDocument();
+
+    fireEvent.click(selected);
+    expect(selected).toBeChecked();
+    expect(within(card).getByText('合并已完成')).toBeInTheDocument();
+  });
+
   it('offers one whole-array Final decision for an unkeyed changing array without numeric child controls', () => {
     const card = renderExample('final-merge');
     const arrayRow = within(card).getByText('reviewSteps').closest('tr') as HTMLElement;
