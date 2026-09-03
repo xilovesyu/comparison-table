@@ -1,0 +1,14 @@
+body {
+  margin: 0;
+  padding: 24px;
+  font-family: system-ui, sans-serif;
+}
+
+main {
+  min-width: 1280px;
+}
+
+output {
+  display: block;
+  margin-bottom: 16px;
+}

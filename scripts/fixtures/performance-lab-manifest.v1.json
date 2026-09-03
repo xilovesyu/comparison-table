@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "seed": 20260902,
+  "profiles": ["two-version", "three-version", "eight-version"],
+  "cases": [
+    "empty",
+    "null-missing-undefined",
+    "text-10240",
+    "depth-20",
+    "wide-1000",
+    "keyed-presence",
+    "large-keyed-1024"
+  ]
+}
