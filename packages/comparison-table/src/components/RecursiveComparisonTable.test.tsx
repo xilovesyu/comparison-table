@@ -872,4 +872,29 @@ describe('RecursiveComparisonTable', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
   });
+
+  it('Issue #14 reads uncontrolled defaultValue only on mount and completes again only after clear then reselection', () => {
+    const onComplete = vi.fn();
+    const complete: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    const propsFor = (defaultValue: MergeResolutions) =>
+      ({
+        versions,
+        merge: { enabled: true, defaultValue, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(complete)} />);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+
+    rerender(<RecursiveComparisonTable {...propsFor({})} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: /^Clear enabled$/i }));
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
 });
