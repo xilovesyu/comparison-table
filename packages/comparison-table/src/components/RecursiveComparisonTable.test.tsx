@@ -686,4 +686,68 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getByText('lines[A]')).toBeInTheDocument();
     expect(screen.queryByText('Removed')).not.toBeInTheDocument();
   });
+
+  it('Issue #14 leaves the table unchanged unless merge.enabled is exactly true', () => {
+    const onComplete = vi.fn();
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} />);
+
+    expect(screen.queryByRole('columnheader', { name: 'Final' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const disabledProps = {
+      versions,
+      merge: { enabled: false, onComplete },
+    } as unknown as React.ComponentProps<typeof RecursiveComparisonTable>;
+    rerender(<RecursiveComparisonTable {...disabledProps} />);
+
+    expect(screen.queryByRole('columnheader', { name: 'Final' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('Issue #14 merge mode completes only after every direct difference receives a source choice', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const props = {
+      versions,
+      merge: { enabled: true, onChange, onComplete },
+    } as unknown as React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(screen.getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
+    const finalHeader = screen.getByRole('columnheader', { name: 'Final' });
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers.at(-1)).toBe(finalHeader);
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const afterEnabled = screen.getByRole('radio', {
+      name: /^(?=.*\benabled\b)(?=.*\bAfter\b).*$/i,
+    });
+    fireEvent.click(afterEnabled);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0]).toHaveLength(2);
+    const firstResult = onChange.mock.calls[0]?.[1];
+    expect(firstResult).toMatchObject({ isComplete: false });
+    expect(firstResult.unresolvedPaths).toContainEqual(['user', 'name']);
+    expect(firstResult.unresolvedPaths).not.toContainEqual(['enabled']);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const afterUserName = screen.getByRole('radio', {
+      name: /^(?=.*user\.name)(?=.*\bAfter\b).*$/i,
+    });
+    fireEvent.click(afterUserName);
+
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1]).toHaveLength(2);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    const result = onComplete.mock.calls[0]?.[0];
+    expect(result).toMatchObject({ isComplete: true, unresolvedPaths: [] });
+    expect(Array.isArray(result.scope)).toBe(true);
+    expect(Array.isArray(result.sourceDecisions)).toBe(true);
+    expect(result.mergedData).not.toBe(versions[1].data);
+  });
 });
