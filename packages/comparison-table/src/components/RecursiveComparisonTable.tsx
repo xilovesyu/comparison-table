@@ -233,7 +233,7 @@ export function RecursiveComparisonTable({
             !scopeEntry?.active ||
             scopeEntry.role === 'keyed-presence' ||
             !scopeEntry.allowedSourceVersionIds.includes(version.id) ||
-            !isMergeDecisionRow(row)
+            (!isMergeDecisionRow(row) && scopeEntry.role !== 'non-keyed-array')
           ) {
             return value;
           }
@@ -313,7 +313,8 @@ export function RecursiveComparisonTable({
                   </div>
                 );
               }
-              if (row.children?.length) return null;
+              if (!scopeEntry) return null;
+              if (row.children?.length && scopeEntry.role !== 'non-keyed-array') return null;
               const decision = mergeResult?.sourceDecisions.find(
                 (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
               );
