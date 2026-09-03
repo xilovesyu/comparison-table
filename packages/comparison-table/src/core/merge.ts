@@ -54,7 +54,12 @@ export function buildMergeResult<T>(
     unresolvedPaths.push([...row.property.path]);
   };
 
-  const processLeaf = (row: ComparisonRow, active: boolean, keyedItem?: KeyedItemContext): void => {
+  const processLeaf = (
+    row: ComparisonRow,
+    active: boolean,
+    keyedItem?: KeyedItemContext,
+    dormant = false,
+  ): void => {
     const role = roleFor(row);
     const allowedSourceVersionIds = keyedItem
       ? keyedItem.presentVersionIds
@@ -70,6 +75,7 @@ export function buildMergeResult<T>(
     knownResolutionKeys.add(row.id);
 
     const resolution = resolutions[row.id];
+    if (!active && dormant) return;
     if (!active) {
       if (resolution?.kind === 'source') {
         if (!versionIds.has(resolution.versionId)) {
@@ -173,11 +179,13 @@ export function buildMergeResult<T>(
     currentRows: readonly ComparisonRow[],
     active = true,
     parentKeyedItem?: KeyedItemContext,
+    dormant = false,
   ): void => {
     currentRows.forEach((row) => {
       const keyedItem = keyedItemContext(row, versions, keyFields);
       if (keyedItem) {
         let childrenActive = active;
+        let childrenDormant = dormant;
         if (keyedItem.requiresPresenceDecision) {
           scope.push({
             resolutionKey: row.id,
@@ -196,6 +204,7 @@ export function buildMergeResult<T>(
             if (!resolution) {
               markUnresolved(row, 'keyed-presence');
             } else if (resolution.kind === 'exclude') {
+              childrenDormant = true;
               excludeKeyedItem(mergedData, keyedItem.target, keyFields);
               resolvedPatch.push({
                 op: 'exclude-keyed-item',
@@ -240,6 +249,7 @@ export function buildMergeResult<T>(
                 sourceVersionId: resolution.versionId,
               });
               childrenActive = true;
+              childrenDormant = false;
             }
           }
         }
@@ -252,9 +262,10 @@ export function buildMergeResult<T>(
             ),
             childrenActive,
             keyedItem,
+            childrenDormant,
           );
         } else if (!keyedItem.requiresPresenceDecision) {
-          processLeaf(row, active, parentKeyedItem);
+          processLeaf(row, active, parentKeyedItem, dormant);
         }
         return;
       }
@@ -262,14 +273,14 @@ export function buildMergeResult<T>(
       const isUnkeyedArray =
         Object.values(row.values).some(Array.isArray) && !keyFields.has(pathKey(row.property.path));
       if (isUnkeyedArray) {
-        processLeaf(row, active, parentKeyedItem);
+        processLeaf(row, active, parentKeyedItem, dormant);
         return;
       }
 
       if (row.children?.length) {
-        processRows(row.children, active, parentKeyedItem);
+        processRows(row.children, active, parentKeyedItem, dormant);
       } else {
-        processLeaf(row, active, parentKeyedItem);
+        processLeaf(row, active, parentKeyedItem, dormant);
       }
     });
   };
