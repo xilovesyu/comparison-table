@@ -97,8 +97,10 @@ export function RecursiveComparisonTable({
   const activeResolutions = merge?.value ?? internalResolutions;
   const mergeResult = useMemo(
     () =>
-      mergeEnabled ? buildMergeResult(rows, versions, activeResolutions, baselineId) : undefined,
-    [activeResolutions, baselineId, mergeEnabled, rows, versions],
+      mergeEnabled
+        ? buildMergeResult(rows, versions, activeResolutions, baselineId, config.arrayItemKeyFields)
+        : undefined,
+    [activeResolutions, baselineId, config.arrayItemKeyFields, mergeEnabled, rows, versions],
   );
   const pendingControlledCompletion = useRef<MergeResolutions>();
   useEffect(() => {
@@ -122,7 +124,13 @@ export function RecursiveComparisonTable({
       ...activeResolutions,
       [row.id]: { kind: 'source', versionId },
     };
-    const nextResult = buildMergeResult(rows, versions, nextResolutions, baselineId);
+    const nextResult = buildMergeResult(
+      rows,
+      versions,
+      nextResolutions,
+      baselineId,
+      config.arrayItemKeyFields,
+    );
     if (merge?.value === undefined) setInternalResolutions(nextResolutions);
     else {
       pendingControlledCompletion.current =

@@ -1,6 +1,7 @@
 import type {
   ComparisonRow,
   ComparisonVersion,
+  KeyedArrayTarget,
   MergePatch,
   MergeResolutions,
   MergeResult,
@@ -10,11 +11,21 @@ import type {
   PropertyPath,
 } from './types';
 
+type KeyFields = ReadonlyMap<string, string>;
+
+interface KeyedItemContext {
+  row: ComparisonRow;
+  target: KeyedArrayTarget;
+  presentVersionIds: readonly string[];
+  requiresPresenceDecision: boolean;
+}
+
 export function buildMergeResult<T>(
   rows: readonly ComparisonRow[],
   versions: readonly ComparisonVersion<T>[],
   resolutions: MergeResolutions,
   configuredBaselineId?: string,
+  arrayItemKeyFields?: Readonly<Record<string, string>>,
 ): MergeResult<T> {
   const baseline = configuredBaselineId
     ? versions.find((version) => version.id === configuredBaselineId)
@@ -24,24 +35,66 @@ export function buildMergeResult<T>(
   }
   if (!baseline) throw new Error('Merge mode requires at least one comparison version');
 
-  const leaves = collectLeaves(rows);
   const versionIds = new Set(versions.map((version) => version.id));
-  const mergedData = cloneValue(baseline.data);
+  const keyFields = collectKeyFields(rows, arrayItemKeyFields);
+  const mergedData = cloneValue(baseline.data, []);
   const resolvedPatch: MergePatch[] = [];
   const sourceDecisions: MergeSourceDecision[] = [];
   const unresolvedPaths: PropertyPath[] = [];
-  const scope: MergeScopeEntry[] = leaves.map((row) => ({
-    resolutionKey: row.id,
-    path: [...row.property.path],
-    role: roleFor(row),
-    allowedSourceVersionIds: versions.map((version) => version.id),
-    active: true,
-  }));
-  const knownResolutionKeys = new Set(scope.map((entry) => entry.resolutionKey));
+  const scope: MergeScopeEntry[] = [];
+  const knownResolutionKeys = new Set<string>();
 
-  leaves.forEach((row) => {
+  const markUnresolved = (row: ComparisonRow, role: MergeScopeRole) => {
+    sourceDecisions.push({
+      kind: 'unresolved',
+      resolutionKey: row.id,
+      path: [...row.property.path],
+      role,
+    });
+    unresolvedPaths.push([...row.property.path]);
+  };
+
+  const processLeaf = (row: ComparisonRow, active: boolean, keyedItem?: KeyedItemContext): void => {
     const role = roleFor(row);
+    const allowedSourceVersionIds = keyedItem
+      ? keyedItem.presentVersionIds
+      : versions.map((version) => version.id);
+    scope.push({
+      resolutionKey: row.id,
+      path: [...row.property.path],
+      role,
+      allowedSourceVersionIds,
+      active,
+      ...(keyedItem?.requiresPresenceDecision ? { parentResolutionKey: keyedItem.row.id } : {}),
+    });
+    knownResolutionKeys.add(row.id);
+
     const resolution = resolutions[row.id];
+    if (!active) {
+      if (resolution?.kind === 'source') {
+        if (!versionIds.has(resolution.versionId)) {
+          sourceDecisions.push({
+            kind: 'stale',
+            resolutionKey: row.id,
+            reason: 'source-version-unavailable',
+          });
+        } else if (keyedItem && !keyedItem.presentVersionIds.includes(resolution.versionId)) {
+          sourceDecisions.push({
+            kind: 'stale',
+            resolutionKey: row.id,
+            reason: 'source-not-present',
+          });
+        }
+      } else if (resolution?.kind === 'exclude') {
+        sourceDecisions.push({
+          kind: 'stale',
+          resolutionKey: row.id,
+          reason: 'exclude-not-allowed',
+        });
+      }
+      return;
+    }
+
     if (resolution?.kind === 'exclude') {
       sourceDecisions.push({
         kind: 'stale',
@@ -60,6 +113,19 @@ export function buildMergeResult<T>(
       unresolvedPaths.push([...row.property.path]);
       return;
     }
+    if (
+      resolution?.kind === 'source' &&
+      keyedItem &&
+      !keyedItem.presentVersionIds.includes(resolution.versionId)
+    ) {
+      sourceDecisions.push({
+        kind: 'stale',
+        resolutionKey: row.id,
+        reason: 'source-not-present',
+      });
+      unresolvedPaths.push([...row.property.path]);
+      return;
+    }
 
     const sourceVersionId =
       resolution?.kind === 'source'
@@ -68,37 +134,32 @@ export function buildMergeResult<T>(
           ? baseline.id
           : undefined;
     if (!sourceVersionId) {
-      sourceDecisions.push({
-        kind: 'unresolved',
-        resolutionKey: row.id,
-        path: [...row.property.path],
-        role,
-      });
-      unresolvedPaths.push([...row.property.path]);
+      markUnresolved(row, role);
       return;
     }
 
-    const value = cloneValue(row.values[sourceVersionId]);
-    assignPath(mergedData, row.property.path, value);
+    const value = cloneValue(row.values[sourceVersionId], row.property.path);
     const automatic = resolution?.kind !== 'source';
-    resolvedPatch.push(
-      value === undefined
-        ? {
-            op: 'delete',
-            resolutionKey: row.id,
-            path: [...row.property.path],
-            sourceVersionId,
-            origin: automatic ? 'automatic-baseline' : 'user-source',
-          }
-        : {
-            op: 'set',
-            resolutionKey: row.id,
-            path: [...row.property.path],
-            value,
-            sourceVersionId,
-            origin: automatic ? 'automatic-baseline' : 'user-source',
-          },
-    );
+    if (value === undefined) {
+      deletePath(mergedData, row.property.path, keyFields);
+      resolvedPatch.push({
+        op: 'delete',
+        resolutionKey: row.id,
+        path: [...row.property.path],
+        sourceVersionId,
+        origin: automatic ? 'automatic-baseline' : 'user-source',
+      });
+    } else {
+      assignPath(mergedData, row.property.path, value, keyFields);
+      resolvedPatch.push({
+        op: 'set',
+        resolutionKey: row.id,
+        path: [...row.property.path],
+        value,
+        sourceVersionId,
+        origin: automatic ? 'automatic-baseline' : 'user-source',
+      });
+    }
     sourceDecisions.push({
       kind: automatic ? 'automatic-baseline' : 'source',
       resolutionKey: row.id,
@@ -106,7 +167,107 @@ export function buildMergeResult<T>(
       role,
       sourceVersionId,
     });
-  });
+  };
+
+  const processRows = (
+    currentRows: readonly ComparisonRow[],
+    active = true,
+    parentKeyedItem?: KeyedItemContext,
+  ): void => {
+    currentRows.forEach((row) => {
+      const keyedItem = keyedItemContext(row, versions, keyFields);
+      if (keyedItem) {
+        let childrenActive = active;
+        if (keyedItem.requiresPresenceDecision) {
+          scope.push({
+            resolutionKey: row.id,
+            path: [...row.property.path],
+            role: 'keyed-presence',
+            allowedSourceVersionIds: keyedItem.presentVersionIds,
+            active,
+            ...(parentKeyedItem?.requiresPresenceDecision
+              ? { parentResolutionKey: parentKeyedItem.row.id }
+              : {}),
+          });
+          knownResolutionKeys.add(row.id);
+          childrenActive = false;
+          const resolution = resolutions[row.id];
+          if (active) {
+            if (!resolution) {
+              markUnresolved(row, 'keyed-presence');
+            } else if (resolution.kind === 'exclude') {
+              excludeKeyedItem(mergedData, keyedItem.target, keyFields);
+              resolvedPatch.push({
+                op: 'exclude-keyed-item',
+                resolutionKey: row.id,
+                target: keyedItem.target,
+              });
+              sourceDecisions.push({
+                kind: 'exclude',
+                resolutionKey: row.id,
+                path: [...row.property.path],
+                role: 'keyed-presence',
+              });
+            } else if (!versionIds.has(resolution.versionId)) {
+              sourceDecisions.push({
+                kind: 'stale',
+                resolutionKey: row.id,
+                reason: 'source-version-unavailable',
+              });
+              unresolvedPaths.push([...row.property.path]);
+            } else if (!keyedItem.presentVersionIds.includes(resolution.versionId)) {
+              sourceDecisions.push({
+                kind: 'stale',
+                resolutionKey: row.id,
+                reason: 'source-not-present',
+              });
+              unresolvedPaths.push([...row.property.path]);
+            } else {
+              const value = cloneValue(row.values[resolution.versionId], row.property.path);
+              includeKeyedItem(mergedData, keyedItem.target, value, keyFields);
+              resolvedPatch.push({
+                op: 'include-keyed-item',
+                resolutionKey: row.id,
+                target: keyedItem.target,
+                value,
+                sourceVersionId: resolution.versionId,
+              });
+              sourceDecisions.push({
+                kind: 'source',
+                resolutionKey: row.id,
+                path: [...row.property.path],
+                role: 'keyed-presence',
+                sourceVersionId: resolution.versionId,
+              });
+              childrenActive = true;
+            }
+          }
+        }
+
+        const children = row.children ?? [];
+        if (children.length) {
+          processRows(
+            children.filter(
+              (child) => child.property.path.at(-1) !== keyedItem.target.identityField,
+            ),
+            childrenActive,
+            keyedItem,
+          );
+        } else if (!keyedItem.requiresPresenceDecision) {
+          processLeaf(row, active, parentKeyedItem);
+        }
+        return;
+      }
+
+      if (row.children?.length) {
+        processRows(row.children, active, parentKeyedItem);
+      } else {
+        processLeaf(row, active, parentKeyedItem);
+      }
+    });
+  };
+
+  processRows(rows);
 
   Object.keys(resolutions).forEach((resolutionKey) => {
     if (!knownResolutionKeys.has(resolutionKey)) {
@@ -120,7 +281,9 @@ export function buildMergeResult<T>(
     resolvedPatch,
     scope,
     unresolvedPaths,
-    isComplete: unresolvedPaths.length === 0,
+    isComplete:
+      unresolvedPaths.length === 0 &&
+      !sourceDecisions.some((decision) => decision.kind === 'stale'),
     sourceDecisions,
   };
 }
@@ -132,34 +295,201 @@ function roleFor(row: ComparisonRow): Exclude<MergeScopeRole, 'keyed-presence'> 
   return 'value';
 }
 
-function collectLeaves(rows: readonly ComparisonRow[]): ComparisonRow[] {
-  return rows.flatMap((row) => (row.children?.length ? collectLeaves(row.children) : [row]));
+function keyedItemContext(
+  row: ComparisonRow,
+  versions: readonly ComparisonVersion[],
+  keyFields: KeyFields,
+): KeyedItemContext | undefined {
+  if (row.itemIdentity === undefined || !row.presence) return undefined;
+  const arrayPath = row.property.path.slice(0, -1);
+  const identityField = keyFields.get(pathKey(arrayPath));
+  if (!identityField) return undefined;
+  const presentVersionIds = versions
+    .filter((version) => row.presence?.[version.id] === true)
+    .map((version) => version.id);
+  return {
+    row,
+    target: { arrayPath, identityField, identity: row.itemIdentity },
+    presentVersionIds,
+    requiresPresenceDecision: presentVersionIds.length !== versions.length,
+  };
 }
 
-function assignPath(root: unknown, path: PropertyPath, value: unknown): void {
-  if (!path.length || root === null || typeof root !== 'object') return;
-  let target = root as Record<string | number, unknown>;
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const key = path[index];
-    const nextKey = path[index + 1];
-    const current = target[key];
-    if (current === null || typeof current !== 'object') {
-      target[key] = typeof nextKey === 'number' ? [] : {};
-    }
-    target = target[key] as Record<string | number, unknown>;
-  }
-  target[path.at(-1)!] = value;
-}
-
-function cloneValue<T>(value: T, seen = new WeakMap<object, unknown>()): T {
-  if (value === null || typeof value !== 'object') return value;
-  if (value instanceof Date) return new Date(value.getTime()) as T;
-  const cached = seen.get(value);
-  if (cached) return cached as T;
-  const clone: unknown = Array.isArray(value) ? [] : {};
-  seen.set(value, clone);
-  Object.entries(value).forEach(([key, child]) => {
-    (clone as Record<string, unknown>)[key] = cloneValue(child, seen);
+function collectKeyFields(
+  rows: readonly ComparisonRow[],
+  configured?: Readonly<Record<string, string>>,
+): Map<string, string> {
+  const result = new Map<string, string>();
+  Object.entries(configured ?? {}).forEach(([path, field]) => {
+    result.set(pathKey(path ? path.split('.') : []), field);
   });
-  return clone as T;
+  const visit = (currentRows: readonly ComparisonRow[]) => {
+    currentRows.forEach((row) => {
+      if (row.itemIdentity !== undefined && row.presence) {
+        const arrayPath = row.property.path.slice(0, -1);
+        const key = pathKey(arrayPath);
+        if (!result.has(key)) {
+          const field = inferIdentityField(row);
+          if (field) result.set(key, field);
+        }
+      }
+      visit(row.children ?? []);
+    });
+  };
+  visit(rows);
+  return result;
+}
+
+function inferIdentityField(row: ComparisonRow): string | undefined {
+  const child = row.children?.find(
+    (candidate) =>
+      typeof candidate.property.path.at(-1) === 'string' &&
+      Object.values(candidate.values).some((value) => value === row.itemIdentity),
+  );
+  if (child) return child.property.path.at(-1) as string;
+  for (const value of Object.values(row.values)) {
+    if (!isRecord(value)) continue;
+    const field = Object.keys(value).find((key) => value[key] === row.itemIdentity);
+    if (field) return field;
+  }
+  return undefined;
+}
+
+function assignPath(root: unknown, path: PropertyPath, value: unknown, keyFields: KeyFields): void {
+  const location = locateProperty(root, path, keyFields, true);
+  if (location) location.target[location.key] = value;
+}
+
+function deletePath(root: unknown, path: PropertyPath, keyFields: KeyFields): void {
+  const location = locateProperty(root, path, keyFields, false);
+  if (location) delete location.target[location.key];
+}
+
+function locateProperty(
+  root: unknown,
+  path: PropertyPath,
+  keyFields: KeyFields,
+  create: boolean,
+): { target: Record<string | number, unknown>; key: string | number } | undefined {
+  if (!path.length || root === null || typeof root !== 'object') return undefined;
+  let value: unknown = root;
+  let parentPath: PropertyPath = [];
+  for (let index = 0; index < path.length - 1; index += 1) {
+    const part = path[index];
+    if (Array.isArray(value) && typeof part === 'string') {
+      const identityField = keyFields.get(pathKey(parentPath));
+      if (identityField) {
+        value = value.find((item) => isRecord(item) && item[identityField] === part);
+        if (value === undefined) return undefined;
+        parentPath = [...parentPath, part];
+        continue;
+      }
+    }
+    if (value === null || typeof value !== 'object') return undefined;
+    const target = value as Record<string | number, unknown>;
+    let child = target[part];
+    if ((child === null || typeof child !== 'object') && create) {
+      const nextPart = path[index + 1];
+      child = typeof nextPart === 'number' ? [] : {};
+      target[part] = child;
+    }
+    if (child === null || typeof child !== 'object') return undefined;
+    value = child;
+    parentPath = [...parentPath, part];
+  }
+  if (value === null || typeof value !== 'object') return undefined;
+  return { target: value as Record<string | number, unknown>, key: path.at(-1)! };
+}
+
+function includeKeyedItem(
+  root: unknown,
+  target: KeyedArrayTarget,
+  value: unknown,
+  keyFields: KeyFields,
+): void {
+  const array = resolvePath(root, target.arrayPath, keyFields);
+  if (!Array.isArray(array)) return;
+  const index = array.findIndex(
+    (item) => isRecord(item) && item[target.identityField] === target.identity,
+  );
+  if (index === -1) array.push(value);
+  else array[index] = value;
+}
+
+function excludeKeyedItem(root: unknown, target: KeyedArrayTarget, keyFields: KeyFields): void {
+  const array = resolvePath(root, target.arrayPath, keyFields);
+  if (!Array.isArray(array)) return;
+  const index = array.findIndex(
+    (item) => isRecord(item) && item[target.identityField] === target.identity,
+  );
+  if (index >= 0) array.splice(index, 1);
+}
+
+function resolvePath(root: unknown, path: PropertyPath, keyFields: KeyFields): unknown {
+  let value = root;
+  let parentPath: PropertyPath = [];
+  for (const part of path) {
+    if (Array.isArray(value) && typeof part === 'string') {
+      const identityField = keyFields.get(pathKey(parentPath));
+      if (identityField) {
+        value = value.find((item) => isRecord(item) && item[identityField] === part);
+        parentPath = [...parentPath, part];
+        continue;
+      }
+    }
+    if (value === null || typeof value !== 'object') return undefined;
+    value = (value as Record<string | number, unknown>)[part];
+    parentPath = [...parentPath, part];
+  }
+  return value;
+}
+
+function cloneValue<T>(value: T, path: PropertyPath): T {
+  assertCloneable(value, path, new WeakSet<object>());
+  try {
+    return structuredClone(value);
+  } catch {
+    const type = value === null ? 'null' : typeof value;
+    throw new Error(`Cannot clone merge value at ${displayPath(path)} (${type})`);
+  }
+}
+
+function assertCloneable(value: unknown, path: PropertyPath, seen: WeakSet<object>): void {
+  if (typeof value === 'function' || typeof value === 'symbol') {
+    throw new Error(
+      `Cannot clone merge value at ${displayPath(path)}: unsupported ${typeof value}`,
+    );
+  }
+  if (value === null || typeof value !== 'object' || value instanceof Date) return;
+  if (seen.has(value)) return;
+  seen.add(value);
+  if (value instanceof Map) {
+    value.forEach((mapValue, mapKey) => {
+      assertCloneable(mapKey, [...path, '<map-key>'], seen);
+      assertCloneable(mapValue, [...path, '<map-value>'], seen);
+    });
+    return;
+  }
+  if (value instanceof Set) {
+    value.forEach((child) => assertCloneable(child, [...path, '<set-value>'], seen));
+    return;
+  }
+  Reflect.ownKeys(value).forEach((key) => {
+    if (typeof key === 'symbol') {
+      throw new Error(`Cannot clone merge value at ${displayPath(path)}: unsupported symbol key`);
+    }
+    assertCloneable((value as Record<string, unknown>)[key], [...path, key], seen);
+  });
+}
+
+function pathKey(path: PropertyPath): string {
+  return JSON.stringify(path);
+}
+
+function displayPath(path: PropertyPath): string {
+  return path.length ? path.join('.') : '<root>';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
