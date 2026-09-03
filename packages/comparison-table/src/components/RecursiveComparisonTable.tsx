@@ -12,6 +12,7 @@ import {
   type ComparisonVersion,
   type DifferenceOptions,
   type MergeOptions,
+  type MergeResolution,
   type MergeResolutions,
   type SearchOptions,
 } from '../core/comparison';
@@ -118,11 +119,11 @@ export function RecursiveComparisonTable({
     }
     pendingControlledCompletion.current = undefined;
   }, [merge, mergeEnabled, mergeResult]);
-  const selectMergeSource = (row: ComparisonRow, versionId: string) => {
+  const updateMergeResolution = (resolutionKey: string, resolution: MergeResolution) => {
     if (!mergeEnabled || !mergeResult) return;
     const nextResolutions: MergeResolutions = {
       ...activeResolutions,
-      [row.id]: { kind: 'source', versionId },
+      [resolutionKey]: resolution,
     };
     const nextResult = buildMergeResult(
       rows,
@@ -141,6 +142,25 @@ export function RecursiveComparisonTable({
       merge?.onComplete?.(nextResult);
     }
   };
+  const selectMergeSource = (row: ComparisonRow, versionId: string) => {
+    updateMergeResolution(row.id, { kind: 'source', versionId });
+  };
+  const mergeScopeByRowId = useMemo(
+    () => new Map(mergeResult?.scope.map((entry) => [entry.resolutionKey, entry]) ?? []),
+    [mergeResult],
+  );
+  const needsPresenceSelection = Boolean(
+    mergeResult?.scope.some(
+      (entry) =>
+        entry.role === 'keyed-presence' &&
+        entry.active &&
+        mergeResult.sourceDecisions.some(
+          (decision) =>
+            decision.resolutionKey === entry.resolutionKey &&
+            (decision.kind === 'unresolved' || decision.kind === 'stale'),
+        ),
+    ),
+  );
   const columns: ColumnsType<ComparisonRow> = [
     {
       title: 'Property',
@@ -191,7 +211,16 @@ export function RecursiveComparisonTable({
             containerSummaries.get(row.id),
             config.containerSummary,
           );
-          if (!mergeEnabled || !isMergeDecisionRow(row)) return value;
+          const scopeEntry = mergeScopeByRowId.get(row.id);
+          if (
+            !mergeEnabled ||
+            !scopeEntry?.active ||
+            scopeEntry.role === 'keyed-presence' ||
+            !scopeEntry.allowedSourceVersionIds.includes(version.id) ||
+            !isMergeDecisionRow(row)
+          ) {
+            return value;
+          }
           const resolution = activeResolutions[row.id];
           const checked = resolution?.kind === 'source' && resolution.versionId === version.id;
           return (
@@ -215,6 +244,45 @@ export function RecursiveComparisonTable({
             title: merge?.finalLabel ?? 'Final',
             key: 'merge-final',
             render: (_: unknown, row: ComparisonRow) => {
+              const scopeEntry = mergeScopeByRowId.get(row.id);
+              if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
+                const resolution = activeResolutions[row.id];
+                const pathLabel = row.property.path.join('.');
+                return (
+                  <div role="radiogroup" aria-label={`${pathLabel} presence`}>
+                    {scopeEntry.allowedSourceVersionIds.map((versionId) => {
+                      const version = versions.find((candidate) => candidate.id === versionId);
+                      if (!version) return null;
+                      return (
+                        <label key={versionId}>
+                          <input
+                            type="radio"
+                            name={`merge-presence-${row.id}`}
+                            aria-label={`${pathLabel} Include from ${version.label}`}
+                            checked={
+                              resolution?.kind === 'source' && resolution.versionId === versionId
+                            }
+                            onChange={() =>
+                              updateMergeResolution(row.id, { kind: 'source', versionId })
+                            }
+                          />
+                          Include from {version.label}
+                        </label>
+                      );
+                    })}
+                    <label>
+                      <input
+                        type="radio"
+                        name={`merge-presence-${row.id}`}
+                        aria-label={`${pathLabel} Exclude`}
+                        checked={resolution?.kind === 'exclude'}
+                        onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
+                      />
+                      Exclude
+                    </label>
+                  </div>
+                );
+              }
               if (row.children?.length) return null;
               const decision = mergeResult?.sourceDecisions.find(
                 (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
@@ -258,6 +326,7 @@ export function RecursiveComparisonTable({
           />
           <Typography.Text>仅显示差异（{countRows(differenceRows)}）</Typography.Text>
         </Space>
+        {mergeEnabled && needsPresenceSelection && <span aria-live="polite">Needs selection</span>}
       </div>
       <Table<ComparisonRow>
         rowKey="id"
