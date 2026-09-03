@@ -42,7 +42,10 @@ export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
   expandedKeys?: React.Key[];
   /** Reports expansion changes for controlled or uncontrolled usage. */
   onExpandedChange?: (keys: React.Key[]) => void;
-  /** Opt-in Final-column merge resolution. */
+  /**
+   * Opt-in Final-column merge resolution. Omit it (or leave `enabled` false) for the legacy table.
+   * Supports controlled `value` or an uncontrolled `defaultValue` decision record.
+   */
   merge?: MergeOptions;
 }
 

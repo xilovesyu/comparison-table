@@ -145,7 +145,10 @@ export type MergeResolutionKey = string;
 /** A source or exclusion decision stored at one merge-resolution key. */
 export type MergeResolution =
   Readonly<{ kind: 'source'; versionId: string }> | Readonly<{ kind: 'exclude' }>;
-/** Caller-controlled merge decisions keyed by `ComparisonRow.id`. */
+/**
+ * Caller-controlled merge decisions keyed by `ComparisonRow.id`.
+ * Composite keyed identities must be externally materialized as a canonical string.
+ */
 export type MergeResolutions = Readonly<Record<MergeResolutionKey, MergeResolution>>;
 /** Semantic role of an entry in the active merge scope. */
 export type MergeScopeRole = 'value' | 'keyed-presence' | 'container' | 'non-keyed-array';
@@ -236,7 +239,10 @@ export type MergePatch =
 export interface MergeResult<T = unknown> {
   /** Baseline version used for automatic decisions and the merged-data root. */
   readonly baseVersionId: string;
-  /** Deeply independent merged data. */
+  /**
+   * Deeply independent structured-clone data for supported JSON-like values and Dates.
+   * Values that cannot be cloned, including functions and symbols, fail with path/type context.
+   */
   readonly mergedData: T;
   /** Resolved raw-value updates within the current scope. */
   readonly resolvedPatch: readonly MergePatch[];
@@ -262,7 +268,11 @@ export interface MergeOptions<T = unknown> {
   readonly defaultValue?: MergeResolutions;
   /** Receives the next source choices and derived immutable result. */
   readonly onChange?: (value: MergeResolutions, result: MergeResult<T>) => void;
-  /** Fires for a user transition from incomplete to complete. */
+  /**
+   * `onComplete` fires once after a user proposal transitions the effective result from incomplete to
+   * complete. In controlled mode this waits for parent writeback; mount does not fire it, nor do
+   * external replacements.
+   */
   readonly onComplete?: (result: MergeResult<T>) => void;
 }
 

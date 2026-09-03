@@ -187,6 +187,7 @@ export function AdvancedExample() {
             ? `对象摘要：${Object.keys(value).length} 字段`
             : undefined
         }
+        merge={{ enabled: true }}
         comparison={{
           baseVersionId: 'baseline',
           showBaselineBadge: true,
