@@ -1,19 +1,18 @@
 import { Button, Input, Space, Switch, Table, Typography } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildComparisonRows,
   filterComparisonRows,
   filterDifferenceRows,
   getPropertyType,
-  pathId,
   type BuildComparisonConfig,
   type ComparisonRow,
   type ComparisonVersion,
   type DifferenceOptions,
   type MergeOptions,
-  type MergeResolution,
+  type MergeResolutions,
   type SearchOptions,
 } from '../core/comparison';
 import { buildMergeResult } from '../core/merge';
@@ -92,26 +91,47 @@ export function RecursiveComparisonTable({
   const registry = useMemo(() => createRendererRegistry(renderers), [renderers]);
   const baselineId = config.comparison?.baseVersionId;
   const mergeEnabled = merge?.enabled === true;
-  const [internalResolutions, setInternalResolutions] = useState<MergeResolution[]>(() => [
-    ...(merge?.defaultValue ?? []),
-  ]);
+  const [internalResolutions, setInternalResolutions] = useState<MergeResolutions>(() => ({
+    ...(merge?.defaultValue ?? {}),
+  }));
   const activeResolutions = merge?.value ?? internalResolutions;
   const mergeResult = useMemo(
     () =>
       mergeEnabled ? buildMergeResult(rows, versions, activeResolutions, baselineId) : undefined,
     [activeResolutions, baselineId, mergeEnabled, rows, versions],
   );
+  const pendingControlledCompletion = useRef<MergeResolutions>();
+  useEffect(() => {
+    const pending = pendingControlledCompletion.current;
+    if (!pending) return;
+    if (!mergeEnabled || merge?.value === undefined) {
+      pendingControlledCompletion.current = undefined;
+      return;
+    }
+    if (equalResolutions(merge.value, pending)) {
+      pendingControlledCompletion.current = undefined;
+      if (!mergeResult?.isComplete) return;
+      merge.onComplete?.(mergeResult);
+      return;
+    }
+    pendingControlledCompletion.current = undefined;
+  }, [merge, mergeEnabled, mergeResult]);
   const selectMergeSource = (row: ComparisonRow, versionId: string) => {
     if (!mergeEnabled || !mergeResult) return;
-    const nextResolution = { path: [...row.property.path], versionId };
-    const nextResolutions = [
-      ...activeResolutions.filter((resolution) => pathId(resolution.path) !== row.id),
-      nextResolution,
-    ];
+    const nextResolutions: MergeResolutions = {
+      ...activeResolutions,
+      [row.id]: { kind: 'source', versionId },
+    };
     const nextResult = buildMergeResult(rows, versions, nextResolutions, baselineId);
     if (merge?.value === undefined) setInternalResolutions(nextResolutions);
+    else {
+      pendingControlledCompletion.current =
+        !mergeResult.isComplete && nextResult.isComplete ? nextResolutions : undefined;
+    }
     merge?.onChange?.(nextResolutions, nextResult);
-    if (!mergeResult.isComplete && nextResult.isComplete) merge?.onComplete?.(nextResult);
+    if (merge?.value === undefined && !mergeResult.isComplete && nextResult.isComplete) {
+      merge?.onComplete?.(nextResult);
+    }
   };
   const columns: ColumnsType<ComparisonRow> = [
     {
@@ -164,10 +184,8 @@ export function RecursiveComparisonTable({
             config.containerSummary,
           );
           if (!mergeEnabled || !isMergeDecisionRow(row)) return value;
-          const checked = activeResolutions.some(
-            (resolution) =>
-              pathId(resolution.path) === row.id && resolution.versionId === version.id,
-          );
+          const resolution = activeResolutions[row.id];
+          const checked = resolution?.kind === 'source' && resolution.versionId === version.id;
           return (
             <label>
               <input
@@ -191,10 +209,12 @@ export function RecursiveComparisonTable({
             render: (_: unknown, row: ComparisonRow) => {
               if (row.children?.length) return null;
               const decision = mergeResult?.sourceDecisions.find(
-                (candidate) => candidate.rowId === row.id,
+                (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
               );
-              if (!decision) return 'Unresolved';
-              const version = versions.find((candidate) => candidate.id === decision.versionId);
+              if (!decision || !('sourceVersionId' in decision)) return 'Unresolved';
+              const version = versions.find(
+                (candidate) => candidate.id === decision.sourceVersionId,
+              );
               return version
                 ? renderValue(
                     row,
@@ -257,6 +277,22 @@ export function RecursiveComparisonTable({
 }
 function isMergeDecisionRow(row: ComparisonRow): boolean {
   return Boolean(row.hasOwnDifference && !row.children?.length);
+}
+function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => {
+      const leftValue = left[key];
+      const rightValue = right[key];
+      return (
+        leftValue?.kind === rightValue?.kind &&
+        (leftValue?.kind !== 'source' ||
+          (rightValue?.kind === 'source' && leftValue.versionId === rightValue.versionId))
+      );
+    })
+  );
 }
 function PropertyCell({
   row,

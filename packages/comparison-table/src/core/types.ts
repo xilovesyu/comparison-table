@@ -140,62 +140,130 @@ export interface ComparisonRow {
   presence?: Record<string, boolean>;
 }
 
-/** A caller-controlled source choice for one mergeable property. */
-export interface MergeResolution {
-  /** Stable property path identifying the mergeable leaf. */
-  path: PropertyPath;
-  /** Version whose raw value supplies the final value. */
-  versionId: string;
+/** Stable merge-resolution key. It is exactly the corresponding `ComparisonRow.id`. */
+export type MergeResolutionKey = string;
+/** A source or exclusion decision stored at one merge-resolution key. */
+export type MergeResolution =
+  Readonly<{ kind: 'source'; versionId: string }> | Readonly<{ kind: 'exclude' }>;
+/** Caller-controlled merge decisions keyed by `ComparisonRow.id`. */
+export type MergeResolutions = Readonly<Record<MergeResolutionKey, MergeResolution>>;
+/** Semantic role of an entry in the active merge scope. */
+export type MergeScopeRole = 'value' | 'keyed-presence' | 'container' | 'non-keyed-array';
+
+/** One addressable entry in the active merge scope. */
+export interface MergeScopeEntry {
+  readonly resolutionKey: MergeResolutionKey;
+  readonly path: PropertyPath;
+  readonly role: MergeScopeRole;
+  readonly allowedSourceVersionIds: readonly string[];
+  readonly active: boolean;
+  readonly parentResolutionKey?: MergeResolutionKey;
 }
 
-/** One raw-value update included in a merge result. */
-export interface MergePatch extends MergeResolution {
-  /** Deeply independent value selected from the source version. */
-  value: unknown;
-  /** `true` when an unchanged leaf was resolved automatically to the baseline. */
-  automatic: boolean;
+/** The effective source, exclusion, unresolved state, or stale caller decision for a scope entry. */
+export type MergeSourceDecision =
+  | Readonly<{
+      kind: 'automatic-baseline' | 'source';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: Exclude<MergeScopeRole, 'keyed-presence'>;
+      sourceVersionId: string;
+    }>
+  | Readonly<{
+      kind: 'source';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: 'keyed-presence';
+      sourceVersionId: string;
+    }>
+  | Readonly<{
+      kind: 'exclude';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: 'keyed-presence';
+    }>
+  | Readonly<{
+      kind: 'unresolved';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: MergeScopeRole;
+    }>
+  | Readonly<{
+      kind: 'stale';
+      resolutionKey: MergeResolutionKey;
+      reason:
+        'unknown-row' | 'source-version-unavailable' | 'source-not-present' | 'exclude-not-allowed';
+    }>;
+
+/** Stable address of one keyed-array item. */
+export interface KeyedArrayTarget {
+  readonly arrayPath: PropertyPath;
+  readonly identityField: string;
+  readonly identity: string;
 }
 
-/** Describes the source used for a resolved property. */
-export interface MergeSourceDecision extends MergeResolution {
-  /** Stable comparison row id derived from `path`. */
-  rowId: string;
-  /** `true` when the baseline was selected without user input. */
-  automatic: boolean;
-}
+/** One raw-data operation derived from the effective merge decisions. */
+export type MergePatch =
+  | Readonly<{
+      op: 'set';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      value: unknown;
+      sourceVersionId: string;
+      origin: 'automatic-baseline' | 'user-source';
+    }>
+  | Readonly<{
+      op: 'delete';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      sourceVersionId: string;
+      origin: 'automatic-baseline' | 'user-source';
+    }>
+  | Readonly<{
+      op: 'include-keyed-item';
+      resolutionKey: MergeResolutionKey;
+      target: KeyedArrayTarget;
+      value: unknown;
+      sourceVersionId: string;
+    }>
+  | Readonly<{
+      op: 'exclude-keyed-item';
+      resolutionKey: MergeResolutionKey;
+      target: KeyedArrayTarget;
+    }>;
 
 /** Immutable raw-value result produced from the current merge resolutions. */
 export interface MergeResult<T = unknown> {
   /** Baseline version used for automatic decisions and the merged-data root. */
-  baseVersionId: string;
+  readonly baseVersionId: string;
   /** Deeply independent merged data. */
-  mergedData: T;
+  readonly mergedData: T;
   /** Resolved raw-value updates within the current scope. */
-  resolvedPatch: MergePatch[];
-  /** Leaf paths included by the current comparison configuration. */
-  scope: PropertyPath[];
+  readonly resolvedPatch: readonly MergePatch[];
+  /** Entries included by the current comparison configuration. */
+  readonly scope: readonly MergeScopeEntry[];
   /** Direct-difference paths that still require a source choice. */
-  unresolvedPaths: PropertyPath[];
+  readonly unresolvedPaths: readonly PropertyPath[];
   /** Whether every direct difference in `scope` has a source choice. */
-  isComplete: boolean;
+  readonly isComplete: boolean;
   /** Automatic and user-selected sources for resolved paths. */
-  sourceDecisions: MergeSourceDecision[];
+  readonly sourceDecisions: readonly MergeSourceDecision[];
 }
 
 /** Opt-in Final-column configuration for merge resolution. */
 export interface MergeOptions<T = unknown> {
   /** Enables merge resolution only when exactly `true`. */
-  enabled?: boolean;
+  readonly enabled?: boolean;
   /** Final column heading. Defaults to `Final`. */
-  finalLabel?: React.ReactNode;
+  readonly finalLabel?: string;
   /** Controlled source choices. */
-  value?: readonly MergeResolution[];
+  readonly value?: MergeResolutions;
   /** Initial source choices for uncontrolled usage. */
-  defaultValue?: readonly MergeResolution[];
+  readonly defaultValue?: MergeResolutions;
   /** Receives the next source choices and derived immutable result. */
-  onChange?: (resolutions: MergeResolution[], result: MergeResult<T>) => void;
+  readonly onChange?: (value: MergeResolutions, result: MergeResult<T>) => void;
   /** Fires for a user transition from incomplete to complete. */
-  onComplete?: (result: MergeResult<T>) => void;
+  readonly onComplete?: (result: MergeResult<T>) => void;
 }
 
 /** Information passed to a custom Diff badge renderer. */
