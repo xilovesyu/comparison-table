@@ -698,7 +698,7 @@ describe('RecursiveComparisonTable', () => {
     const disabledProps = {
       versions,
       merge: { enabled: false, onComplete },
-    } as unknown as React.ComponentProps<typeof RecursiveComparisonTable>;
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
     rerender(<RecursiveComparisonTable {...disabledProps} />);
 
     expect(screen.queryByRole('columnheader', { name: 'Final' })).not.toBeInTheDocument();
@@ -712,7 +712,7 @@ describe('RecursiveComparisonTable', () => {
     const props = {
       versions,
       merge: { enabled: true, onChange, onComplete },
-    } as unknown as React.ComponentProps<typeof RecursiveComparisonTable>;
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
     render(<RecursiveComparisonTable {...props} />);
 
     expect(screen.getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
