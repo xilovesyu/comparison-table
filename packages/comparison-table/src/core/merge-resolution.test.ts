@@ -36,8 +36,9 @@ const keyedVersions = [
   },
 ];
 
+const keyedArrayItemKeyFields = { lines: 'sku' } as const;
 const keyedRows = () =>
-  buildComparisonRows(keyedVersions, { arrayItemKeyFields: { lines: 'sku' } });
+  buildComparisonRows(keyedVersions, { arrayItemKeyFields: keyedArrayItemKeyFields });
 const keyedId = (sku: string) => JSON.stringify(['lines', sku]);
 const childId = (sku: string, field: string) => JSON.stringify(['lines', sku, field]);
 const source = (versionId: string): MergeResolution => ({ kind: 'source', versionId });
@@ -67,7 +68,13 @@ describe('frozen MergeResolutions keyed semantics', () => {
       [childId('P-300', 'quantity')]: source('final'),
       [childId('P-300', 'note')]: source('review'),
     };
-    const result = buildMergeResult(keyedRows(), keyedVersions, resolutions);
+    const result = buildMergeResult(
+      keyedRows(),
+      keyedVersions,
+      resolutions,
+      undefined,
+      keyedArrayItemKeyFields,
+    );
 
     expect(result.scope).toEqual(
       expect.arrayContaining([
@@ -111,7 +118,7 @@ describe('frozen MergeResolutions keyed semantics', () => {
     });
   });
 
-  it('makes a keyed presence entry unresolved again when clear omits it, and reports each stale record precisely', () => {
+  it('keeps retained child decisions dormant while their keyed presence parent is unresolved', () => {
     const p300 = keyedId('P-300');
     const p100Quantity = childId('P-100', 'quantity');
     const resolutions: MergeResolutions = {
@@ -119,9 +126,21 @@ describe('frozen MergeResolutions keyed semantics', () => {
       [childId('P-300', 'quantity')]: source('base'),
       ['["lines","unknown"]']: source('review'),
     };
-    const result = buildMergeResult(keyedRows(), keyedVersions, resolutions);
+    const result = buildMergeResult(
+      keyedRows(),
+      keyedVersions,
+      resolutions,
+      undefined,
+      keyedArrayItemKeyFields,
+    );
 
     expect(result.unresolvedPaths).toContainEqual(['lines', 'P-300']);
+    expect(result.scope).toContainEqual(
+      expect.objectContaining({
+        resolutionKey: childId('P-300', 'quantity'),
+        active: false,
+      }),
+    );
     expect(result.sourceDecisions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -130,17 +149,19 @@ describe('frozen MergeResolutions keyed semantics', () => {
           reason: 'exclude-not-allowed',
         }),
         expect.objectContaining({
-          resolutionKey: childId('P-300', 'quantity'),
-          kind: 'stale',
-          reason: 'source-not-present',
-        }),
-        expect.objectContaining({
           resolutionKey: '["lines","unknown"]',
           kind: 'stale',
           reason: 'unknown-row',
         }),
       ]),
     );
+    expect(result.sourceDecisions).not.toContainEqual(
+      expect.objectContaining({
+        resolutionKey: childId('P-300', 'quantity'),
+        kind: 'stale',
+      }),
+    );
+    expect(result.unresolvedPaths).not.toContainEqual(['lines', 'P-300', 'quantity']);
     expect(result.isComplete).toBe(false);
   });
 
@@ -409,4 +430,206 @@ describe('frozen MergeResolutions keyed semantics', () => {
       expect(reIncluded.isComplete).toBe(false);
     },
   );
+
+  it('treats a default-expanded non-keyed array with descendant differences as one unresolved atomic row', () => {
+    const versions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: { lines: [{ amount: 1 }, { amount: 2 }] },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: { lines: [{ amount: 1 }, { amount: 20 }] },
+      },
+    ];
+    const rows = buildComparisonRows(versions);
+    const lines = rows.find((row) => row.id === JSON.stringify(['lines']));
+    expect(lines).toMatchObject({ hasOwnDifference: false, hasDifference: true });
+
+    const unresolved = buildMergeResult(rows, versions, noResolutions);
+    expect(unresolved.scope).toEqual([
+      expect.objectContaining({
+        resolutionKey: JSON.stringify(['lines']),
+        path: ['lines'],
+        role: 'non-keyed-array',
+        active: true,
+      }),
+    ]);
+    expect(unresolved.unresolvedPaths).toEqual([['lines']]);
+    expect(unresolved.isComplete).toBe(false);
+
+    const selected = buildMergeResult(rows, versions, {
+      [JSON.stringify(['lines'])]: source('review'),
+    });
+    expect(selected).toMatchObject({
+      isComplete: true,
+      unresolvedPaths: [],
+      mergedData: { lines: [{ amount: 1 }, { amount: 20 }] },
+    });
+    expect(selected.resolvedPatch).toEqual([
+      expect.objectContaining({
+        op: 'set',
+        path: ['lines'],
+        sourceVersionId: 'review',
+        value: [{ amount: 1 }, { amount: 20 }],
+      }),
+    ]);
+  });
+
+  it('keeps retained child decisions dormant while their keyed presence resolution is invalid', () => {
+    const p300 = keyedId('P-300');
+    const quantity = childId('P-300', 'quantity');
+    const note = childId('P-300', 'note');
+    const resolutions: MergeResolutions = {
+      [p300]: source('deleted-version'),
+      [keyedId('P-400')]: exclude(),
+      [quantity]: exclude(),
+      [note]: source('base'),
+    };
+    const result = buildMergeResult(
+      keyedRows(),
+      keyedVersions,
+      resolutions,
+      undefined,
+      keyedArrayItemKeyFields,
+    );
+
+    expect(result.scope).toContainEqual(
+      expect.objectContaining({ resolutionKey: quantity, active: false }),
+    );
+    expect(result.sourceDecisions).toContainEqual(
+      expect.objectContaining({
+        resolutionKey: p300,
+        kind: 'stale',
+        reason: 'source-version-unavailable',
+      }),
+    );
+    expect(result.sourceDecisions).not.toContainEqual(
+      expect.objectContaining({ resolutionKey: quantity, kind: 'stale' }),
+    );
+    expect(result.sourceDecisions).not.toContainEqual(
+      expect.objectContaining({ resolutionKey: note, kind: 'stale' }),
+    );
+    expect(result.unresolvedPaths).toEqual([['lines', 'P-300']]);
+    expect(result.isComplete).toBe(false);
+
+    const included = buildMergeResult(
+      keyedRows(),
+      keyedVersions,
+      { ...resolutions, [p300]: source('review') },
+      undefined,
+      keyedArrayItemKeyFields,
+    );
+    expect(included.scope).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ resolutionKey: quantity, active: true }),
+        expect.objectContaining({ resolutionKey: note, active: true }),
+      ]),
+    );
+    expect(included.sourceDecisions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          resolutionKey: quantity,
+          kind: 'stale',
+          reason: 'exclude-not-allowed',
+        }),
+        expect.objectContaining({
+          resolutionKey: note,
+          kind: 'stale',
+          reason: 'source-not-present',
+        }),
+      ]),
+    );
+    expect(included.unresolvedPaths).toEqual(
+      expect.arrayContaining([
+        ['lines', 'P-300', 'quantity'],
+        ['lines', 'P-300', 'note'],
+      ]),
+    );
+    expect(included.isComplete).toBe(false);
+  });
+
+  it('treats an expand:false configured keyed array as one atomic container decision', () => {
+    const rows = buildComparisonRows(keyedVersions, {
+      arrayItemKeyFields: keyedArrayItemKeyFields,
+      rules: [{ path: 'lines', expand: false }],
+    });
+    const unresolved = buildMergeResult(
+      rows,
+      keyedVersions,
+      noResolutions,
+      undefined,
+      keyedArrayItemKeyFields,
+    );
+    expect(unresolved.scope).toEqual([
+      expect.objectContaining({
+        resolutionKey: JSON.stringify(['lines']),
+        path: ['lines'],
+        role: 'container',
+        active: true,
+      }),
+    ]);
+    expect(unresolved.unresolvedPaths).toEqual([['lines']]);
+    expect(unresolved.isComplete).toBe(false);
+
+    const selected = buildMergeResult(
+      rows,
+      keyedVersions,
+      { [JSON.stringify(['lines'])]: source('review') },
+      undefined,
+      keyedArrayItemKeyFields,
+    );
+    expect(selected).toMatchObject({
+      isComplete: true,
+      unresolvedPaths: [],
+      mergedData: keyedVersions[1].data,
+    });
+    expect(selected.resolvedPatch).toEqual([
+      expect.objectContaining({
+        op: 'set',
+        path: ['lines'],
+        sourceVersionId: 'review',
+        value: keyedVersions[1].data.lines,
+      }),
+    ]);
+  });
+
+  it('requires explicit keyed-array configuration instead of inferring an identity field from values', () => {
+    const versions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: { lines: [{ status: 'P-100', sku: 'P-100', quantity: 1 }] },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: { lines: [{ status: 'P-100', sku: 'P-100', quantity: 2 }] },
+      },
+    ];
+    const rows = buildComparisonRows(versions, {
+      arrayItemKeyFields: keyedArrayItemKeyFields,
+    });
+
+    expect(() => buildMergeResult(rows, versions, noResolutions)).toThrow(
+      /arrayItemKeyFields.*lines|keyed array.*lines/i,
+    );
+
+    const explicit = buildMergeResult(
+      rows,
+      versions,
+      noResolutions,
+      undefined,
+      keyedArrayItemKeyFields,
+    );
+    expect(explicit.scope).toContainEqual(
+      expect.objectContaining({ path: ['lines', 'P-100', 'quantity'] }),
+    );
+    expect(explicit.scope.some((entry) => entry.path.at(-1) === 'sku')).toBe(false);
+    expect(explicit.scope).toContainEqual(
+      expect.objectContaining({ path: ['lines', 'P-100', 'status'] }),
+    );
+  });
 });
