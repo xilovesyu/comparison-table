@@ -1145,4 +1145,102 @@ describe('RecursiveComparisonTable', () => {
       },
     });
   });
+
+  it('Issue #14 keeps a default-expanded non-keyed array as one atomic public merge decision', () => {
+    const onChange = vi.fn();
+    const arrayVersions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: { lines: [{ amount: 1 }, { amount: 2 }] },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: { lines: [{ amount: 10 }, { amount: 20 }] },
+      },
+    ];
+    const props = {
+      versions: arrayVersions,
+      comparison: { baseVersionId: 'base' },
+      merge: { enabled: true, onChange },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(screen.getByRole('radio', { name: /^lines Review$/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.queryByRole('radio', { name: /lines\.0|lines\.1/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /^lines Review$/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [nextValue, result] = onChange.mock.calls[0] ?? [];
+    expect(nextValue).toEqual({
+      [JSON.stringify(['lines'])]: { kind: 'source', versionId: 'review' },
+    });
+    expect(result.scope).toEqual([
+      expect.objectContaining({
+        resolutionKey: JSON.stringify(['lines']),
+        path: ['lines'],
+        role: 'non-keyed-array',
+        active: true,
+      }),
+    ]);
+    expect(
+      result.scope.some((entry: { path: readonly (string | number)[] }) =>
+        entry.path.some((segment) => typeof segment === 'number'),
+      ),
+    ).toBe(false);
+    expect(result.resolvedPatch).toEqual([
+      expect.objectContaining({
+        op: 'set',
+        path: ['lines'],
+        value: [{ amount: 10 }, { amount: 20 }],
+        sourceVersionId: 'review',
+      }),
+    ]);
+    expect(result).toMatchObject({
+      isComplete: true,
+      mergedData: { lines: [{ amount: 10 }, { amount: 20 }] },
+    });
+  });
+
+  it('Issue #14 retains a complete controlled proposal across unrelated old-value rerenders until exact echo', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const proposalVersions = [
+      { id: 'base', label: 'Base', data: { amount: 1 } },
+      { id: 'review', label: 'Review', data: { amount: 2 } },
+    ];
+    const empty: MergeResolutions = {};
+    const propsFor = (value: MergeResolutions, finalLabel: string) =>
+      ({
+        versions: proposalVersions,
+        merge: { enabled: true, value, finalLabel, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(empty, 'Final')} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^amount Review$/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const proposal: MergeResolutions = onChange.mock.calls[0]?.[0];
+    expect(onChange.mock.calls[0]?.[1]).toMatchObject({ isComplete: true });
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(empty, 'Approved result')} />);
+    expect(screen.getByRole('columnheader', { name: 'Approved result' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^amount Review$/i })).not.toBeChecked();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(proposal, 'Approved result')} />);
+    expect(screen.getByRole('radio', { name: /^amount Review$/i })).toBeChecked();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete.mock.calls[0]?.[0]).toMatchObject({
+      isComplete: true,
+      mergedData: { amount: 2 },
+    });
+
+    rerender(<RecursiveComparisonTable {...propsFor({ ...proposal }, 'Approved result')} />);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
 });
