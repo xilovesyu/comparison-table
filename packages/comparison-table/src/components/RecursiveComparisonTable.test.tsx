@@ -804,4 +804,34 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.queryByRole('radio', { name: /sku/i })).not.toBeInTheDocument();
     expect(screen.getByText('Needs selection')).toHaveAttribute('aria-live', 'polite');
   });
+
+  it('Issue #14 clears a selected decision by omitting its Record key and returns to an announced incomplete state', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const props = {
+      versions,
+      merge: {
+        enabled: true,
+        defaultValue: {
+          [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+          [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+        },
+        onChange,
+        onComplete,
+      },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(onComplete).not.toHaveBeenCalled();
+    const clearEnabled = screen.getByRole('button', { name: /^Clear enabled$/i });
+    fireEvent.click(clearEnabled);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [nextValue, result] = onChange.mock.calls[0] ?? [];
+    expect(nextValue).not.toHaveProperty(JSON.stringify(['enabled']));
+    expect(result).toMatchObject({ isComplete: false });
+    expect(result.unresolvedPaths).toContainEqual(['enabled']);
+    expect(screen.getByText('Needs selection')).toHaveAttribute('aria-live', 'polite');
+    expect(onComplete).not.toHaveBeenCalled();
+  });
 });
