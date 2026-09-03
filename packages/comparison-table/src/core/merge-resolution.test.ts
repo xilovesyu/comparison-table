@@ -213,6 +213,29 @@ describe('frozen MergeResolutions keyed semantics', () => {
     );
   });
 
+  it('keeps default-expanded unkeyed arrays atomic instead of mixing numeric child choices', () => {
+    const versions = [
+      { id: 'base', label: 'Base', data: { lines: [{ amount: 1 }, { amount: 2 }] } },
+      { id: 'review', label: 'Review', data: { lines: [{ amount: 1 }, { amount: 20 }] } },
+    ];
+    const rows = buildComparisonRows(versions);
+    const resolutionKey = JSON.stringify(['lines']);
+    const result = buildMergeResult(rows, versions, { [resolutionKey]: source('review') });
+
+    expect(result.scope).toEqual([
+      expect.objectContaining({
+        resolutionKey,
+        path: ['lines'],
+        role: 'non-keyed-array',
+      }),
+    ]);
+    expect(result.mergedData).toEqual({ lines: [{ amount: 1 }, { amount: 20 }] });
+    expect(result.resolvedPatch).toEqual([
+      expect.objectContaining({ op: 'set', path: ['lines'], sourceVersionId: 'review' }),
+    ]);
+    expect(result.isComplete).toBe(true);
+  });
+
   it('marks a decision stale when its selected source version disappears without remapping it', () => {
     const versions = [
       { id: 'base', label: 'Base', data: { amount: 1 } },

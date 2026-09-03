@@ -259,6 +259,13 @@ export function buildMergeResult<T>(
         return;
       }
 
+      const isUnkeyedArray =
+        Object.values(row.values).some(Array.isArray) && !keyFields.has(pathKey(row.property.path));
+      if (isUnkeyedArray) {
+        processLeaf(row, active, parentKeyedItem);
+        return;
+      }
+
       if (row.children?.length) {
         processRows(row.children, active, parentKeyedItem);
       } else {

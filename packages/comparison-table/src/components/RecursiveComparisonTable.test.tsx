@@ -873,6 +873,33 @@ describe('RecursiveComparisonTable', () => {
     expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
   });
 
+  it('Issue #14 retains a controlled complete proposal across an unrelated old-value rerender until its exact echo', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const empty: MergeResolutions = {};
+    const propsFor = (value: MergeResolutions, searchable = true) =>
+      ({
+        versions,
+        searchable,
+        merge: { enabled: true, value, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(empty)} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
+    const partial: MergeResolutions = onChange.mock.calls[0]?.[0];
+    rerender(<RecursiveComparisonTable {...propsFor(partial)} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^user\.name After$/i }));
+    const complete: MergeResolutions = onChange.mock.calls[1]?.[0];
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(partial, false)} />);
+    expect(onComplete).not.toHaveBeenCalled();
+    rerender(<RecursiveComparisonTable {...propsFor(complete, false)} />);
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
   it('Issue #14 reads uncontrolled defaultValue only on mount and completes again only after clear then reselection', () => {
     const onComplete = vi.fn();
     const complete: MergeResolutions = {

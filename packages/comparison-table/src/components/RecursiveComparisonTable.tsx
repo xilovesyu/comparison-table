@@ -106,7 +106,10 @@ export function RecursiveComparisonTable({
         : undefined,
     [activeResolutions, baselineId, config.arrayItemKeyFields, mergeEnabled, rows, versions],
   );
-  const pendingControlledCompletion = useRef<MergeResolutions>();
+  const pendingControlledCompletion = useRef<{
+    proposal: MergeResolutions;
+    previous: MergeResolutions;
+  }>();
   useEffect(() => {
     const pending = pendingControlledCompletion.current;
     if (!pending) return;
@@ -114,13 +117,15 @@ export function RecursiveComparisonTable({
       pendingControlledCompletion.current = undefined;
       return;
     }
-    if (equalResolutions(merge.value, pending)) {
+    if (equalResolutions(merge.value, pending.proposal)) {
       pendingControlledCompletion.current = undefined;
       if (!mergeResult?.isComplete) return;
       merge.onComplete?.(mergeResult);
       return;
     }
-    pendingControlledCompletion.current = undefined;
+    if (!equalResolutions(merge.value, pending.previous)) {
+      pendingControlledCompletion.current = undefined;
+    }
   }, [merge, mergeEnabled, mergeResult]);
   const publishMergeResolutions = (nextResolutions: MergeResolutions) => {
     if (!mergeEnabled || !mergeResult) return;
@@ -134,7 +139,9 @@ export function RecursiveComparisonTable({
     if (merge?.value === undefined) setInternalResolutions(nextResolutions);
     else {
       pendingControlledCompletion.current =
-        !mergeResult.isComplete && nextResult.isComplete ? nextResolutions : undefined;
+        !mergeResult.isComplete && nextResult.isComplete
+          ? { proposal: nextResolutions, previous: activeResolutions }
+          : undefined;
     }
     merge?.onChange?.(nextResolutions, nextResult);
     if (merge?.value === undefined && !mergeResult.isComplete && nextResult.isComplete) {
