@@ -16,6 +16,7 @@ const navigationExamples = [
   ['presentation-controls', '显示控制与层级继承'],
   ['keyed-array', '业务键数组对齐'],
   ['container-summary', '容器摘要'],
+  ['final-merge', '最终版本合并'],
   ['advanced-configuration', '综合高级配置'],
 ] as const;
 
@@ -206,10 +207,63 @@ describe('documentation examples', () => {
         .closest('.source-panel'),
     ).toBeInTheDocument();
   });
+
+  it('places the Final merge example before Advanced and keeps its raw source and copy action in sync', () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    try {
+      const mergeCard = renderExample('final-merge');
+
+      expect(within(mergeCard).getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
+      expect(within(mergeCard).getAllByRole('radio').length).toBeGreaterThan(0);
+      expect(
+        within(mergeCard).getByRole('radio', { name: /lines\..*Include from/i }),
+      ).toBeInTheDocument();
+      fireEvent.click(within(mergeCard).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = mergeCard.querySelector('.source-panel') as HTMLElement;
+      const sourceText = sourcePanel.textContent ?? '';
+      expect(sourceText).toMatch(/merge={{/);
+      expect(sourceText).toMatch(/arrayItemKeyFields/);
+      expect(sourceText).toMatch(/onChange/);
+      expect(sourceText).toMatch(/onComplete/);
+      fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain('merge={{');
+
+      navigateToExample('advanced-configuration');
+      expect(mergeCard).toHaveAttribute('hidden');
+      expect(within(navigation()).getAllByRole('link').at(-2)).toHaveTextContent('最终版本合并');
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('integrates merge, keyed presence, renderer, and container summaries into Advanced and its source panel', () => {
+    const advancedCard = renderExample('advanced-configuration');
+
+    expect(within(advancedCard).getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
+    expect(
+      within(advancedCard).getByRole('radio', {
+        name: /^lines\.P-300 Include from 复核版$/i,
+      }),
+    ).toBeInTheDocument();
+    expect(within(advancedCard).getByText('本地金额：USD 980')).toBeInTheDocument();
+    fireEvent.click(within(advancedCard).getByRole('button', { name: '查看源代码' }));
+    const sourcePanel = advancedCard.querySelector('.source-panel') as HTMLElement;
+    expect(sourcePanel.textContent).toMatch(/merge={{/);
+    expect(sourcePanel.textContent).toMatch(/arrayItemKeyFields/);
+    expect(sourcePanel.textContent).toMatch(/renderers=/);
+    expect(sourcePanel.textContent).toMatch(/containerSummary=/);
+  });
 });
 
 describe('Issue #5 demo directory navigation', () => {
-  it('publishes the twelve actual examples as stable catalog links in five groups, with Advanced last', () => {
+  it('publishes the thirteen actual examples as stable catalog links in five groups, with Final merge before Advanced last', () => {
     setExampleHash();
     render(<App />);
 
@@ -391,7 +445,7 @@ describe('Issue #5 demo directory navigation', () => {
 });
 
 describe('Issue #5 architecture navigation compatibility', () => {
-  it('keeps all twelve stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
+  it('keeps all thirteen stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
     window.history.replaceState({}, '', '/');
     render(<App />);
 
@@ -416,6 +470,7 @@ describe('Issue #5 architecture navigation compatibility', () => {
       '#example-presentation-controls',
       '#example-keyed-array',
       '#example-container-summary',
+      '#example-final-merge',
       '#example-advanced-configuration',
     ]);
   });

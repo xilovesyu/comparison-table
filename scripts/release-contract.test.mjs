@@ -143,3 +143,55 @@ test('README and manual runbook document the canonical demo directory navigation
   assert.match(manualRunbook, /README.*render|render.*README/i);
   assert.doesNotMatch(manualRunbook, /11\s*张完整表格/);
 });
+
+test('both READMEs document the complete opt-in Final merge contract', async () => {
+  const readmes = await Promise.all([
+    readWorkspaceFile('README.md'),
+    readWorkspaceFile('packages/comparison-table/README.md'),
+  ]);
+
+  for (const content of readmes) {
+    assert.match(content, /merge.*enabled.*true.*Final/is);
+    assert.match(content, /controlled.*value.*uncontrolled.*defaultValue/is);
+    assert.match(content, /keyed.*presence.*Include.*Exclude/is);
+    assert.match(content, /non-keyed.*array.*(?:whole|atomic)/is);
+    assert.match(content, /composite.*key.*(?:materiali[sz]e|canonical string)/is);
+    assert.match(content, /mergedData.*deep(?:ly)?.*independent.*(?:JSON-like|Date)/is);
+    assert.match(content, /(?:cannot|unable|unsupported).*clone.*(?:fail|throw)/is);
+    assert.match(content, /onComplete.*user.*incomplete.*complete.*mount.*not/is);
+  }
+});
+
+test('public Merge API JSDoc records U1 clone and U2 submission boundaries', async () => {
+  const typeSource = await readWorkspaceFile('packages/comparison-table/src/core/types.ts');
+
+  for (const publicType of [
+    'MergeOptions',
+    'MergeResolutions',
+    'MergeResolution',
+    'MergeResult',
+    'MergePatch',
+    'MergeScopeEntry',
+    'MergeSourceDecision',
+  ]) {
+    assert.match(typeSource, new RegExp(`export (?:interface|type) ${publicType}`));
+  }
+  assert.match(typeSource, /Deeply independent.*(?:JSON-like|Date)/is);
+  assert.match(typeSource, /(?:cannot|unsupported).*clone.*(?:fail|throw)/is);
+  assert.match(typeSource, /onComplete[\s\S]*user.*incomplete.*complete[\s\S]*mount.*not/is);
+  assert.match(typeSource, /composite.*key.*canonical string/is);
+});
+
+test('manual runbook covers Final merge API modes and U1/U2 edge cases', async () => {
+  const manualRunbook = await readWorkspaceFile('docs/manual-testing/README.md');
+
+  assert.match(manualRunbook, /S12[\s\S]*Final.*合并/i);
+  assert.match(manualRunbook, /MT-21[\s\S]*Final.*合并/i);
+  assert.match(manualRunbook, /默认关闭|default.*off/i);
+  assert.match(manualRunbook, /controlled.*uncontrolled|受控.*非受控/i);
+  assert.match(manualRunbook, /keyed.*presence.*Include.*Exclude/is);
+  assert.match(manualRunbook, /non-keyed.*array.*(?:whole|atomic)|非 keyed.*数组.*整体/is);
+  assert.match(manualRunbook, /composite.*key.*canonical|string.*物化|复合.*key.*物化/is);
+  assert.match(manualRunbook, /JSON-like.*Date.*deep|深度独立.*Date/is);
+  assert.match(manualRunbook, /onComplete.*用户.*incomplete.*complete.*mount/is);
+});
