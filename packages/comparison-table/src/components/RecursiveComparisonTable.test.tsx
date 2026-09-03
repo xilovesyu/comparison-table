@@ -750,4 +750,58 @@ describe('RecursiveComparisonTable', () => {
     expect(Array.isArray(result.sourceDecisions)).toBe(true);
     expect(result.mergedData).not.toBe(versions[1].data);
   });
+
+  it('Issue #14 exposes keyed presence choices before children and keeps identity fields out of merge controls', () => {
+    const versions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: {
+          lines: [
+            { sku: 'P-100', quantity: 1 },
+            { sku: 'P-400', quantity: 4 },
+          ],
+        },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: {
+          lines: [
+            { sku: 'P-300', quantity: 3 },
+            { sku: 'P-100', quantity: 1 },
+          ],
+        },
+      },
+      {
+        id: 'final',
+        label: 'Final',
+        data: {
+          lines: [
+            { sku: 'P-100', quantity: 1 },
+            { sku: 'P-300', quantity: 30 },
+          ],
+        },
+      },
+    ];
+    const props = {
+      versions,
+      arrayItemKeyFields: { lines: 'sku' },
+      merge: { enabled: true },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(
+      screen.getByRole('radio', { name: /^lines\.P-300 Include from Review$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: /^lines\.P-300 Include from Final$/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^lines\.P-300 Exclude$/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('radio', { name: /lines\.P-300 Include from Base/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /sku/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Needs selection')).toHaveAttribute('aria-live', 'polite');
+  });
 });
