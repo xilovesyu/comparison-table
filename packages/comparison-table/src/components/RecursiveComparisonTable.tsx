@@ -1,7 +1,7 @@
 import { Button, Input, Space, Switch, Table, Typography } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildComparisonRows,
   filterComparisonRows,
@@ -11,8 +11,12 @@ import {
   type ComparisonRow,
   type ComparisonVersion,
   type DifferenceOptions,
+  type MergeOptions,
+  type MergeResolution,
+  type MergeResolutions,
   type SearchOptions,
 } from '../core/comparison';
+import { buildMergeResult } from '../core/merge';
 import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
 import {
   createRendererRegistry,
@@ -38,6 +42,11 @@ export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
   expandedKeys?: React.Key[];
   /** Reports expansion changes for controlled or uncontrolled usage. */
   onExpandedChange?: (keys: React.Key[]) => void;
+  /**
+   * Opt-in Final-column merge resolution. Omit it (or leave `enabled` false) for the legacy table.
+   * Supports controlled `value` or an uncontrolled `defaultValue` decision record.
+   */
+  merge?: MergeOptions;
 }
 
 /**
@@ -55,6 +64,7 @@ export function RecursiveComparisonTable({
   defaultExpandedKeys,
   expandedKeys,
   onExpandedChange,
+  merge,
   ...config
 }: RecursiveComparisonTableProps) {
   const [query, setQuery] = useState('');
@@ -84,6 +94,89 @@ export function RecursiveComparisonTable({
       : (expandedKeys ?? internalExpanded);
   const registry = useMemo(() => createRendererRegistry(renderers), [renderers]);
   const baselineId = config.comparison?.baseVersionId;
+  const mergeEnabled = merge?.enabled === true;
+  const [internalResolutions, setInternalResolutions] = useState<MergeResolutions>(() => ({
+    ...(merge?.defaultValue ?? {}),
+  }));
+  const activeResolutions = merge?.value ?? internalResolutions;
+  const mergeResult = useMemo(
+    () =>
+      mergeEnabled
+        ? buildMergeResult(rows, versions, activeResolutions, baselineId, config.arrayItemKeyFields)
+        : undefined,
+    [activeResolutions, baselineId, config.arrayItemKeyFields, mergeEnabled, rows, versions],
+  );
+  const pendingControlledCompletion = useRef<{
+    proposal: MergeResolutions;
+    previous: MergeResolutions;
+  }>();
+  useEffect(() => {
+    const pending = pendingControlledCompletion.current;
+    if (!pending) return;
+    if (!mergeEnabled || merge?.value === undefined) {
+      pendingControlledCompletion.current = undefined;
+      return;
+    }
+    if (equalResolutions(merge.value, pending.proposal)) {
+      pendingControlledCompletion.current = undefined;
+      if (!mergeResult?.isComplete) return;
+      merge.onComplete?.(mergeResult);
+      return;
+    }
+    if (!equalResolutions(merge.value, pending.previous)) {
+      pendingControlledCompletion.current = undefined;
+    }
+  }, [merge, mergeEnabled, mergeResult]);
+  const publishMergeResolutions = (nextResolutions: MergeResolutions) => {
+    if (!mergeEnabled || !mergeResult) return;
+    const nextResult = buildMergeResult(
+      rows,
+      versions,
+      nextResolutions,
+      baselineId,
+      config.arrayItemKeyFields,
+    );
+    if (merge?.value === undefined) setInternalResolutions(nextResolutions);
+    else {
+      pendingControlledCompletion.current =
+        !mergeResult.isComplete && nextResult.isComplete
+          ? { proposal: nextResolutions, previous: activeResolutions }
+          : undefined;
+    }
+    merge?.onChange?.(nextResolutions, nextResult);
+    if (merge?.value === undefined && !mergeResult.isComplete && nextResult.isComplete) {
+      merge?.onComplete?.(nextResult);
+    }
+  };
+  const updateMergeResolution = (resolutionKey: string, resolution: MergeResolution) => {
+    publishMergeResolutions({
+      ...activeResolutions,
+      [resolutionKey]: resolution,
+    });
+  };
+  const clearMergeResolution = (resolutionKey: string) => {
+    const nextResolutions: Record<string, MergeResolution> = { ...activeResolutions };
+    delete nextResolutions[resolutionKey];
+    publishMergeResolutions(nextResolutions);
+  };
+  const selectMergeSource = (row: ComparisonRow, versionId: string) => {
+    updateMergeResolution(row.id, { kind: 'source', versionId });
+  };
+  const mergeScopeByRowId = useMemo(
+    () => new Map(mergeResult?.scope.map((entry) => [entry.resolutionKey, entry]) ?? []),
+    [mergeResult],
+  );
+  const needsMergeSelection = Boolean(
+    mergeResult?.scope.some(
+      (entry) =>
+        entry.active &&
+        mergeResult.sourceDecisions.some(
+          (decision) =>
+            decision.resolutionKey === entry.resolutionKey &&
+            (decision.kind === 'unresolved' || decision.kind === 'stale'),
+        ),
+    ),
+  );
   const columns: ColumnsType<ComparisonRow> = [
     {
       title: 'Property',
@@ -125,17 +218,136 @@ export function RecursiveComparisonTable({
         className: isBaseline
           ? (config.comparison?.baselineCellClassName ?? 'comparison-baseline-cell')
           : undefined,
-        render: (_: unknown, row: ComparisonRow) =>
-          renderValue(
+        render: (_: unknown, row: ComparisonRow) => {
+          const value = renderValue(
             row,
             version,
             registry,
             renderers,
             containerSummaries.get(row.id),
             config.containerSummary,
-          ),
+          );
+          const scopeEntry = mergeScopeByRowId.get(row.id);
+          if (
+            !mergeEnabled ||
+            !scopeEntry?.active ||
+            scopeEntry.role === 'keyed-presence' ||
+            !scopeEntry.allowedSourceVersionIds.includes(version.id) ||
+            (!isMergeDecisionRow(row) && scopeEntry.role !== 'non-keyed-array')
+          ) {
+            return value;
+          }
+          const resolution = activeResolutions[row.id];
+          const checked = resolution?.kind === 'source' && resolution.versionId === version.id;
+          return (
+            <label>
+              <input
+                type="radio"
+                name={`merge-source-${row.id}`}
+                aria-label={`${row.property.path.join('.')} ${version.label}`}
+                checked={checked}
+                onChange={() => selectMergeSource(row, version.id)}
+              />
+              {value}
+            </label>
+          );
+        },
       };
     }),
+    ...(mergeEnabled
+      ? [
+          {
+            title: merge?.finalLabel ?? 'Final',
+            key: 'merge-final',
+            render: (_: unknown, row: ComparisonRow) => {
+              const scopeEntry = mergeScopeByRowId.get(row.id);
+              const hasManualResolution = Object.prototype.hasOwnProperty.call(
+                activeResolutions,
+                row.id,
+              );
+              const clearButton = hasManualResolution ? (
+                <button
+                  type="button"
+                  aria-label={`Clear ${row.property.path.join('.')}`}
+                  onClick={() => clearMergeResolution(row.id)}
+                >
+                  Clear
+                </button>
+              ) : null;
+              if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
+                const resolution = activeResolutions[row.id];
+                const pathLabel = row.property.path.join('.');
+                return (
+                  <div role="radiogroup" aria-label={`${pathLabel} presence`}>
+                    {scopeEntry.allowedSourceVersionIds.map((versionId) => {
+                      const version = versions.find((candidate) => candidate.id === versionId);
+                      if (!version) return null;
+                      return (
+                        <label key={versionId}>
+                          <input
+                            type="radio"
+                            name={`merge-presence-${row.id}`}
+                            aria-label={`${pathLabel} Include from ${version.label}`}
+                            checked={
+                              resolution?.kind === 'source' && resolution.versionId === versionId
+                            }
+                            onChange={() =>
+                              updateMergeResolution(row.id, { kind: 'source', versionId })
+                            }
+                          />
+                          Include from {version.label}
+                        </label>
+                      );
+                    })}
+                    <label>
+                      <input
+                        type="radio"
+                        name={`merge-presence-${row.id}`}
+                        aria-label={`${pathLabel} Exclude`}
+                        checked={resolution?.kind === 'exclude'}
+                        onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
+                      />
+                      Exclude
+                    </label>
+                    {clearButton}
+                  </div>
+                );
+              }
+              if (!scopeEntry) return null;
+              if (row.children?.length && scopeEntry.role !== 'non-keyed-array') return null;
+              const decision = mergeResult?.sourceDecisions.find(
+                (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
+              );
+              if (!decision || !('sourceVersionId' in decision)) {
+                return (
+                  <>
+                    Unresolved
+                    {clearButton}
+                  </>
+                );
+              }
+              const version = versions.find(
+                (candidate) => candidate.id === decision.sourceVersionId,
+              );
+              return (
+                <>
+                  {version
+                    ? renderValue(
+                        row,
+                        version,
+                        registry,
+                        renderers,
+                        containerSummaries.get(row.id),
+                        config.containerSummary,
+                      )
+                    : 'Unresolved'}
+                  {clearButton}
+                </>
+              );
+            },
+          },
+        ]
+      : []),
   ];
   return (
     <section aria-label="Recursive comparison table">
@@ -157,6 +369,7 @@ export function RecursiveComparisonTable({
           />
           <Typography.Text>仅显示差异（{countRows(differenceRows)}）</Typography.Text>
         </Space>
+        {mergeEnabled && needsMergeSelection && <span aria-live="polite">Needs selection</span>}
       </div>
       <Table<ComparisonRow>
         rowKey="id"
@@ -180,6 +393,25 @@ export function RecursiveComparisonTable({
         }}
       />
     </section>
+  );
+}
+function isMergeDecisionRow(row: ComparisonRow): boolean {
+  return Boolean(row.hasOwnDifference && !row.children?.length);
+}
+function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => {
+      const leftValue = left[key];
+      const rightValue = right[key];
+      return (
+        leftValue?.kind === rightValue?.kind &&
+        (leftValue?.kind !== 'source' ||
+          (rightValue?.kind === 'source' && leftValue.versionId === rightValue.versionId))
+      );
+    })
   );
 }
 function PropertyCell({

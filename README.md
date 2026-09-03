@@ -44,6 +44,38 @@ for the full keyed-array contract.
 
 The library declares React, React DOM, Ant Design, and Ant Design Icons as peer dependencies. The consuming application must provide compatible versions.
 
+## Final merge resolution
+
+Merge resolution is off by default. Opt in with `merge={{ enabled: true }}` to add a final `Final`
+column. For controlled usage pass a `value` record and write each `onChange` proposal back; for
+uncontrolled usage seed the record with `defaultValue`.
+
+```tsx
+const [resolutions, setResolutions] = useState<MergeResolutions>({});
+
+<RecursiveComparisonTable
+  versions={versions}
+  arrayItemKeyFields={{ lines: 'sku' }}
+  merge={{
+    enabled: true,
+    value: resolutions,
+    onChange: setResolutions,
+    onComplete: (result) => save(result.mergedData),
+  }}
+/>;
+```
+
+Keyed item presence is resolved first with `Include from <version>` or `Exclude`; identity fields
+are automatic. A non-keyed array is selected as one atomic whole array. Composite keys are not
+native: materialize each composite key into one canonical string identity field before configuring
+`arrayItemKeyFields`.
+
+`mergedData` is a deeply independent structured-clone snapshot for supported JSON-like values and
+`Date` objects. Values that cannot be cloned, such as functions and symbols, fail explicitly with
+their logical path and type (the U1 clone boundary). `onComplete` is limited to a user-submitted
+incomplete-to-complete transition; mount, initial `defaultValue`, duplicate rerenders, and external
+controlled replacements do not trigger it (the U2 submission boundary).
+
 ## What it supports
 
 - Any number of version columns, with recursive objects, arrays, nulls, and newly introduced fields.
@@ -52,6 +84,7 @@ The library declares React, React DOM, Ant Design, and Ant Design Icons as peer 
 - Built-in and table-local renderer registries, including selective built-in overrides.
 - Automatic Diff detection, custom business comparators, inherited Diff/search controls, and a baseline `Base` column marker.
 - Business-keyed array alignment with stable keyed paths, reorder-insensitive comparison, and per-version item presence.
+- Opt-in, controlled or uncontrolled Final merge resolution over raw values and keyed presence.
 - Display-only summaries for plain object and array cells: `undefined` falls back to a safe shallow
   default, while `null` and `false` remain explicit output; summaries never alter raw search or Diff data.
 - Controlled or uncontrolled expansion and Ant Design-compatible styling hooks.
@@ -83,12 +116,14 @@ pnpm --filter @jxi/comparison-table-demo dev
 - [Basic example](http://localhost:5173/#example-basic-recursive)
 - [Business-keyed array example](http://localhost:5173/#example-keyed-array)
 - [Container summary example](http://localhost:5173/#example-container-summary)
+- [Final merge example](http://localhost:5173/#example-final-merge)
 - [Advanced configuration example](http://localhost:5173/#example-advanced-configuration)
 
 The directory uses stable fragment URLs, keeps visited examples mounted so their local state survives
 navigation, and leaves unvisited examples out of the initial render. Its catalog and examples are in
 [App.tsx](apps/demo/src/App.tsx), [KeyedArrayExample.tsx](apps/demo/src/examples/KeyedArrayExample.tsx),
-[ContainerSummaryExample.tsx](apps/demo/src/examples/ContainerSummaryExample.tsx), and
+[ContainerSummaryExample.tsx](apps/demo/src/examples/ContainerSummaryExample.tsx),
+[FinalMergeExample.tsx](apps/demo/src/examples/FinalMergeExample.tsx), and
 [AdvancedExample.tsx](apps/demo/src/examples/AdvancedExample.tsx).
 
 ### Live GitHub Pages demo

@@ -5,6 +5,7 @@ export { ControlledExample } from './ControlledExample';
 export { ContainerSummaryExample } from './ContainerSummaryExample';
 export { DiffExample } from './DiffExample';
 export { FlattenedExample } from './FlattenedExample';
+export { FinalMergeExample } from './FinalMergeExample';
 export { KeyedArrayExample } from './KeyedArrayExample';
 export { PresentationControlsExample } from './PresentationControlsExample';
 export { RegistryExample } from './RegistryExample';

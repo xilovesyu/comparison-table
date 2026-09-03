@@ -1,8 +1,10 @@
 import source from './AdvancedExample.tsx?raw';
 import { useState } from 'react';
+import { Button } from 'antd';
 import {
   RecursiveComparisonTable,
   type ComparisonVersion,
+  type MergeResolutions,
   type PropertyDefinition,
 } from '@jxi/comparison-table';
 import { ExampleCard } from './ExampleCard';
@@ -22,6 +24,7 @@ const advancedVersions = [
         { sku: 'P-200', quantity: 2 },
         { sku: 'P-400', quantity: 4 },
       ],
+      reviewSteps: ['Submit', 'Review'],
       note: null,
       internal: { auditId: 'initial-audit' },
     },
@@ -39,6 +42,7 @@ const advancedVersions = [
         { sku: 'P-100', quantity: 2 },
         { sku: 'P-300', quantity: 1 },
       ],
+      reviewSteps: ['Submit', 'Legal review', 'Approve'],
       note: 'priority shipment',
       availability: 'available now',
       internal: { auditId: 'review-audit' },
@@ -58,6 +62,7 @@ const advancedVersions = [
         { sku: 'P-300', quantity: 3 },
         { sku: 'P-400', quantity: 4 },
       ],
+      reviewSteps: ['Submit', 'Approve'],
       note: 'priority shipment',
       availability: 'available now',
       internal: { auditId: 'final-audit' },
@@ -143,6 +148,7 @@ const advancedDefinitions = [
       ],
     },
   },
+  { key: 'reviewSteps', label: 'reviewSteps', path: ['reviewSteps'], level: 0, type: 'array' },
   { key: 'note', label: '备注', path: ['note'], level: 0, type: 'string' },
   { key: 'availability', label: '新增字段', path: ['availability'], level: 0, type: 'string' },
 ] satisfies PropertyDefinition[];
@@ -157,25 +163,81 @@ const advancedRendererDefinitions = {
   },
 };
 
+const defaultValueVersions = [
+  { id: 'baseline', label: '初始版', data: { approvalStatus: 'Draft' } },
+  { id: 'review', label: '复核版', data: { approvalStatus: 'Approved' } },
+  { id: 'final', label: '最终版', data: { approvalStatus: 'Rejected' } },
+] satisfies ComparisonVersion[];
+
+const defaultResolutions: MergeResolutions = {
+  [JSON.stringify(['approvalStatus'])]: { kind: 'source', versionId: 'review' },
+};
+
 export function AdvancedExample() {
+  const [showDefaultValueMode, setShowDefaultValueMode] = useState(false);
+  const [mergeStatus, setMergeStatus] = useState('请选择每个差异的来源');
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([
     '["customer"]',
     '["billing","money"]',
     '["lines","P-100"]',
   ]);
+
+  if (showDefaultValueMode) {
+    return (
+      <ExampleCard
+        title="综合高级配置"
+        description="用 uncontrolled defaultValue 预载完整方案；只有清除后重新选择才视为本次完成提交。"
+        code={source}
+      >
+        <Button onClick={() => setShowDefaultValueMode(false)}>返回综合高级配置</Button>
+        <p aria-live="polite">{mergeStatus}</p>
+        <RecursiveComparisonTable
+          key="advanced-default-value-mode"
+          versions={defaultValueVersions}
+          comparison={{ baseVersionId: 'baseline' }}
+          merge={{
+            enabled: true,
+            defaultValue: defaultResolutions,
+            onChange: (_next, result) => {
+              setMergeStatus(result.isComplete ? '合并已完成' : '默认方案已清除');
+            },
+            onComplete: () => setMergeStatus('合并已完成'),
+          }}
+        />
+      </ExampleCard>
+    );
+  }
+
   return (
     <ExampleCard
       title="综合高级配置"
       description="组合字段筛选、受控展开、路径规则、基准列 Base 标签、局部与内置混合金额渲染、按 SKU 对齐的扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
       code={source}
     >
+      <Button
+        onClick={() => {
+          setMergeStatus('默认方案已加载，未触发完成提交');
+          setShowDefaultValueMode(true);
+        }}
+      >
+        演示 uncontrolled defaultValue
+      </Button>
       <RecursiveComparisonTable
+        key="advanced-complete-mode"
         versions={advancedVersions}
         propertyDefinitions={advancedDefinitions}
         arrayItemKeyFields={{ lines: 'sku' }}
         renderers={advancedRendererDefinitions}
         selection={{
-          include: ['customer', 'customer.*', 'billing.*', 'lines.*', 'note', 'availability'],
+          include: [
+            'customer',
+            'customer.*',
+            'billing.*',
+            'lines.*',
+            'reviewSteps',
+            'note',
+            'availability',
+          ],
           exclude: ['customer.secret', 'internal.*'],
         }}
         rules={[
@@ -187,6 +249,7 @@ export function AdvancedExample() {
             ? `对象摘要：${Object.keys(value).length} 字段`
             : undefined
         }
+        merge={{ enabled: true }}
         comparison={{
           baseVersionId: 'baseline',
           showBaselineBadge: true,

@@ -140,6 +140,142 @@ export interface ComparisonRow {
   presence?: Record<string, boolean>;
 }
 
+/** Stable merge-resolution key. It is exactly the corresponding `ComparisonRow.id`. */
+export type MergeResolutionKey = string;
+/** A source or exclusion decision stored at one merge-resolution key. */
+export type MergeResolution =
+  Readonly<{ kind: 'source'; versionId: string }> | Readonly<{ kind: 'exclude' }>;
+/**
+ * Caller-controlled merge decisions keyed by `ComparisonRow.id`.
+ * Composite keyed identities must be externally materialized as a canonical string.
+ */
+export type MergeResolutions = Readonly<Record<MergeResolutionKey, MergeResolution>>;
+/** Semantic role of an entry in the active merge scope. */
+export type MergeScopeRole = 'value' | 'keyed-presence' | 'container' | 'non-keyed-array';
+
+/** One addressable entry in the active merge scope. */
+export interface MergeScopeEntry {
+  readonly resolutionKey: MergeResolutionKey;
+  readonly path: PropertyPath;
+  readonly role: MergeScopeRole;
+  readonly allowedSourceVersionIds: readonly string[];
+  readonly active: boolean;
+  readonly parentResolutionKey?: MergeResolutionKey;
+}
+
+/** The effective source, exclusion, unresolved state, or stale caller decision for a scope entry. */
+export type MergeSourceDecision =
+  | Readonly<{
+      kind: 'automatic-baseline' | 'source';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: Exclude<MergeScopeRole, 'keyed-presence'>;
+      sourceVersionId: string;
+    }>
+  | Readonly<{
+      kind: 'source';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: 'keyed-presence';
+      sourceVersionId: string;
+    }>
+  | Readonly<{
+      kind: 'exclude';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: 'keyed-presence';
+    }>
+  | Readonly<{
+      kind: 'unresolved';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      role: MergeScopeRole;
+    }>
+  | Readonly<{
+      kind: 'stale';
+      resolutionKey: MergeResolutionKey;
+      reason:
+        'unknown-row' | 'source-version-unavailable' | 'source-not-present' | 'exclude-not-allowed';
+    }>;
+
+/** Stable address of one keyed-array item. */
+export interface KeyedArrayTarget {
+  readonly arrayPath: PropertyPath;
+  readonly identityField: string;
+  readonly identity: string;
+}
+
+/** One raw-data operation derived from the effective merge decisions. */
+export type MergePatch =
+  | Readonly<{
+      op: 'set';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      value: unknown;
+      sourceVersionId: string;
+      origin: 'automatic-baseline' | 'user-source';
+    }>
+  | Readonly<{
+      op: 'delete';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      sourceVersionId: string;
+      origin: 'automatic-baseline' | 'user-source';
+    }>
+  | Readonly<{
+      op: 'include-keyed-item';
+      resolutionKey: MergeResolutionKey;
+      target: KeyedArrayTarget;
+      value: unknown;
+      sourceVersionId: string;
+    }>
+  | Readonly<{
+      op: 'exclude-keyed-item';
+      resolutionKey: MergeResolutionKey;
+      target: KeyedArrayTarget;
+    }>;
+
+/** Immutable raw-value result produced from the current merge resolutions. */
+export interface MergeResult<T = unknown> {
+  /** Baseline version used for automatic decisions and the merged-data root. */
+  readonly baseVersionId: string;
+  /**
+   * Deeply independent structured-clone data for supported JSON-like values and Dates.
+   * Values that cannot be cloned, including functions and symbols, fail with path/type context.
+   */
+  readonly mergedData: T;
+  /** Resolved raw-value updates within the current scope. */
+  readonly resolvedPatch: readonly MergePatch[];
+  /** Entries included by the current comparison configuration. */
+  readonly scope: readonly MergeScopeEntry[];
+  /** Direct-difference paths that still require a source choice. */
+  readonly unresolvedPaths: readonly PropertyPath[];
+  /** Whether every direct difference in `scope` has a source choice. */
+  readonly isComplete: boolean;
+  /** Automatic and user-selected sources for resolved paths. */
+  readonly sourceDecisions: readonly MergeSourceDecision[];
+}
+
+/** Opt-in Final-column configuration for merge resolution. */
+export interface MergeOptions<T = unknown> {
+  /** Enables merge resolution only when exactly `true`. */
+  readonly enabled?: boolean;
+  /** Final column heading. Defaults to `Final`. */
+  readonly finalLabel?: string;
+  /** Controlled source choices. */
+  readonly value?: MergeResolutions;
+  /** Initial source choices for uncontrolled usage. */
+  readonly defaultValue?: MergeResolutions;
+  /** Receives the next source choices and derived immutable result. */
+  readonly onChange?: (value: MergeResolutions, result: MergeResult<T>) => void;
+  /**
+   * `onComplete` fires once after a user proposal transitions the effective result from incomplete to
+   * complete. In controlled mode this waits for parent writeback; mount does not fire it, nor do
+   * external replacements.
+   */
+  readonly onComplete?: (result: MergeResult<T>) => void;
+}
+
 /** Information passed to a custom Diff badge renderer. */
 export interface DifferenceIndicatorContext {
   /** Current normalized row. */

@@ -40,6 +40,7 @@ export function VersionComparison() {
 | `defaultExpandedKeys` | `React.Key[]`                  | —            | Initial uncontrolled expansion keys.                       |
 | `expandedKeys`        | `React.Key[]`                  | —            | Controlled expansion keys.                                 |
 | `onExpandedChange`    | `(keys: React.Key[]) => void`  | —            | Receives expansion changes.                                |
+| `merge`               | `MergeOptions`                 | disabled     | Opts into the interactive `Final` merge column.            |
 
 ### BuildComparisonConfig
 
@@ -155,6 +156,47 @@ When `propertyDefinitions` addresses a keyed array, use its `itemDefinition` tem
 items (including flattened layouts). Numeric item-index paths conflict with keyed alignment and
 are rejected.
 
+## Final merge resolution
+
+Merge resolution is off by default. Set `merge={{ enabled: true }}` to append a `Final` column in
+which a reviewer chooses the raw source version for every direct difference. Use `value` with
+`onChange` for controlled usage, or seed uncontrolled usage once with `defaultValue`:
+
+```tsx
+const [resolutions, setResolutions] = useState<MergeResolutions>({});
+
+<RecursiveComparisonTable
+  versions={versions}
+  arrayItemKeyFields={{ lines: 'sku' }}
+  merge={{
+    enabled: true,
+    value: resolutions,
+    onChange: (next, result) => {
+      setResolutions(next);
+      console.log(result.mergedData, result.isComplete);
+    },
+    onComplete: (result) => console.log(result.resolvedPatch),
+  }}
+/>;
+```
+
+For keyed arrays, a conditional item's presence is resolved before its children: choose
+`Include from <version>` or `Exclude`. Identity fields are automatic and never selectable. A
+non-keyed array is an atomic whole-array choice rather than an index-by-index merge. Native
+composite keys are not supported; materialize the composite key as one canonical string identity
+field before supplying `arrayItemKeyFields`.
+
+`MergeResult.mergedData` is a deeply independent structured-clone snapshot for supported
+JSON-like values and `Date` objects. Values that cannot be cloned, including functions and
+symbols, fail explicitly with their logical path and type. This is the U1 clone boundary; it does
+not promise runtime deep freezing.
+
+`onChange` reports a user proposal. In controlled mode, the Final UI and completion state change
+only after the parent writes that proposal back through `value`. `onComplete` fires once for a
+user-submitted incomplete-to-complete transition after controlled writeback. Mount does not fire
+it; neither do `defaultValue` initialization, duplicate rerenders, or unrelated external
+replacements. This is the U2 submission boundary.
+
 ## Renderers
 
 ### Container summaries
@@ -227,6 +269,6 @@ Rules and property definitions can set `differenceIndicator` and `nodeSearchable
 
 ## Public exports
 
-The package exports `RecursiveComparisonTable`, `RecursiveComparisonTableProps`, row-building and filtering helpers, renderer APIs, and the public configuration types: `ComparisonVersion`, `BuildComparisonConfig`, `PropertyDefinition`, `DisplayRule`, `PropertySelection`, `DifferenceOptions`, `SearchOptions`, `ValueRenderer`, and related context types.
+The package exports `RecursiveComparisonTable`, `RecursiveComparisonTableProps`, row-building and filtering helpers, renderer APIs, and the public configuration types: `ComparisonVersion`, `BuildComparisonConfig`, `PropertyDefinition`, `DisplayRule`, `PropertySelection`, `DifferenceOptions`, `SearchOptions`, `MergeOptions`, `MergeResolutions`, `MergeResult`, `ValueRenderer`, and related context types.
 
 For real configurations and the full interactive gallery, see the [repository demo](https://github.com/xilovesyu/comparison-table#readme).

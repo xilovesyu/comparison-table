@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RecursiveComparisonTable } from './RecursiveComparisonTable';
+import type { MergeResolutions } from '../core/types';
 
 describe('RecursiveComparisonTable', () => {
   const versions = [
@@ -685,5 +686,561 @@ describe('RecursiveComparisonTable', () => {
 
     expect(screen.getByText('lines[A]')).toBeInTheDocument();
     expect(screen.queryByText('Removed')).not.toBeInTheDocument();
+  });
+
+  it('Issue #14 leaves the table unchanged unless merge.enabled is exactly true', () => {
+    const onComplete = vi.fn();
+    const { rerender } = render(<RecursiveComparisonTable versions={versions} />);
+
+    expect(screen.queryByRole('columnheader', { name: 'Final' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const disabledProps = {
+      versions,
+      merge: { enabled: false, onComplete },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    rerender(<RecursiveComparisonTable {...disabledProps} />);
+
+    expect(screen.queryByRole('columnheader', { name: 'Final' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('Issue #14 merge mode completes only after every direct difference receives a source choice', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const props = {
+      versions,
+      merge: { enabled: true, onChange, onComplete },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(screen.getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
+    const finalHeader = screen.getByRole('columnheader', { name: 'Final' });
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers.at(-1)).toBe(finalHeader);
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const afterEnabled = screen.getByRole('radio', {
+      name: /^(?=.*\benabled\b)(?=.*\bAfter\b).*$/i,
+    });
+    fireEvent.click(afterEnabled);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0]).toHaveLength(2);
+    const firstResult = onChange.mock.calls[0]?.[1];
+    expect(firstResult).toMatchObject({ isComplete: false });
+    expect(firstResult.unresolvedPaths).toContainEqual(['user', 'name']);
+    expect(firstResult.unresolvedPaths).not.toContainEqual(['enabled']);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    const afterUserName = screen.getByRole('radio', {
+      name: /^(?=.*user\.name)(?=.*\bAfter\b).*$/i,
+    });
+    fireEvent.click(afterUserName);
+
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1]).toHaveLength(2);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    const result = onComplete.mock.calls[0]?.[0];
+    expect(result).toMatchObject({ isComplete: true, unresolvedPaths: [] });
+    expect(Array.isArray(result.scope)).toBe(true);
+    expect(Array.isArray(result.sourceDecisions)).toBe(true);
+    expect(result.mergedData).not.toBe(versions[1].data);
+  });
+
+  it('Issue #14 exposes keyed presence choices before children and keeps identity fields out of merge controls', () => {
+    const versions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: {
+          lines: [
+            { sku: 'P-100', quantity: 1 },
+            { sku: 'P-400', quantity: 4 },
+          ],
+        },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: {
+          lines: [
+            { sku: 'P-300', quantity: 3 },
+            { sku: 'P-100', quantity: 1 },
+          ],
+        },
+      },
+      {
+        id: 'final',
+        label: 'Final',
+        data: {
+          lines: [
+            { sku: 'P-100', quantity: 1 },
+            { sku: 'P-300', quantity: 30 },
+          ],
+        },
+      },
+    ];
+    const props = {
+      versions,
+      arrayItemKeyFields: { lines: 'sku' },
+      merge: { enabled: true },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(
+      screen.getByRole('radio', { name: /^lines\.P-300 Include from Review$/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: /^lines\.P-300 Include from Final$/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^lines\.P-300 Exclude$/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('radio', { name: /lines\.P-300 Include from Base/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /sku/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Needs selection')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('Issue #14 clears a selected decision by omitting its Record key and returns to an announced incomplete state', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const props = {
+      versions,
+      merge: {
+        enabled: true,
+        defaultValue: {
+          [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+          [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+        },
+        onChange,
+        onComplete,
+      },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(onComplete).not.toHaveBeenCalled();
+    const clearEnabled = screen.getByRole('button', { name: /^Clear enabled$/i });
+    fireEvent.click(clearEnabled);
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [nextValue, result] = onChange.mock.calls[0] ?? [];
+    expect(nextValue).not.toHaveProperty(JSON.stringify(['enabled']));
+    expect(result).toMatchObject({ isComplete: false });
+    expect(result.unresolvedPaths).toContainEqual(['enabled']);
+    expect(screen.getByText('Needs selection')).toHaveAttribute('aria-live', 'polite');
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('Issue #14 keeps controlled decisions ineffective until the parent writes back, then completes once', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const empty: MergeResolutions = {};
+    const propsFor = (value: MergeResolutions) =>
+      ({
+        versions,
+        merge: { enabled: true, value, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(empty)} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const afterEnabled: MergeResolutions = onChange.mock.calls[0]?.[0];
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(afterEnabled)} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('radio', { name: /^user\.name After$/i }));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    const complete: MergeResolutions = onChange.mock.calls[1]?.[0];
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(complete)} />);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    rerender(<RecursiveComparisonTable {...propsFor({ ...complete })} />);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+
+    rerender(<RecursiveComparisonTable {...propsFor(empty)} />);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
+  });
+
+  it('Issue #14 retains a controlled complete proposal across an unrelated old-value rerender until its exact echo', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const empty: MergeResolutions = {};
+    const propsFor = (value: MergeResolutions, searchable = true) =>
+      ({
+        versions,
+        searchable,
+        merge: { enabled: true, value, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(empty)} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
+    const partial: MergeResolutions = onChange.mock.calls[0]?.[0];
+    rerender(<RecursiveComparisonTable {...propsFor(partial)} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^user\.name After$/i }));
+    const complete: MergeResolutions = onChange.mock.calls[1]?.[0];
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(partial, false)} />);
+    expect(onComplete).not.toHaveBeenCalled();
+    rerender(<RecursiveComparisonTable {...propsFor(complete, false)} />);
+
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('Issue #14 reads uncontrolled defaultValue only on mount and completes again only after clear then reselection', () => {
+    const onComplete = vi.fn();
+    const complete: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    const propsFor = (defaultValue: MergeResolutions) =>
+      ({
+        versions,
+        merge: { enabled: true, defaultValue, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(complete)} />);
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+
+    rerender(<RecursiveComparisonTable {...propsFor({})} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: /^Clear enabled$/i }));
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).not.toBeChecked();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('radio', { name: /^enabled After$/i }));
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('Issue #14 preserves controlled row-id and version-id decisions when version columns reorder', () => {
+    const value: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    const propsFor = (orderedVersions: typeof versions) =>
+      ({
+        versions: orderedVersions,
+        comparison: { baseVersionId: 'before' },
+        merge: { enabled: true, value },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(versions)} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(screen.getAllByText('No')).toHaveLength(2);
+
+    rerender(<RecursiveComparisonTable {...propsFor([versions[1], versions[0]])} />);
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /^enabled Before$/i })).not.toBeChecked();
+    expect(screen.getAllByText('No')).toHaveLength(2);
+  });
+
+  it('Issue #14 never treats external controlled replacements as user submissions', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const enabledAfter: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+    };
+    const completeAfter: MergeResolutions = {
+      ...enabledAfter,
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    const completeBefore: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'before' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'before' },
+    };
+    const propsFor = (value: MergeResolutions) =>
+      ({
+        versions,
+        merge: { enabled: true, value, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(enabledAfter)} />);
+
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(completeAfter)} />);
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+    expect(screen.getAllByText('Jack')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(completeBefore)} />);
+    expect(screen.getByRole('radio', { name: /^enabled Before$/i })).toBeChecked();
+    expect(screen.getAllByText('John')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor({})} />);
+    expect(screen.getByRole('radio', { name: /^enabled Before$/i })).not.toBeChecked();
+    expect(screen.getAllByText('Unresolved')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(completeAfter)} />);
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+    expect(screen.getAllByText('Jack')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('Issue #14 exposes native keyboard-capable radios and clear buttons with logical names', () => {
+    const value: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+    };
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        merge={{ enabled: true, defaultValue: value }}
+      />,
+    );
+
+    const before = screen.getByRole('radio', { name: /^enabled Before$/i });
+    const after = screen.getByRole('radio', { name: /^enabled After$/i });
+    expect(before).toHaveAttribute('type', 'radio');
+    expect(after).toHaveAttribute('type', 'radio');
+    expect(before).toHaveAttribute('name', after.getAttribute('name'));
+    before.focus();
+    expect(before).toHaveFocus();
+
+    const clear = screen.getByRole('button', { name: /^Clear enabled$/i });
+    expect(clear).toHaveAttribute('type', 'button');
+    clear.focus();
+    expect(clear).toHaveFocus();
+  });
+
+  it('Issue #14 preserves merge decisions through difference, global, node-search, and expansion visibility changes', () => {
+    const complete: MergeResolutions = {
+      [JSON.stringify(['enabled'])]: { kind: 'source', versionId: 'after' },
+      [JSON.stringify(['user', 'name'])]: { kind: 'source', versionId: 'after' },
+    };
+    render(
+      <RecursiveComparisonTable
+        versions={versions}
+        merge={{ enabled: true, defaultValue: complete }}
+      />,
+    );
+
+    const search = screen.getByLabelText('Search comparison');
+    fireEvent.click(screen.getByRole('switch', { name: 'Only show differences' }));
+    expect(screen.getByRole('radio', { name: /^enabled After$/i })).toBeChecked();
+
+    fireEvent.change(search, { target: { value: 'enabled' } });
+    expect(screen.queryByRole('radio', { name: /^user\.name After$/i })).not.toBeInTheDocument();
+    fireEvent.change(search, { target: { value: '' } });
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search within user' }));
+    const nodeSearch = screen.getByLabelText('Filter user children');
+    fireEvent.change(nodeSearch, { target: { value: 'absent' } });
+    expect(screen.queryByRole('radio', { name: /^user\.name After$/i })).not.toBeInTheDocument();
+    fireEvent.change(nodeSearch, { target: { value: '' } });
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+
+    const userRow = screen.getByText('user').closest('tr')!;
+    fireEvent.click(userRow.querySelector('.ant-table-row-expand-icon') as HTMLElement);
+    expect(screen.queryByRole('radio', { name: /^user\.name After$/i })).not.toBeInTheDocument();
+    fireEvent.click(userRow.querySelector('.ant-table-row-expand-icon') as HTMLElement);
+    expect(screen.getByRole('radio', { name: /^user\.name After$/i })).toBeChecked();
+    expect(screen.getAllByText('Jack')).toHaveLength(2);
+  });
+
+  it('Issue #14 renders Final through existing value priorities while callbacks retain raw merged data', () => {
+    const onChange = vi.fn();
+    const renderFinalCell = (label: string) =>
+      screen.getByText(label).closest('tr')!.querySelectorAll('td').item(3);
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'before',
+            label: 'Before',
+            data: {
+              defined: 'before',
+              named: 'before',
+              localPayload: { id: 1 },
+              summaryPayload: { id: 1 },
+            },
+          },
+          {
+            id: 'after',
+            label: 'After',
+            data: {
+              defined: 'after',
+              named: 'after',
+              localPayload: { id: 2 },
+              summaryPayload: { id: 2 },
+            },
+          },
+        ]}
+        propertyDefinitions={[
+          {
+            key: 'defined',
+            label: 'Defined',
+            path: ['defined'],
+            level: 0,
+            type: 'string',
+            renderValue: (value) => `definition:${String(value)}`,
+          },
+          { key: 'named', label: 'Named', path: ['named'], level: 0, type: 'string' },
+          {
+            key: 'localPayload',
+            label: 'Local payload',
+            path: ['localPayload'],
+            level: 0,
+            type: 'object',
+            renderer: 'local',
+          },
+          {
+            key: 'summaryPayload',
+            label: 'Summary payload',
+            path: ['summaryPayload'],
+            level: 0,
+            type: 'object',
+          },
+        ]}
+        rules={[
+          { path: 'named', renderer: 'named' },
+          { path: 'localPayload', expand: false },
+          { path: 'summaryPayload', expand: false },
+        ]}
+        renderers={{
+          named: (value) => `named:${String(value)}`,
+          local: (value) => `local:${String((value as { id: number }).id)}`,
+        }}
+        containerSummary={(value) => `summary:${String((value as { id: number }).id)}`}
+        merge={{ enabled: true, onChange }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('radio', { name: /^defined After$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^named After$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^localPayload After$/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /^summaryPayload After$/i }));
+
+    expect(within(renderFinalCell('Defined')).getByText('definition:after')).toBeInTheDocument();
+    expect(within(renderFinalCell('Named')).getByText('named:after')).toBeInTheDocument();
+    expect(within(renderFinalCell('Local payload')).getByText('local:2')).toBeInTheDocument();
+    expect(within(renderFinalCell('Summary payload')).getByText('summary:2')).toBeInTheDocument();
+    const result = onChange.mock.calls.at(-1)?.[1];
+    expect(result).toMatchObject({
+      isComplete: true,
+      mergedData: {
+        defined: 'after',
+        named: 'after',
+        localPayload: { id: 2 },
+        summaryPayload: { id: 2 },
+      },
+    });
+  });
+
+  it('Issue #14 keeps a default-expanded non-keyed array as one atomic public merge decision', () => {
+    const onChange = vi.fn();
+    const arrayVersions = [
+      {
+        id: 'base',
+        label: 'Base',
+        data: { lines: [{ amount: 1 }, { amount: 2 }] },
+      },
+      {
+        id: 'review',
+        label: 'Review',
+        data: { lines: [{ amount: 10 }, { amount: 20 }] },
+      },
+    ];
+    const props = {
+      versions: arrayVersions,
+      comparison: { baseVersionId: 'base' },
+      merge: { enabled: true, onChange },
+    } satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    render(<RecursiveComparisonTable {...props} />);
+
+    expect(screen.getByRole('radio', { name: /^lines Review$/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.queryByRole('radio', { name: /lines\.0|lines\.1/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: /^lines Review$/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [nextValue, result] = onChange.mock.calls[0] ?? [];
+    expect(nextValue).toEqual({
+      [JSON.stringify(['lines'])]: { kind: 'source', versionId: 'review' },
+    });
+    expect(result.scope).toEqual([
+      expect.objectContaining({
+        resolutionKey: JSON.stringify(['lines']),
+        path: ['lines'],
+        role: 'non-keyed-array',
+        active: true,
+      }),
+    ]);
+    expect(
+      result.scope.some((entry: { path: readonly (string | number)[] }) =>
+        entry.path.some((segment) => typeof segment === 'number'),
+      ),
+    ).toBe(false);
+    expect(result.resolvedPatch).toEqual([
+      expect.objectContaining({
+        op: 'set',
+        path: ['lines'],
+        value: [{ amount: 10 }, { amount: 20 }],
+        sourceVersionId: 'review',
+      }),
+    ]);
+    expect(result).toMatchObject({
+      isComplete: true,
+      mergedData: { lines: [{ amount: 10 }, { amount: 20 }] },
+    });
+  });
+
+  it('Issue #14 retains a complete controlled proposal across unrelated old-value rerenders until exact echo', () => {
+    const onChange = vi.fn();
+    const onComplete = vi.fn();
+    const proposalVersions = [
+      { id: 'base', label: 'Base', data: { amount: 1 } },
+      { id: 'review', label: 'Review', data: { amount: 2 } },
+    ];
+    const empty: MergeResolutions = {};
+    const propsFor = (value: MergeResolutions, finalLabel: string) =>
+      ({
+        versions: proposalVersions,
+        merge: { enabled: true, value, finalLabel, onChange, onComplete },
+      }) satisfies React.ComponentProps<typeof RecursiveComparisonTable>;
+    const { rerender } = render(<RecursiveComparisonTable {...propsFor(empty, 'Final')} />);
+
+    fireEvent.click(screen.getByRole('radio', { name: /^amount Review$/i }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const proposal: MergeResolutions = onChange.mock.calls[0]?.[0];
+    expect(onChange.mock.calls[0]?.[1]).toMatchObject({ isComplete: true });
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(empty, 'Approved result')} />);
+    expect(screen.getByRole('columnheader', { name: 'Approved result' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /^amount Review$/i })).not.toBeChecked();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onComplete).not.toHaveBeenCalled();
+
+    rerender(<RecursiveComparisonTable {...propsFor(proposal, 'Approved result')} />);
+    expect(screen.getByRole('radio', { name: /^amount Review$/i })).toBeChecked();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete.mock.calls[0]?.[0]).toMatchObject({
+      isComplete: true,
+      mergedData: { amount: 2 },
+    });
+
+    rerender(<RecursiveComparisonTable {...propsFor({ ...proposal }, 'Approved result')} />);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 });

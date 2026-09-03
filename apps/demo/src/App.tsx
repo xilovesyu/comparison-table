@@ -8,6 +8,7 @@ import {
   ContainerSummaryExample,
   ControlledExample,
   DiffExample,
+  FinalMergeExample,
   FlattenedExample,
   KeyedArrayExample,
   PresentationControlsExample,
@@ -68,6 +69,12 @@ const demoExamples: readonly DemoExample[] = [
     title: '容器摘要',
     group: '高级',
     Component: memo(ContainerSummaryExample),
+  },
+  {
+    id: 'final-merge',
+    title: '最终版本合并',
+    group: '高级',
+    Component: memo(FinalMergeExample),
   },
   {
     id: 'advanced-configuration',
