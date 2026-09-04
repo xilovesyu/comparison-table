@@ -124,12 +124,17 @@ export function RecursiveComparisonTable({
     [mergeEditors],
   );
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
-  const locallyFilteredRows = useMemo(
-    () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
-    [onlyDifferences, differenceRows, rows, nodeQueries],
-  );
+  const locallyFilteredRows = useMemo(() => {
+    const sourceRows = onlyDifferences ? differenceRows : rows;
+    return Object.values(nodeQueries).some((value) => value.trim())
+      ? applyNodeFilters(sourceRows, nodeQueries)
+      : sourceRows;
+  }, [onlyDifferences, differenceRows, rows, nodeQueries]);
   const visibleRows = useMemo(
-    () => filterComparisonRows(locallyFilteredRows, query, searchOptions),
+    () =>
+      query.trim()
+        ? filterComparisonRows(locallyFilteredRows, query, searchOptions)
+        : locallyFilteredRows,
     [locallyFilteredRows, query, searchOptions],
   );
   const allKeys = useMemo(() => collectKeys(visibleRows), [visibleRows]);
@@ -396,7 +401,7 @@ export function RecursiveComparisonTable({
           }
           onQuery={(value) => setNodeQueries((queries) => ({ ...queries, [row.id]: value }))}
           baselineId={baselineId ?? versions[0]?.id}
-          versionIds={versions.map((version) => version.id)}
+          versions={versions}
           texts={resolvedTexts}
         />
       ),
@@ -472,17 +477,21 @@ export function RecursiveComparisonTable({
                 activeResolutions,
                 row.id,
               );
+              const clearResolutionLabel = resolvedTexts.clearResolutionLabel({
+                path: row.property.path,
+              });
               const clearButton = hasManualResolution ? (
                 <Button
-                  aria-label={resolvedTexts.clearResolutionLabel({ path: row.property.path })}
+                  aria-label={clearResolutionLabel}
                   size="small"
                   onClick={() => clearMergeResolution(row.id)}
                 >
-                  Clear
+                  {clearResolutionLabel}
                 </Button>
               ) : null;
               if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
                 const resolution = activeResolutions[row.id];
+                const excludeLabel = resolvedTexts.excludeLabel({ path: row.property.path });
                 return (
                   <div
                     role="radiogroup"
@@ -491,14 +500,15 @@ export function RecursiveComparisonTable({
                     {scopeEntry.allowedSourceVersionIds.map((versionId) => {
                       const version = versions.find((candidate) => candidate.id === versionId);
                       if (!version) return null;
+                      const includeFromLabel = resolvedTexts.includeFromLabel({
+                        path: row.property.path,
+                        versionLabel: version.label,
+                      });
                       return (
                         <Radio
                           key={versionId}
                           name={`merge-presence-${row.id}`}
-                          aria-label={resolvedTexts.includeFromLabel({
-                            path: row.property.path,
-                            versionLabel: version.label,
-                          })}
+                          aria-label={includeFromLabel}
                           checked={
                             resolution?.kind === 'source' && resolution.versionId === versionId
                           }
@@ -506,17 +516,17 @@ export function RecursiveComparisonTable({
                             updateMergeResolution(row.id, { kind: 'source', versionId })
                           }
                         >
-                          Include from {version.label}
+                          {includeFromLabel}
                         </Radio>
                       );
                     })}
                     <Radio
                       name={`merge-presence-${row.id}`}
-                      aria-label={resolvedTexts.excludeLabel({ path: row.property.path })}
+                      aria-label={excludeLabel}
                       checked={resolution?.kind === 'exclude'}
                       onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
                     >
-                      Exclude
+                      {excludeLabel}
                     </Radio>
                     {clearButton}
                     {resolution && <span aria-live="polite">{resolvedTexts.completeStatus}</span>}
@@ -527,13 +537,14 @@ export function RecursiveComparisonTable({
               const decision = mergeDecisionByRowId.get(row.id);
               const edit = activeEdits[row.id];
               const hasManualEdit = Object.prototype.hasOwnProperty.call(activeEdits, row.id);
+              const clearEditLabel = resolvedTexts.clearEditLabel({ path: row.property.path });
               const editClearButton = hasManualEdit ? (
                 <Button
-                  aria-label={resolvedTexts.clearEditLabel({ path: row.property.path })}
+                  aria-label={clearEditLabel}
                   size="small"
                   onClick={() => clearMergeEdit(row)}
                 >
-                  Clear edit
+                  {clearEditLabel}
                 </Button>
               ) : null;
               const inherited =
@@ -874,22 +885,20 @@ function MergeValueEditor({
       />
     );
   })();
+  const setNullLabel = texts.setNullLabel({ path: row.property.path });
+  const deleteValueLabel = texts.deleteValueLabel({ path: row.property.path });
   return (
     <div className="comparison-merge-editor">
       {controls}
       <Button
         size="small"
-        aria-label={texts.setNullLabel({ path: row.property.path })}
+        aria-label={setNullLabel}
         onClick={() => onEdit({ kind: 'set', value: null })}
       >
-        Null
+        {setNullLabel}
       </Button>
-      <Button
-        size="small"
-        aria-label={texts.deleteValueLabel({ path: row.property.path })}
-        onClick={() => onEdit({ kind: 'delete' })}
-      >
-        Delete
+      <Button size="small" aria-label={deleteValueLabel} onClick={() => onEdit({ kind: 'delete' })}>
+        {deleteValueLabel}
       </Button>
       {displayError && <span role="alert">{displayError}</span>}
     </div>
@@ -918,7 +927,7 @@ function PropertyCell({
   onToggle,
   onQuery,
   baselineId,
-  versionIds,
+  versions,
   texts,
 }: {
   row: ComparisonRow;
@@ -927,9 +936,10 @@ function PropertyCell({
   onToggle: () => void;
   onQuery: (value: string) => void;
   baselineId?: string;
-  versionIds: readonly string[];
+  versions: readonly ComparisonVersion[];
   texts: ComparisonTableTexts;
 }) {
+  const versionIds = versions.map((version) => version.id);
   const expandable = Boolean(row.children?.length);
   const baselinePresent = baselineId ? row.presence?.[baselineId] : undefined;
   const missingVersionIds = versionIds.filter((id) => !row.presence?.[id]);
@@ -953,7 +963,14 @@ function PropertyCell({
       )}
       {row.itemIdentity && !status && missingVersionIds.length > 0 && (
         <span className="comparison-item-status comparison-item-status-missing">
-          {texts.missingStatus} in {missingVersionIds.join(', ')}
+          {texts.missingStatus({
+            path: row.property.path,
+            versionIds: missingVersionIds,
+            versionLabels: missingVersionIds.map(
+              (versionId) =>
+                versions.find((version) => version.id === versionId)?.label ?? versionId,
+            ),
+          })}
         </span>
       )}
       <DifferenceIndicator row={row} indicator={row.differenceIndicator} texts={texts} />

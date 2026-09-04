@@ -164,13 +164,13 @@ visible, status, and accessible text for one table. The complete inventory is:
 
 - Static keys: `tableRegionLabel`, `propertyColumn`, `baselineBadge`,
   `baselineBadgeAriaLabel`, `differenceIndicator`, `differenceIndicatorAriaLabel`,
-  `globalSearchLabel`, `globalSearchPlaceholder`, `onlyDifferencesLabel`, `nodeSearchLabel`,
-  `nodeFilterLabel`, `nodeFilterPlaceholder`, `finalColumn`, `needsSelectionStatus`,
-  `completeStatus`, `unresolvedStatus`, `deletedStatus`, `addedStatus`, `removedStatus`, and
-  `missingStatus`.
-- Dynamic formatter keys: `onlyDifferencesCount`, `sourceChoiceLabel`, `presenceGroupLabel`,
-  `includeFromLabel`, `excludeLabel`, `clearResolutionLabel`, `clearEditLabel`, `editValueLabel`,
-  `setNullLabel`, `deleteValueLabel`, `inheritedSourceStatus`, and `validationError`.
+  `globalSearchLabel`, `globalSearchPlaceholder`, `onlyDifferencesLabel`, `finalColumn`,
+  `needsSelectionStatus`, `completeStatus`, `unresolvedStatus`, `deletedStatus`, `addedStatus`, and
+  `removedStatus`.
+- Dynamic formatter keys: `onlyDifferencesCount`, `nodeSearchLabel`, `nodeFilterLabel`,
+  `nodeFilterPlaceholder`, `sourceChoiceLabel`, `presenceGroupLabel`, `includeFromLabel`,
+  `excludeLabel`, `clearResolutionLabel`, `clearEditLabel`, `editValueLabel`, `setNullLabel`,
+  `deleteValueLabel`, `inheritedSourceStatus`, `missingStatus`, and `validationError`.
 
 An omitted or missing override uses the built-in default. An own `undefined` value also falls back
 to the built-in default, while an empty string is valid and preserved. Formatter contexts expose

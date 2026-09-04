@@ -50,6 +50,8 @@ const localizedTexts = {
   editValueLabel: ({ path }) => `编辑 ${path.join('.')}`,
   setNullLabel: ({ path }) => `将 ${path.join('.')} 设为空值`,
   deleteValueLabel: ({ path }) => `删除 ${path.join('.')}`,
+  missingStatus: ({ path, versionLabels }) =>
+    `${path.join('.')} 在 ${versionLabels.join('、')} 中缺失`,
   validationError: ({ path, error }) => `${path.join('.')} 无效：${error}`,
 } satisfies ComparisonTableTextOverrides;
 

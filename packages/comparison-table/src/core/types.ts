@@ -52,7 +52,13 @@ export interface ComparisonTableTexts {
   readonly deletedStatus: string;
   readonly addedStatus: string;
   readonly removedStatus: string;
-  readonly missingStatus: string;
+  readonly missingStatus: (
+    context: Readonly<{
+      path: PropertyPath;
+      versionIds: readonly string[];
+      versionLabels: readonly string[];
+    }>,
+  ) => string;
   readonly validationError: (context: Readonly<{ path: PropertyPath; error: string }>) => string;
 }
 

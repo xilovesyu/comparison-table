@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button, InputNumber } from 'antd';
 import {
   RecursiveComparisonTable,
+  type BuildComparisonConfig,
   type ComparisonVersion,
   type ComparisonTableTextOverrides,
   type MergeEditor,
@@ -192,6 +193,41 @@ const advancedTexts = {
   validationError: ({ path, error }) => `${path.join('.')} 无效：${error}`,
 } satisfies ComparisonTableTextOverrides;
 
+const advancedBuildConfig = {
+  arrayItemKeyFields: { lines: 'sku' },
+  selection: {
+    include: [
+      'customer',
+      'customer.*',
+      'billing.*',
+      'lines.*',
+      'reviewSteps',
+      'note',
+      'availability',
+    ],
+    exclude: ['customer.secret', 'internal.*'],
+  },
+  rules: [
+    { path: 'billing.money', renderer: 'localMoney' },
+    { path: 'billing.summaryMoney', renderer: 'money', expand: false },
+  ],
+  containerSummary: (value) =>
+    typeof value === 'object' && value !== null
+      ? `对象摘要：${Object.keys(value).length} 字段`
+      : undefined,
+  comparison: {
+    baseVersionId: 'baseline',
+    showBaselineBadge: true,
+    comparator: (values, context) => {
+      if (context.path.join('.') === 'billing.money.amount') {
+        const amounts = values.map(Number);
+        return Math.max(...amounts) - Math.min(...amounts) > 50;
+      }
+      return values.some((value, index) => index > 0 && value !== values[0]);
+    },
+  },
+} satisfies BuildComparisonConfig;
+
 const defaultValueVersions = [
   {
     id: 'baseline',
@@ -279,33 +315,16 @@ export function AdvancedExample() {
       >
         演示 uncontrolled defaultValue 与 defaultEdits
       </Button>
+      {/* The stable config below is equivalent to arrayItemKeyFields={{ lines: 'sku' }}. */}
       <RecursiveComparisonTable
         key="advanced-complete-mode"
         versions={advancedVersions}
         propertyDefinitions={advancedDefinitions}
-        arrayItemKeyFields={{ lines: 'sku' }}
+        arrayItemKeyFields={advancedBuildConfig.arrayItemKeyFields}
         renderers={advancedRendererDefinitions}
-        selection={{
-          include: [
-            'customer',
-            'customer.*',
-            'billing.*',
-            'lines.*',
-            'reviewSteps',
-            'note',
-            'availability',
-          ],
-          exclude: ['customer.secret', 'internal.*'],
-        }}
-        rules={[
-          { path: 'billing.money', renderer: 'localMoney' },
-          { path: 'billing.summaryMoney', renderer: 'money', expand: false },
-        ]}
-        containerSummary={(value) =>
-          typeof value === 'object' && value !== null
-            ? `对象摘要：${Object.keys(value).length} 字段`
-            : undefined
-        }
+        selection={advancedBuildConfig.selection}
+        rules={advancedBuildConfig.rules}
+        containerSummary={advancedBuildConfig.containerSummary}
         merge={{
           enabled: true,
           value: resolutions,
@@ -320,17 +339,7 @@ export function AdvancedExample() {
           },
           onComplete: () => setMergeStatus('source 与 edits pair echo 后合并已完成'),
         }}
-        comparison={{
-          baseVersionId: 'baseline',
-          showBaselineBadge: true,
-          comparator: (values, context) => {
-            if (context.path.join('.') === 'billing.money.amount') {
-              const amounts = values.map(Number);
-              return Math.max(...amounts) - Math.min(...amounts) > 50;
-            }
-            return values.some((value, index) => index > 0 && value !== values[0]);
-          },
-        }}
+        comparison={advancedBuildConfig.comparison}
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
         texts={advancedTexts}

@@ -32,7 +32,7 @@ export const defaultComparisonTableTexts: ComparisonTableTexts = {
   deletedStatus: 'Deleted',
   addedStatus: 'Added',
   removedStatus: 'Removed',
-  missingStatus: 'Missing',
+  missingStatus: ({ versionIds }) => `Missing in ${versionIds.join(', ')}`,
   validationError: ({ error }) => error,
 };
 
@@ -96,6 +96,7 @@ export function resolveComparisonTableTexts(
       'inheritedSourceStatus',
       resolved.inheritedSourceStatus,
     ),
+    missingStatus: checkedFormatter('missingStatus', resolved.missingStatus),
     validationError: checkedFormatter('validationError', resolved.validationError),
   };
 }
