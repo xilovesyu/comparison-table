@@ -29,12 +29,18 @@ const textKeys = [
   'sourceChoiceLabel',
   'presenceGroupLabel',
   'includeFromLabel',
+  'includeFromText',
   'excludeLabel',
+  'excludeText',
   'clearResolutionLabel',
+  'clearResolutionText',
   'clearEditLabel',
+  'clearEditText',
   'editValueLabel',
   'setNullLabel',
+  'setNullText',
   'deleteValueLabel',
+  'deleteValueText',
   'inheritedSourceStatus',
   'needsSelectionStatus',
   'completeStatus',
@@ -58,7 +64,7 @@ afterEach(() => cleanup());
 describe('Issue #18 local text overrides', () => {
   it('keeps the complete centralized default inventory byte-compatible when texts is omitted', () => {
     expect(completeTextInventory).toBe(true);
-    expect(textKeys).toHaveLength(32);
+    expect(textKeys).toHaveLength(38);
     render(<RecursiveComparisonTable versions={versions} comparison={{ baseVersionId: 'base' }} />);
 
     expect(screen.getByRole('region', { name: 'Recursive comparison table' })).toBeInTheDocument();
@@ -265,6 +271,122 @@ describe('Issue #18 local text overrides', () => {
     fireEvent.change(amount, { target: { value: 'not-a-number' } });
     fireEvent.blur(amount);
     expect(screen.getByRole('alert')).toHaveTextContent(/^Invalid amount:/);
+  });
+
+  it('keeps the published Final control text byte-compatible when texts is omitted', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'base',
+            label: 'Base',
+            data: { title: 'before', amount: 1, lines: [{ sku: 'P-100', quantity: 1 }] },
+          },
+          {
+            id: 'review',
+            label: 'Review',
+            data: {
+              title: 'after',
+              amount: 2,
+              lines: [
+                { sku: 'P-100', quantity: 2 },
+                { sku: 'P-300', quantity: 3 },
+              ],
+            },
+          },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        merge={{
+          enabled: true,
+          defaultValue: { [rowId('title')]: { kind: 'source', versionId: 'review' } },
+          defaultEdits: { [rowId('amount')]: { kind: 'set', value: 7 } },
+        }}
+      />,
+    );
+
+    expect.soft(screen.getByRole('button', { name: 'Clear title' })).toHaveTextContent(/^Clear$/);
+    expect
+      .soft(screen.getByRole('button', { name: 'Clear edit amount' }))
+      .toHaveTextContent(/^Clear edit$/);
+    expect
+      .soft(screen.getByRole('button', { name: 'Set amount to null' }))
+      .toHaveTextContent(/^Null$/);
+    expect
+      .soft(screen.getByRole('button', { name: 'Delete amount' }))
+      .toHaveTextContent(/^Delete$/);
+    expect(
+      screen.getByRole('radio', { name: 'lines.P-300 Include from Review' }),
+    ).toBeInTheDocument();
+    expect.soft(screen.queryByText('Include from Review')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'lines.P-300 Exclude' })).toBeInTheDocument();
+    expect.soft(screen.queryByText('Exclude')).toBeInTheDocument();
+  });
+
+  it('keeps visible Final text overrides independent from path-rich aria labels', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'base',
+            label: 'Base',
+            data: { title: 'before', amount: 1, lines: [{ sku: 'P-100', quantity: 1 }] },
+          },
+          {
+            id: 'review',
+            label: 'Review',
+            data: {
+              title: 'after',
+              amount: 2,
+              lines: [
+                { sku: 'P-100', quantity: 2 },
+                { sku: 'P-300', quantity: 3 },
+              ],
+            },
+          },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        merge={{
+          enabled: true,
+          defaultValue: { [rowId('title')]: { kind: 'source', versionId: 'review' } },
+          defaultEdits: { [rowId('amount')]: { kind: 'set', value: 7 } },
+        }}
+        texts={overrides({
+          clearResolutionText: 'Reset visible source',
+          clearResolutionLabel: ({ path }) => `ARIA reset source ${path.join('/')}`,
+          clearEditText: 'Reset visible edit',
+          clearEditLabel: ({ path }) => `ARIA reset edit ${path.join('/')}`,
+          includeFromText: ({ versionLabel }: { versionLabel: string }) =>
+            `Take visible ${versionLabel}`,
+          includeFromLabel: ({ path, versionLabel }) =>
+            `ARIA include ${path.join('/')} from ${versionLabel}`,
+          excludeText: 'Omit visible item',
+          excludeLabel: ({ path }) => `ARIA exclude ${path.join('/')}`,
+          setNullText: 'Empty visible value',
+          setNullLabel: ({ path }) => `ARIA null ${path.join('/')}`,
+          deleteValueText: 'Remove visible value',
+          deleteValueLabel: ({ path }) => `ARIA delete ${path.join('/')}`,
+        })}
+      />,
+    );
+
+    expect
+      .soft(screen.getByRole('button', { name: 'ARIA reset source title' }))
+      .toHaveTextContent(/^Reset visible source$/);
+    expect
+      .soft(screen.getByRole('button', { name: 'ARIA reset edit amount' }))
+      .toHaveTextContent(/^Reset visible edit$/);
+    expect
+      .soft(screen.getByRole('button', { name: 'ARIA null amount' }))
+      .toHaveTextContent(/^Empty visible value$/);
+    expect
+      .soft(screen.getByRole('button', { name: 'ARIA delete amount' }))
+      .toHaveTextContent(/^Remove visible value$/);
+    expect(
+      screen.getByRole('radio', { name: 'ARIA include lines/P-300 from Review' }),
+    ).toBeInTheDocument();
+    expect.soft(screen.queryByText('Take visible Review')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'ARIA exclude lines/P-300' })).toBeInTheDocument();
+    expect.soft(screen.queryByText('Omit visible item')).toBeInTheDocument();
   });
 
   it('localizes inherited, unresolved, and deleted Final states independently', () => {

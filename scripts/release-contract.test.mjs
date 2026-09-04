@@ -408,6 +408,22 @@ test('README inventories and the localization example classify every context for
   }
 });
 
+test('both READMEs document every keyed Missing formatter context field', async () => {
+  const readmes = await Promise.all([
+    readWorkspaceFile('README.md'),
+    readWorkspaceFile('packages/comparison-table/README.md'),
+  ]);
+
+  for (const content of readmes) {
+    const missingStatusIndex = content.indexOf('`missingStatus`');
+    assert.notEqual(missingStatusIndex, -1, 'README must document missingStatus');
+    const missingStatusContract = content.slice(missingStatusIndex, missingStatusIndex + 1200);
+    assert.match(missingStatusContract, /\bpath\b/);
+    assert.match(missingStatusContract, /\bversionIds\b/);
+    assert.match(missingStatusContract, /\bversionLabels\b/);
+  }
+});
+
 test('manual runbook covers local text fallback, dynamic context, accessibility, Final, and AntD ownership', async () => {
   const manualRunbook = await readWorkspaceFile('docs/manual-testing/README.md');
 
