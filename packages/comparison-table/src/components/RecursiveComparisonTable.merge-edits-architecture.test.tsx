@@ -149,12 +149,12 @@ describe('Issue #17 architecture follow-up contracts', () => {
           {
             id: 'base',
             label: 'Base',
-            data: { profile: { name: 'Base name', unchanged: 'same' } },
+            data: { profile: { name: 'Base' } },
           },
           {
             id: 'review',
             label: 'Review',
-            data: { profile: { name: 'Review name', unchanged: 'same' } },
+            data: { profile: { name: 'Review' } },
           },
         ]}
         merge={{ enabled: true, onChange }}
@@ -168,9 +168,9 @@ describe('Issue #17 architecture follow-up contracts', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange.mock.calls[0]?.[0]).toEqual({ [profile]: source('review') });
     expect(onChange.mock.calls[0]?.[1]).toMatchObject({
-      mergedData: { profile: { name: 'Review name', unchanged: 'same' } },
+      mergedData: { profile: { name: 'Review' } },
     });
-    expect(screen.getAllByText('Review name')).toHaveLength(2);
+    expect(screen.getAllByText('Review')).toHaveLength(2);
 
     const childOverride = screen.getByRole('radio', { name: 'profile.name Base' });
     fireEvent.click(childOverride);
@@ -182,9 +182,9 @@ describe('Issue #17 architecture follow-up contracts', () => {
       [name]: source('base'),
     });
     expect(onChange.mock.calls[1]?.[1]).toMatchObject({
-      mergedData: { profile: { name: 'Base name', unchanged: 'same' } },
+      mergedData: { profile: { name: 'Base' } },
     });
-    expect(screen.getAllByText('Base name')).toHaveLength(2);
+    expect(screen.getAllByText('Base')).toHaveLength(2);
   });
 
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
