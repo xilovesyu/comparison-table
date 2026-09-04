@@ -241,10 +241,14 @@ describe('Issue #18 local text overrides', () => {
           sourceChoiceLabel: ({ path, versionLabel }) =>
             `Source ${path.join('/')} from ${versionLabel}`,
           clearResolutionLabel: ({ path }) => `Reset source ${path.join('/')}`,
+          clearResolutionText: 'Reset source title',
           clearEditLabel: ({ path }) => `Reset edit ${path.join('/')}`,
+          clearEditText: 'Reset edit amount',
           editValueLabel: ({ path }) => `Edit raw ${path.join('/')}`,
           setNullLabel: ({ path }) => `Null raw ${path.join('/')}`,
+          setNullText: 'Null raw amount',
           deleteValueLabel: ({ path }) => `Delete raw ${path.join('/')}`,
+          deleteValueText: 'Delete raw amount',
           completeStatus: 'Everything selected',
           validationError: ({ path, error }) => `Invalid ${path.join('/')}: ${error}`,
         })}
@@ -478,7 +482,9 @@ describe('Issue #18 local text overrides', () => {
           presenceGroupLabel: ({ path }) => `Presence ${path.join('/')}`,
           includeFromLabel: ({ path, versionLabel }) =>
             `Keep ${path.join('/')} from ${versionLabel}`,
+          includeFromText: ({ versionLabel }) => `Keep lines/P-300 from ${versionLabel}`,
           excludeLabel: ({ path }) => `Drop ${path.join('/')}`,
+          excludeText: 'Drop lines/P-300',
           clearResolutionLabel: ({ path }) => `Reset ${path.join('/')}`,
           needsSelectionStatus: 'Choose a result',
           completeStatus: 'Resolved',
