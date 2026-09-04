@@ -1,5 +1,5 @@
-import { Button, Input, Space, Switch, Table, Typography } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
+import { Button, Input, InputNumber, Radio, Space, Switch, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -11,13 +11,18 @@ import {
   type ComparisonRow,
   type ComparisonVersion,
   type DifferenceOptions,
+  type MergeEdit,
+  type MergeEditor,
+  type MergeEdits,
   type MergeOptions,
   type MergeResolution,
   type MergeResolutions,
+  type MergeScopeEntry,
+  type MergeSourceDecision,
   type SearchOptions,
 } from '../core/comparison';
 import { buildMergeResult } from '../core/merge';
-import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
+import { copyComparisonRow, getContainerSummaries, getMergeEditors } from '../core/presentation';
 import {
   createRendererRegistry,
   type RendererOverrides,
@@ -65,8 +70,28 @@ export function RecursiveComparisonTable({
   expandedKeys,
   onExpandedChange,
   merge,
-  ...config
+  ...receivedConfig
 }: RecursiveComparisonTableProps) {
+  const config = useMemo<BuildComparisonConfig>(
+    () => ({
+      arrayItemKeyFields: receivedConfig.arrayItemKeyFields,
+      comparison: receivedConfig.comparison,
+      containerSummary: receivedConfig.containerSummary,
+      nodeSearchable: receivedConfig.nodeSearchable,
+      propertyDefinitions: receivedConfig.propertyDefinitions,
+      rules: receivedConfig.rules,
+      selection: receivedConfig.selection,
+    }),
+    [
+      receivedConfig.arrayItemKeyFields,
+      receivedConfig.comparison,
+      receivedConfig.containerSummary,
+      receivedConfig.nodeSearchable,
+      receivedConfig.propertyDefinitions,
+      receivedConfig.rules,
+      receivedConfig.selection,
+    ],
+  );
   const [query, setQuery] = useState('');
   const [onlyDifferences, setOnlyDifferences] = useState(
     config.comparison?.onlyDifferences ?? false,
@@ -75,6 +100,16 @@ export function RecursiveComparisonTable({
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
   const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
   const containerSummaries = useMemo(() => getContainerSummaries(rows), [rows]);
+  const mergeEditors = useMemo(() => getMergeEditors(rows), [rows]);
+  const structuredEditKeys = useMemo(
+    () =>
+      new Set(
+        [...mergeEditors.entries()]
+          .filter(([, editor]) => typeof editor === 'function')
+          .map(([resolutionKey]) => resolutionKey),
+      ),
+    [mergeEditors],
+  );
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -98,53 +133,153 @@ export function RecursiveComparisonTable({
   const [internalResolutions, setInternalResolutions] = useState<MergeResolutions>(() => ({
     ...(merge?.defaultValue ?? {}),
   }));
+  const [internalEdits, setInternalEdits] = useState<MergeEdits>(() => ({
+    ...(merge?.defaultEdits ?? {}),
+  }));
+  const [editErrors, setEditErrors] = useState<Readonly<Record<string, string>>>(() => ({}));
+  const [announcedInheritedRowId, setAnnouncedInheritedRowId] = useState<string>();
   const activeResolutions = merge?.value ?? internalResolutions;
+  const activeEdits = merge?.edits ?? internalEdits;
+  const usesEditedMergePlanner = mergeEnabled;
   const mergeResult = useMemo(
     () =>
       mergeEnabled
-        ? buildMergeResult(rows, versions, activeResolutions, baselineId, config.arrayItemKeyFields)
+        ? buildMergeResult(
+            rows,
+            versions,
+            activeResolutions,
+            baselineId,
+            config.arrayItemKeyFields,
+            usesEditedMergePlanner ? activeEdits : undefined,
+            structuredEditKeys,
+          )
         : undefined,
-    [activeResolutions, baselineId, config.arrayItemKeyFields, mergeEnabled, rows, versions],
+    [
+      activeEdits,
+      activeResolutions,
+      baselineId,
+      config.arrayItemKeyFields,
+      mergeEnabled,
+      rows,
+      usesEditedMergePlanner,
+      versions,
+      structuredEditKeys,
+    ],
   );
   const pendingControlledCompletion = useRef<{
-    proposal: MergeResolutions;
-    previous: MergeResolutions;
+    resolutions: MergeResolutions;
+    edits: MergeEdits;
+    previousResolutions: MergeResolutions;
+    previousEdits: MergeEdits;
+    completionProposed: boolean;
   }>();
   useEffect(() => {
     const pending = pendingControlledCompletion.current;
     if (!pending) return;
-    if (!mergeEnabled || merge?.value === undefined) {
+    if (!mergeEnabled) {
       pendingControlledCompletion.current = undefined;
       return;
     }
-    if (equalResolutions(merge.value, pending.proposal)) {
-      pendingControlledCompletion.current = undefined;
-      if (!mergeResult?.isComplete) return;
-      merge.onComplete?.(mergeResult);
+    const resolutionsMatch = equalResolutions(activeResolutions, pending.resolutions);
+    const editsMatch = equalEdits(activeEdits, pending.edits);
+    if (resolutionsMatch && editsMatch) {
+      if (pending.completionProposed && mergeResult?.isComplete) {
+        pendingControlledCompletion.current = undefined;
+        merge.onComplete?.(mergeResult);
+      } else {
+        pending.previousResolutions = activeResolutions;
+        pending.previousEdits = activeEdits;
+      }
       return;
     }
-    if (!equalResolutions(merge.value, pending.previous)) {
+    const resolutionsRemainExpected =
+      merge?.value === undefined ||
+      equalResolutions(activeResolutions, pending.previousResolutions) ||
+      resolutionsMatch;
+    const editsRemainExpected =
+      merge?.edits === undefined || equalEdits(activeEdits, pending.previousEdits) || editsMatch;
+    if (!resolutionsRemainExpected || !editsRemainExpected) {
       pendingControlledCompletion.current = undefined;
     }
-  }, [merge, mergeEnabled, mergeResult]);
+  }, [activeEdits, activeResolutions, merge, mergeEnabled, mergeResult]);
+  const rememberControlledProposal = (
+    nextResolutions: MergeResolutions,
+    nextEdits: MergeEdits,
+    nextComplete: boolean,
+  ) => {
+    if (merge?.value === undefined && merge?.edits === undefined) return false;
+    const pending = pendingControlledCompletion.current;
+    pendingControlledCompletion.current = {
+      resolutions: nextResolutions,
+      edits: nextEdits,
+      previousResolutions: pending?.previousResolutions ?? activeResolutions,
+      previousEdits: pending?.previousEdits ?? activeEdits,
+      completionProposed:
+        Boolean(pending?.completionProposed) ||
+        Boolean(mergeResult && !mergeResult.isComplete && nextComplete),
+    };
+    return true;
+  };
+  const proposalPair = (): { resolutions: MergeResolutions; edits: MergeEdits } => {
+    const pending = pendingControlledCompletion.current;
+    if (!pending) return { resolutions: activeResolutions, edits: activeEdits };
+    const resolutionsExpected =
+      merge?.value === undefined ||
+      equalResolutions(activeResolutions, pending.previousResolutions) ||
+      equalResolutions(activeResolutions, pending.resolutions);
+    const editsExpected =
+      merge?.edits === undefined ||
+      equalEdits(activeEdits, pending.previousEdits) ||
+      equalEdits(activeEdits, pending.edits);
+    if (resolutionsExpected && editsExpected) {
+      return { resolutions: pending.resolutions, edits: pending.edits };
+    }
+    pendingControlledCompletion.current = undefined;
+    return { resolutions: activeResolutions, edits: activeEdits };
+  };
   const publishMergeResolutions = (nextResolutions: MergeResolutions) => {
     if (!mergeEnabled || !mergeResult) return;
+    const pairedEdits = proposalPair().edits;
     const nextResult = buildMergeResult(
       rows,
       versions,
       nextResolutions,
       baselineId,
       config.arrayItemKeyFields,
+      usesEditedMergePlanner ? pairedEdits : undefined,
+      structuredEditKeys,
     );
     if (merge?.value === undefined) setInternalResolutions(nextResolutions);
-    else {
-      pendingControlledCompletion.current =
-        !mergeResult.isComplete && nextResult.isComplete
-          ? { proposal: nextResolutions, previous: activeResolutions }
-          : undefined;
-    }
+    const waitsForEcho = rememberControlledProposal(
+      nextResolutions,
+      pairedEdits,
+      nextResult.isComplete,
+    );
     merge?.onChange?.(nextResolutions, nextResult);
-    if (merge?.value === undefined && !mergeResult.isComplete && nextResult.isComplete) {
+    if (!waitsForEcho && !mergeResult.isComplete && nextResult.isComplete) {
+      merge?.onComplete?.(nextResult);
+    }
+  };
+  const publishMergeEdits = (nextEdits: MergeEdits) => {
+    if (!mergeEnabled || !mergeResult) return;
+    const pairedResolutions = proposalPair().resolutions;
+    const nextResult = buildMergeResult(
+      rows,
+      versions,
+      pairedResolutions,
+      baselineId,
+      config.arrayItemKeyFields,
+      nextEdits,
+      structuredEditKeys,
+    );
+    if (merge?.edits === undefined) setInternalEdits(nextEdits);
+    const waitsForEcho = rememberControlledProposal(
+      pairedResolutions,
+      nextEdits,
+      nextResult.isComplete,
+    );
+    merge?.onEditsChange?.(nextEdits, nextResult);
+    if (!waitsForEcho && !mergeResult.isComplete && nextResult.isComplete) {
       merge?.onComplete?.(nextResult);
     }
   };
@@ -155,26 +290,80 @@ export function RecursiveComparisonTable({
     });
   };
   const clearMergeResolution = (resolutionKey: string) => {
-    const nextResolutions: Record<string, MergeResolution> = { ...activeResolutions };
+    const nextResolutions: Record<string, MergeResolution> = {
+      ...activeResolutions,
+    };
     delete nextResolutions[resolutionKey];
+    setAnnouncedInheritedRowId(resolutionKey);
     publishMergeResolutions(nextResolutions);
   };
   const selectMergeSource = (row: ComparisonRow, versionId: string) => {
     updateMergeResolution(row.id, { kind: 'source', versionId });
   };
+  const updateMergeEdit = (row: ComparisonRow, edit: MergeEdit) => {
+    setEditErrors((errors) => {
+      if (!(row.id in errors)) return errors;
+      const next = { ...errors };
+      delete next[row.id];
+      return next;
+    });
+    publishMergeEdits({ ...activeEdits, [row.id]: edit });
+  };
+  const clearMergeEdit = (row: ComparisonRow) => {
+    const nextEdits: Record<string, MergeEdit> = { ...activeEdits };
+    delete nextEdits[row.id];
+    setAnnouncedInheritedRowId(row.id);
+    publishMergeEdits(nextEdits);
+  };
+  const explicitlyShowsContainerMergeControls =
+    config.arrayItemKeyFields !== undefined ||
+    merge?.edits !== undefined ||
+    merge?.defaultEdits !== undefined ||
+    merge?.onEditsChange !== undefined ||
+    hasContainerResolution(rows, activeResolutions);
+  const hierarchicalRowIds = useMemo(() => collectHierarchicalRowIds(rows), [rows]);
+  const soleRootResolutionKey = useMemo(() => {
+    const rootEntries = mergeResult?.scope.filter(
+      (entry) => entry.active && entry.parentResolutionKey === undefined,
+    );
+    return rootEntries?.length === 1 ? rootEntries[0]?.resolutionKey : undefined;
+  }, [mergeResult]);
   const mergeScopeByRowId = useMemo(
-    () => new Map(mergeResult?.scope.map((entry) => [entry.resolutionKey, entry]) ?? []),
+    () =>
+      new Map(
+        mergeResult?.scope
+          .filter(
+            (entry) =>
+              entry.role !== 'container' ||
+              !hierarchicalRowIds.has(entry.resolutionKey) ||
+              explicitlyShowsContainerMergeControls ||
+              entry.resolutionKey === soleRootResolutionKey,
+          )
+          .map((entry) => [entry.resolutionKey, entry]) ?? [],
+      ),
+    [explicitlyShowsContainerMergeControls, hierarchicalRowIds, mergeResult, soleRootResolutionKey],
+  );
+  const mergeDecisionByRowId = useMemo(
+    () =>
+      new Map(
+        mergeResult?.sourceDecisions
+          .filter((decision) => decision.kind !== 'stale')
+          .map((decision) => [decision.resolutionKey, decision]) ?? [],
+      ),
+    [mergeResult],
+  );
+  const unresolvedMergeRowIds = useMemo(
+    () =>
+      new Set(
+        mergeResult?.sourceDecisions
+          .filter((decision) => decision.kind === 'unresolved' || decision.kind === 'stale')
+          .map((decision) => decision.resolutionKey) ?? [],
+      ),
     [mergeResult],
   );
   const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
-      (entry) =>
-        entry.active &&
-        mergeResult.sourceDecisions.some(
-          (decision) =>
-            decision.resolutionKey === entry.resolutionKey &&
-            (decision.kind === 'unresolved' || decision.kind === 'stale'),
-        ),
+      (entry) => entry.active && unresolvedMergeRowIds.has(entry.resolutionKey),
     ),
   );
   const columns: ColumnsType<ComparisonRow> = [
@@ -233,23 +422,21 @@ export function RecursiveComparisonTable({
             !scopeEntry?.active ||
             scopeEntry.role === 'keyed-presence' ||
             !scopeEntry.allowedSourceVersionIds.includes(version.id) ||
-            (!isMergeDecisionRow(row) && scopeEntry.role !== 'non-keyed-array')
+            (!isMergeDecisionRow(row) && scopeEntry.role === 'value')
           ) {
             return value;
           }
           const resolution = activeResolutions[row.id];
           const checked = resolution?.kind === 'source' && resolution.versionId === version.id;
           return (
-            <label>
-              <input
-                type="radio"
-                name={`merge-source-${row.id}`}
-                aria-label={`${row.property.path.join('.')} ${version.label}`}
-                checked={checked}
-                onChange={() => selectMergeSource(row, version.id)}
-              />
+            <Radio
+              name={`merge-source-${row.id}`}
+              aria-label={`${row.property.path.join('.')} ${version.label}`}
+              checked={checked}
+              onChange={() => selectMergeSource(row, version.id)}
+            >
               {value}
-            </label>
+            </Radio>
           );
         },
       };
@@ -266,13 +453,13 @@ export function RecursiveComparisonTable({
                 row.id,
               );
               const clearButton = hasManualResolution ? (
-                <button
-                  type="button"
+                <Button
                   aria-label={`Clear ${row.property.path.join('.')}`}
+                  size="small"
                   onClick={() => clearMergeResolution(row.id)}
                 >
                   Clear
-                </button>
+                </Button>
               ) : null;
               if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
                 const resolution = activeResolutions[row.id];
@@ -283,66 +470,138 @@ export function RecursiveComparisonTable({
                       const version = versions.find((candidate) => candidate.id === versionId);
                       if (!version) return null;
                       return (
-                        <label key={versionId}>
-                          <input
-                            type="radio"
-                            name={`merge-presence-${row.id}`}
-                            aria-label={`${pathLabel} Include from ${version.label}`}
-                            checked={
-                              resolution?.kind === 'source' && resolution.versionId === versionId
-                            }
-                            onChange={() =>
-                              updateMergeResolution(row.id, { kind: 'source', versionId })
-                            }
-                          />
+                        <Radio
+                          key={versionId}
+                          name={`merge-presence-${row.id}`}
+                          aria-label={`${pathLabel} Include from ${version.label}`}
+                          checked={
+                            resolution?.kind === 'source' && resolution.versionId === versionId
+                          }
+                          onChange={() =>
+                            updateMergeResolution(row.id, { kind: 'source', versionId })
+                          }
+                        >
                           Include from {version.label}
-                        </label>
+                        </Radio>
                       );
                     })}
-                    <label>
-                      <input
-                        type="radio"
-                        name={`merge-presence-${row.id}`}
-                        aria-label={`${pathLabel} Exclude`}
-                        checked={resolution?.kind === 'exclude'}
-                        onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
-                      />
+                    <Radio
+                      name={`merge-presence-${row.id}`}
+                      aria-label={`${pathLabel} Exclude`}
+                      checked={resolution?.kind === 'exclude'}
+                      onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
+                    >
                       Exclude
-                    </label>
+                    </Radio>
                     {clearButton}
+                    {resolution && <span aria-live="polite">Complete</span>}
                   </div>
                 );
               }
               if (!scopeEntry) return null;
-              if (row.children?.length && scopeEntry.role !== 'non-keyed-array') return null;
-              const decision = mergeResult?.sourceDecisions.find(
-                (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
-              );
+              const decision = mergeDecisionByRowId.get(row.id);
+              const edit = activeEdits[row.id];
+              const hasManualEdit = Object.prototype.hasOwnProperty.call(activeEdits, row.id);
+              const editClearButton = hasManualEdit ? (
+                <Button
+                  aria-label={`Clear edit ${row.property.path.join('.')}`}
+                  size="small"
+                  onClick={() => clearMergeEdit(row)}
+                >
+                  Clear edit
+                </Button>
+              ) : null;
+              const inherited =
+                !hasManualResolution && !edit
+                  ? findInheritedResolution(
+                      scopeEntry,
+                      mergeScopeByRowId,
+                      activeResolutions,
+                      versions,
+                    )
+                  : undefined;
+              const editor =
+                usesEditedMergePlanner && scopeEntry.active && scopeEntry.role === 'value' ? (
+                  <MergeValueEditor
+                    row={row}
+                    edit={edit}
+                    sourceDecision={decision}
+                    editor={mergeEditors.get(row.id)}
+                    error={editErrors[row.id]}
+                    onError={(error) =>
+                      setEditErrors((errors) => {
+                        const next = { ...errors };
+                        if (error) next[row.id] = error;
+                        else delete next[row.id];
+                        return next;
+                      })
+                    }
+                    onEdit={(nextEdit) => updateMergeEdit(row, nextEdit)}
+                    onClear={() => clearMergeEdit(row)}
+                  />
+                ) : null;
+              if (edit) {
+                const displayVersion =
+                  versions.find(
+                    (candidate) =>
+                      decision &&
+                      'sourceVersionId' in decision &&
+                      candidate.id === decision.sourceVersionId,
+                  ) ?? versions[0];
+                return (
+                  <div>
+                    {edit.kind === 'set' && displayVersion
+                      ? renderCellValue(
+                          row,
+                          edit.value,
+                          displayVersion,
+                          registry,
+                          renderers,
+                          containerSummaries.get(row.id),
+                          config.containerSummary,
+                        )
+                      : 'Deleted'}
+                    {editor}
+                    {editClearButton}
+                    {clearButton}
+                  </div>
+                );
+              }
               if (!decision || !('sourceVersionId' in decision)) {
                 return (
-                  <>
-                    Unresolved
+                  <div>
+                    <span>Unresolved</span>
+                    {editor}
+                    {editClearButton}
                     {clearButton}
-                  </>
+                  </div>
                 );
               }
               const version = versions.find(
                 (candidate) => candidate.id === decision.sourceVersionId,
               );
+              const finalValue = version
+                ? renderValue(
+                    row,
+                    version,
+                    registry,
+                    renderers,
+                    containerSummaries.get(row.id),
+                    config.containerSummary,
+                  )
+                : 'Unresolved';
               return (
-                <>
-                  {version
-                    ? renderValue(
-                        row,
-                        version,
-                        registry,
-                        renderers,
-                        containerSummaries.get(row.id),
-                        config.containerSummary,
-                      )
-                    : 'Unresolved'}
+                <div>
+                  {finalValue}
+                  {inherited && announcedInheritedRowId === row.id && (
+                    <span aria-live="polite">
+                      Inherited from {inherited.path}: {inherited.versionLabel}
+                    </span>
+                  )}
+                  {editor}
+                  {editClearButton}
                   {clearButton}
-                </>
+                </div>
               );
             },
           },
@@ -369,7 +628,9 @@ export function RecursiveComparisonTable({
           />
           <Typography.Text>仅显示差异（{countRows(differenceRows)}）</Typography.Text>
         </Space>
-        {mergeEnabled && needsMergeSelection && <span aria-live="polite">Needs selection</span>}
+        {mergeEnabled && (
+          <span aria-live="polite">{needsMergeSelection ? 'Needs selection' : 'Complete'}</span>
+        )}
       </div>
       <Table<ComparisonRow>
         rowKey="id"
@@ -398,6 +659,30 @@ export function RecursiveComparisonTable({
 function isMergeDecisionRow(row: ComparisonRow): boolean {
   return Boolean(row.hasOwnDifference && !row.children?.length);
 }
+function hasContainerResolution(
+  rows: readonly ComparisonRow[],
+  resolutions: MergeResolutions,
+): boolean {
+  return rows.some(
+    (row) =>
+      (Boolean(row.children?.length) &&
+        Object.prototype.hasOwnProperty.call(resolutions, row.id)) ||
+      hasContainerResolution(row.children ?? [], resolutions),
+  );
+}
+function collectHierarchicalRowIds(rows: readonly ComparisonRow[]): ReadonlySet<string> {
+  const result = new Set<string>();
+  const visit = (currentRows: readonly ComparisonRow[]) => {
+    currentRows.forEach((row) => {
+      if (row.children?.length) {
+        result.add(row.id);
+        visit(row.children);
+      }
+    });
+  };
+  visit(rows);
+  return result;
+}
 function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
@@ -413,6 +698,177 @@ function equalResolutions(left: MergeResolutions, right: MergeResolutions): bool
       );
     })
   );
+}
+function equalEdits(left: MergeEdits, right: MergeEdits): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) => {
+      const leftValue = left[key];
+      const rightValue = right[key];
+      return (
+        leftValue?.kind === rightValue?.kind &&
+        (leftValue?.kind !== 'set' ||
+          (rightValue?.kind === 'set' && Object.is(leftValue.value, rightValue.value)))
+      );
+    })
+  );
+}
+function findInheritedResolution(
+  scopeEntry: MergeScopeEntry,
+  scopeByRowId: ReadonlyMap<string, MergeScopeEntry>,
+  resolutions: MergeResolutions,
+  versions: readonly ComparisonVersion[],
+): { path: string; versionLabel: string } | undefined {
+  let parentKey = scopeEntry.parentResolutionKey;
+  while (parentKey) {
+    const resolution = resolutions[parentKey];
+    if (resolution?.kind === 'source') {
+      const parent = scopeByRowId.get(parentKey);
+      const version = versions.find((candidate) => candidate.id === resolution.versionId);
+      if (parent && version) {
+        return { path: parent.path.join('.'), versionLabel: version.label };
+      }
+    }
+    parentKey = scopeByRowId.get(parentKey)?.parentResolutionKey;
+  }
+  return undefined;
+}
+function MergeValueEditor({
+  row,
+  edit,
+  sourceDecision,
+  editor,
+  error,
+  onError,
+  onEdit,
+  onClear,
+}: {
+  row: ComparisonRow;
+  edit?: MergeEdit;
+  sourceDecision?: MergeSourceDecision;
+  editor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
+  error?: string;
+  onError: (error?: string) => void;
+  onEdit: (edit: MergeEdit) => void;
+  onClear: () => void;
+}) {
+  const pathLabel = row.property.path.join('.');
+  const sourceVersionId =
+    sourceDecision && 'sourceVersionId' in sourceDecision
+      ? sourceDecision.sourceVersionId
+      : undefined;
+  const sourceValue = sourceVersionId
+    ? row.values[sourceVersionId]
+    : Object.values(row.values).find((value) => value !== undefined);
+  const editValue = edit?.kind === 'set' ? edit.value : sourceValue;
+  if (editor === false) return null;
+  if (typeof editor === 'function') {
+    const CustomEditor = editor;
+    return (
+      <div className="comparison-merge-editor">
+        <CustomEditor
+          path={[...row.property.path]}
+          value={editValue}
+          invalid={Boolean(error)}
+          error={error}
+          onCommit={(nextEdit) => {
+            const validationError = validateCustomMergeEdit(pathLabel, nextEdit);
+            if (validationError) {
+              onError(validationError);
+              return;
+            }
+            onError(undefined);
+            onEdit(nextEdit);
+          }}
+          onClear={onClear}
+        />
+      </div>
+    );
+  }
+  const valueType = editor ?? getPropertyType(sourceValue);
+  const invalid = Boolean(error);
+  const controls = (() => {
+    if (valueType === 'number') {
+      const numberValue =
+        typeof editValue === 'number' && Number.isFinite(editValue) ? editValue : null;
+      return (
+        <InputNumber
+          type="number"
+          aria-label={`Edit ${pathLabel}`}
+          aria-invalid={invalid}
+          value={numberValue}
+          onChange={(value) => {
+            if (typeof value === 'number' && Number.isFinite(value)) {
+              onError(undefined);
+              onEdit({ kind: 'set', value });
+            } else {
+              onError(`${pathLabel} must be a finite number`);
+            }
+          }}
+          onBlur={(event) => {
+            const value = event.currentTarget.value.trim();
+            if (value !== '' && !Number.isFinite(Number(value))) {
+              onError(`${pathLabel} must be a finite number`);
+            }
+          }}
+        />
+      );
+    }
+    if (valueType === 'boolean') {
+      return (
+        <Switch
+          aria-label={`Edit ${pathLabel}`}
+          checked={typeof editValue === 'boolean' ? editValue : false}
+          onChange={(value) => onEdit({ kind: 'set', value })}
+        />
+      );
+    }
+    return (
+      <Input
+        aria-label={`Edit ${pathLabel}`}
+        value={typeof editValue === 'string' ? editValue : ''}
+        onChange={(event) => onEdit({ kind: 'set', value: event.target.value })}
+      />
+    );
+  })();
+  return (
+    <div className="comparison-merge-editor">
+      {controls}
+      <Button
+        size="small"
+        aria-label={`Set ${pathLabel} to null`}
+        onClick={() => onEdit({ kind: 'set', value: null })}
+      >
+        Null
+      </Button>
+      <Button
+        size="small"
+        aria-label={`Delete ${pathLabel}`}
+        onClick={() => onEdit({ kind: 'delete' })}
+      >
+        Delete
+      </Button>
+      {error && <span role="alert">{error}</span>}
+    </div>
+  );
+}
+function validateCustomMergeEdit(pathLabel: string, edit: MergeEdit): string | undefined {
+  if (edit.kind === 'delete') return undefined;
+  const value = edit.value;
+  if (value instanceof Date) return undefined;
+  if (Array.isArray(value)) return `${pathLabel}: unsupported array edit value`;
+  if (value !== null && typeof value === 'object') {
+    return `${pathLabel}: unsupported object edit value`;
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    return `${pathLabel}: unsupported non-finite number edit value`;
+  }
+  if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+    return `${pathLabel}: unsupported ${typeof value} edit value`;
+  }
+  return undefined;
 }
 function PropertyCell({
   row,
@@ -517,7 +973,25 @@ function renderValue(
   resolvedSummary: BuildComparisonConfig['containerSummary'],
   tableSummary: BuildComparisonConfig['containerSummary'],
 ) {
-  const value = row.values[version.id];
+  return renderCellValue(
+    row,
+    row.values[version.id],
+    version,
+    registry,
+    overrides,
+    resolvedSummary,
+    tableSummary,
+  );
+}
+function renderCellValue(
+  row: ComparisonRow,
+  value: unknown,
+  version: ComparisonVersion,
+  registry: RendererRegistry,
+  overrides: RendererOverrides | undefined,
+  resolvedSummary: BuildComparisonConfig['containerSummary'],
+  tableSummary: BuildComparisonConfig['containerSummary'],
+) {
   const context = {
     key: row.property.key,
     path: row.property.path,

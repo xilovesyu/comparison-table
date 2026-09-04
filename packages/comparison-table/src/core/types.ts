@@ -35,6 +35,8 @@ export interface PropertyDefinition {
   renderValue?: ValueRenderer;
   /** Display-only formatter for plain object or array cells. */
   containerSummary?: ContainerSummary;
+  /** Raw-value editor used by Final; it commits raw data and never reads renderer output. */
+  readonly mergeEditor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   /** Reserved metadata for consumers describing explicit expandability. */
   expandable?: boolean;
   /** Reserved metadata for consumers describing default expansion. */
@@ -93,6 +95,8 @@ export interface DisplayRule {
   renderer?: string;
   /** Display-only formatter for plain object or array cells matched by this rule. */
   containerSummary?: ContainerSummary;
+  /** Raw-value editor used by Final; it commits raw data and never reads renderer output. */
+  readonly mergeEditor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   /** Diff badge inherited by descendants unless they override it. */
   differenceIndicator?: DifferenceIndicatorSetting;
   /** Subtree-search affordance inherited by descendants unless overridden. */
@@ -150,6 +154,26 @@ export type MergeResolution =
  * Composite keyed identities must be externally materialized as a canonical string.
  */
 export type MergeResolutions = Readonly<Record<MergeResolutionKey, MergeResolution>>;
+
+/** One committed primitive raw-value edit, addressed by a comparison row id. */
+export type MergeEdit = Readonly<{ kind: 'set'; value: unknown }> | Readonly<{ kind: 'delete' }>;
+
+/** Props supplied to a custom raw-value merge editor. */
+export interface MergeEditorProps {
+  readonly path: PropertyPath;
+  readonly value: unknown;
+  readonly disabled?: boolean;
+  readonly invalid?: boolean;
+  readonly error?: string;
+  readonly onCommit: (edit: MergeEdit) => void;
+  readonly onClear: () => void;
+}
+
+/** Renders a custom raw-value editor for the opt-in Final merge column. */
+export type MergeEditor = (props: MergeEditorProps) => React.ReactNode;
+
+/** Committed raw edits keyed exactly by row id and controlled independently from source value choices. */
+export type MergeEdits = Readonly<Record<MergeResolutionKey, MergeEdit>>;
 /** Semantic role of an entry in the active merge scope. */
 export type MergeScopeRole = 'value' | 'keyed-presence' | 'container' | 'non-keyed-array';
 
@@ -216,11 +240,24 @@ export type MergePatch =
       origin: 'automatic-baseline' | 'user-source';
     }>
   | Readonly<{
+      op: 'set';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      value: unknown;
+      origin: 'user-edit';
+    }>
+  | Readonly<{
       op: 'delete';
       resolutionKey: MergeResolutionKey;
       path: PropertyPath;
       sourceVersionId: string;
       origin: 'automatic-baseline' | 'user-source';
+    }>
+  | Readonly<{
+      op: 'delete';
+      resolutionKey: MergeResolutionKey;
+      path: PropertyPath;
+      origin: 'user-edit';
     }>
   | Readonly<{
       op: 'include-keyed-item';
@@ -244,8 +281,12 @@ export interface MergeResult<T = unknown> {
    * Values that cannot be cloned, including functions and symbols, fail with path/type context.
    */
   readonly mergedData: T;
-  /** Resolved raw-value updates within the current scope. */
+  /**
+   * Canonical, stable, non-overlap raw operations. Consumers migrating from source-only merge
+   * results should apply this patch once in order rather than recomputing edits from rendered cells.
+   */
   readonly resolvedPatch: readonly MergePatch[];
+  /** The resolvedPatch contract is canonical, stable, and non-overlap for migrations. */
   /** Entries included by the current comparison configuration. */
   readonly scope: readonly MergeScopeEntry[];
   /** Direct-difference paths that still require a source choice. */
@@ -266,12 +307,18 @@ export interface MergeOptions<T = unknown> {
   readonly value?: MergeResolutions;
   /** Initial source choices for uncontrolled usage. */
   readonly defaultValue?: MergeResolutions;
+  /** Controlled committed primitive edits. */
+  readonly edits?: MergeEdits;
+  /** Initial committed primitive edits for uncontrolled usage. */
+  readonly defaultEdits?: MergeEdits;
   /** Receives the next source choices and derived immutable result. */
   readonly onChange?: (value: MergeResolutions, result: MergeResult<T>) => void;
+  /** Receives the next independent edit record and derived immutable result. */
+  readonly onEditsChange?: (edits: MergeEdits, result: MergeResult<T>) => void;
   /**
    * `onComplete` fires once after a user proposal transitions the effective result from incomplete to
-   * complete. In controlled mode this waits for parent writeback; mount does not fire it, nor do
-   * external replacements.
+   * complete. In controlled mode the value/source and edits pair must both echo from the parent;
+   * mount does not fire it, nor do external replacements.
    */
   readonly onComplete?: (result: MergeResult<T>) => void;
 }

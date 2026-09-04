@@ -265,6 +265,130 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/containerSummary=/);
   });
 
+  it.each([
+    {
+      id: 'final-merge' as const,
+      title: '最终版本合并',
+      childPath: 'customer.name',
+      childValue: 'Mia Zhang',
+    },
+    {
+      id: 'advanced-configuration' as const,
+      title: '综合高级配置',
+      childPath: 'customer.tier',
+      childValue: 'PLATINUM',
+    },
+  ])(
+    'keeps Final before Advanced and demonstrates container inheritance plus keyed item and presence choices in $title',
+    ({ id, childPath, childValue }) => {
+      const finalIndex = navigationExamples.findIndex(([exampleId]) => exampleId === 'final-merge');
+      const advancedIndex = navigationExamples.findIndex(
+        ([exampleId]) => exampleId === 'advanced-configuration',
+      );
+      expect(navigationExamples).toHaveLength(13);
+      expect(finalIndex).toBe(advancedIndex - 1);
+
+      const card = renderExample(id);
+      const containerSource = within(card).getByRole('radio', {
+        name: /^customer 复核版$/i,
+      });
+      expect(containerSource).toHaveClass('ant-radio-input');
+      fireEvent.click(containerSource);
+      expect(containerSource).toBeChecked();
+
+      const childRow = card.querySelector(
+        `tr[data-row-key='${JSON.stringify(childPath.split('.'))}']`,
+      ) as HTMLElement;
+      expect(childRow).toBeInTheDocument();
+      expect(
+        within(childRow.querySelector('td:last-child') as HTMLElement).getByText(childValue),
+      ).toBeInTheDocument();
+      expect(within(card).getByRole('radio', { name: /^lines 复核版$/i })).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: /^lines\.P-100 复核版$/i }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', {
+          name: /^lines\.P-300 Include from 复核版$/i,
+        }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    {
+      id: 'final-merge' as const,
+      title: 'Final',
+      primitivePath: 'customer.name',
+      customPath: 'lines.P-100.quantity',
+    },
+    {
+      id: 'advanced-configuration' as const,
+      title: 'Advanced',
+      primitivePath: 'customer.tier',
+      customPath: 'billing.money.amount',
+    },
+  ])(
+    'demonstrates controlled raw edits and a custom mergeEditor in the $title example',
+    ({ id, primitivePath, customPath }) => {
+      const card = renderExample(id);
+
+      expect(within(card).getByLabelText(`Edit ${primitivePath}`)).toBeInTheDocument();
+      expect(within(card).getByLabelText(`Edit ${customPath}`)).toBeInTheDocument();
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+      const sourceText = sourcePanel.textContent ?? '';
+      expect(sourceText).toMatch(/type MergeEdits/);
+      expect(sourceText).toMatch(/const \[edits, setEdits\]/);
+      expect(sourceText).toMatch(/\bedits,?/);
+      expect(sourceText).toMatch(/onEditsChange/);
+      expect(sourceText).toMatch(/mergeEditor/);
+    },
+  );
+
+  it.each([
+    ['final-merge', '最终版本合并'],
+    ['advanced-configuration', '综合高级配置'],
+  ] as const)(
+    'keeps controlled and default source/edit modes plus raw source copy synchronized in %s',
+    (id, _title) => {
+      const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+      const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText },
+      });
+      try {
+        const card = renderExample(id);
+        const defaultModeButton = within(card).getByRole('button', {
+          name: /uncontrolled defaultValue.*defaultEdits/i,
+        });
+        expect(defaultModeButton).toHaveClass('ant-btn');
+
+        fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+        const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+        expect(sourcePanel.textContent).toMatch(/defaultValue/);
+        expect(sourcePanel.textContent).toMatch(/defaultEdits/);
+        expect(sourcePanel.textContent).toMatch(/onEditsChange/);
+        fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+        expect(writeText).toHaveBeenCalledTimes(1);
+        const copiedSource = writeText.mock.calls[0]?.[0] ?? '';
+        expect(copiedSource).toContain('defaultEdits');
+        expect(copiedSource).toContain('onEditsChange');
+        expect(copiedSource).toContain('mergeEditor');
+
+        fireEvent.click(defaultModeButton);
+        expect(
+          within(card).getByText(/defaultValue.*defaultEdits.*未触发完成提交/i),
+        ).toBeInTheDocument();
+        expect(within(card).getByRole('button', { name: /^Clear edit /i })).toBeInTheDocument();
+      } finally {
+        if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+        else Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    },
+  );
+
   it('integrates the unkeyed atomic array into Advanced and keeps its raw source and copy action in sync', () => {
     const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());

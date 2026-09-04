@@ -1,5 +1,5 @@
 import { Button, Card, Typography } from 'antd';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { DemoExampleIdContext } from '../demoContext';
 
 interface ExampleCardProps {
@@ -7,12 +7,21 @@ interface ExampleCardProps {
   description: string;
   code: string;
   children: React.ReactNode;
+  sourceResetKey?: unknown;
 }
 
-export function ExampleCard({ title, description, code, children }: ExampleCardProps) {
+export function ExampleCard({
+  title,
+  description,
+  code,
+  children,
+  sourceResetKey,
+}: ExampleCardProps) {
   const [open, setOpen] = useState(false);
   const exampleId = useContext(DemoExampleIdContext);
   const headingId = exampleId ? `example-${exampleId}-heading` : undefined;
+
+  useEffect(() => setOpen(false), [sourceResetKey]);
 
   return (
     <Card aria-labelledby={headingId} className="example-card">

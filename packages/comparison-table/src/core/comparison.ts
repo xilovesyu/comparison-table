@@ -6,6 +6,7 @@ import type {
   DifferenceIndicatorSetting,
   DifferenceOptions,
   DisplayRule,
+  MergeEditor,
   PropertyContext,
   PropertyDefinition,
   PropertyMatcher,
@@ -13,7 +14,11 @@ import type {
   PropertyType,
   SearchOptions,
 } from './types';
-import { copyComparisonRow, registerContainerSummaries } from './presentation';
+import {
+  copyComparisonRow,
+  registerContainerSummaries,
+  registerMergeEditors,
+} from './presentation';
 
 /** Serializes a property path into the stable row/expansion key used by the table. */
 export const pathId = (path: PropertyPath): string => JSON.stringify(path);
@@ -53,8 +58,11 @@ export function buildComparisonRows(
       );
   const containerSummaries = new Map<string, ContainerSummary>();
   collectContainerSummaries(rows, containerSummaries);
+  const mergeEditors = new Map<string, false | 'text' | 'number' | 'boolean' | MergeEditor>();
+  collectMergeEditors(rows, mergeEditors);
   const markedRows = markDifferences(rows, versions, config.comparison, config.arrayItemKeyFields);
   registerContainerSummaries(markedRows, containerSummaries);
+  registerMergeEditors(markedRows, mergeEditors);
   return markedRows;
 }
 /** Filters rows by label and/or raw version values while retaining matching ancestors. */
@@ -316,7 +324,11 @@ function row(
   itemIdentity?: string,
 ): ComparisonRow {
   const definitionLabel = def?.label ?? displayLabel(key, path, itemIdentity);
-  const { containerSummary: definitionSummary, ...definitionMetadata } = def ?? {};
+  const {
+    containerSummary: definitionSummary,
+    mergeEditor: definitionMergeEditor,
+    ...definitionMetadata
+  } = def ?? {};
   const property: PropertyDefinition = {
     ...definitionMetadata,
     key,
@@ -331,6 +343,8 @@ function row(
     renderer: displayRule?.renderer ?? def?.renderer,
   };
   const summary = definitionSummary ?? displayRule?.containerSummary;
+  const mergeEditor =
+    definitionMergeEditor !== undefined ? definitionMergeEditor : displayRule?.mergeEditor;
   const result: ComparisonRow = {
     id: pathId(path),
     property,
@@ -346,9 +360,14 @@ function row(
       : undefined,
   };
   if (summary) rowContainerSummaries.set(result, summary);
+  if (mergeEditor !== undefined) rowMergeEditors.set(result, mergeEditor);
   return result;
 }
 const rowContainerSummaries = new WeakMap<ComparisonRow, ContainerSummary>();
+const rowMergeEditors = new WeakMap<
+  ComparisonRow,
+  false | 'text' | 'number' | 'boolean' | MergeEditor
+>();
 function collectContainerSummaries(
   rows: readonly ComparisonRow[],
   target: Map<string, ContainerSummary>,
@@ -357,6 +376,16 @@ function collectContainerSummaries(
     const summary = rowContainerSummaries.get(current);
     if (summary) target.set(current.id, summary);
     collectContainerSummaries(current.children ?? [], target);
+  });
+}
+function collectMergeEditors(
+  rows: readonly ComparisonRow[],
+  target: Map<string, false | 'text' | 'number' | 'boolean' | MergeEditor>,
+): void {
+  rows.forEach((current) => {
+    const editor = rowMergeEditors.get(current);
+    if (editor !== undefined) target.set(current.id, editor);
+    collectMergeEditors(current.children ?? [], target);
   });
 }
 interface RowDisplayControls {
@@ -691,6 +720,10 @@ export type {
   DifferenceOptions,
   DisplayRule,
   KeyedArrayTarget,
+  MergeEdit,
+  MergeEdits,
+  MergeEditor,
+  MergeEditorProps,
   MergeOptions,
   MergePatch,
   MergeResolution,
