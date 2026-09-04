@@ -54,12 +54,27 @@ afterEach(() => {
 });
 
 describe('documentation examples', () => {
-  it('shows the documented comparison scenarios', () => {
+  it('publishes the documented scenario metadata, links, groups, and order from one App render', () => {
+    setExampleHash();
+    render(<App />);
+
+    const directory = navigation();
+    expect(within(directory).getAllByRole('group')).toHaveLength(5);
+    expect(within(directory).getAllByRole('button', { name: /展开|收起/ })).toHaveLength(5);
+
     for (const [id, title] of navigationExamples) {
-      const card = renderExample(id);
-      expect(within(card).getByRole('heading', { name: title })).toBeInTheDocument();
-      cleanup();
+      expect(within(directory).getByRole('link', { name: title })).toHaveAttribute(
+        'href',
+        `#example-${id}`,
+      );
     }
+    expect(
+      within(directory)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(navigationExamples.map(([, title]) => title));
+    expect(navigationGroups.every((group) => directory.textContent?.includes(group))).toBe(true);
+    expect(within(directory).getAllByRole('link').at(-1)).toHaveTextContent('综合高级配置');
   });
 
   it('reveals a source panel for each example', () => {
@@ -691,86 +706,111 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/approvalStatus/);
   });
 
-  it.each([
+  const mergeVisibilityExamples = [
     {
       id: 'final-merge' as const,
+      title: '最终版本合并',
       radioName: /^customer\.name 复核版$/i,
       parentLabel: 'customer',
       finalValue: 'Mia Zhang',
     },
     {
       id: 'advanced-configuration' as const,
+      title: '综合高级配置',
       radioName: /^billing\.money\.amount 复核版$/i,
       parentLabel: '结算金额（可展开）',
       finalValue: '1,100',
     },
-  ])(
-    'keeps the $id Final decision and raw value through difference, search, node-search, and expansion visibility',
-    ({ id, radioName, parentLabel, finalValue }) => {
-      const card = renderExample(id);
-      const radio = within(card).getByRole('radio', { name: radioName });
-      fireEvent.click(radio);
-      expect(radio).toBeChecked();
+  ] as const;
 
-      const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
-      expect(within(finalCell).getByText(finalValue)).toBeInTheDocument();
+  function renderSelectedMergeExample({
+    id,
+    title,
+    radioName,
+    finalValue,
+  }: (typeof mergeVisibilityExamples)[number]) {
+    setExampleHash(id);
+    render(<App />);
+    const card = exampleCard(title);
+    const radio = within(card).getByRole('radio', { name: radioName });
+    fireEvent.click(radio);
+    expect(radio).toBeChecked();
+    const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+    expect(within(finalCell).getByText(finalValue)).toBeInTheDocument();
+    return { card, radio };
+  }
 
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through only-differences visibility',
+    (example) => {
+      const { card, radio } = renderSelectedMergeExample(example);
       fireEvent.click(within(card).getByRole('switch', { name: 'Only show differences' }));
-      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+      expect(radio).toBeChecked();
+      const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(example.finalValue)).toBeInTheDocument();
+    },
+  );
 
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through global-search visibility',
+    (example) => {
+      const { card } = renderSelectedMergeExample(example);
       const globalSearch = within(card).getByLabelText('Search comparison');
       fireEvent.change(globalSearch, { target: { value: '__no_matching_property__' } });
-      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: example.radioName }),
+      ).not.toBeInTheDocument();
       fireEvent.change(globalSearch, { target: { value: '' } });
-      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+      const restoredRadio = within(card).getByRole('radio', { name: example.radioName });
+      expect(restoredRadio).toBeChecked();
+      const finalCell = restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(example.finalValue)).toBeInTheDocument();
+    },
+  );
 
-      fireEvent.click(within(card).getByRole('button', { name: `Search within ${parentLabel}` }));
-      const nodeSearch = within(card).getByLabelText(`Filter ${parentLabel} children`);
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through node-search visibility',
+    (example) => {
+      const { card } = renderSelectedMergeExample(example);
+      fireEvent.click(
+        within(card).getByRole('button', { name: `Search within ${example.parentLabel}` }),
+      );
+      const nodeSearch = within(card).getByLabelText(`Filter ${example.parentLabel} children`);
       fireEvent.change(nodeSearch, { target: { value: '__no_matching_child__' } });
-      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: example.radioName }),
+      ).not.toBeInTheDocument();
       fireEvent.change(nodeSearch, { target: { value: '' } });
-      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+      const restoredRadio = within(card).getByRole('radio', { name: example.radioName });
+      expect(restoredRadio).toBeChecked();
+      const finalCell = restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(example.finalValue)).toBeInTheDocument();
+    },
+  );
 
-      const parentRow = within(card).getByText(parentLabel).closest('tr') as HTMLElement;
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through collapse and expansion visibility',
+    (example) => {
+      const { card } = renderSelectedMergeExample(example);
+      const parentRow = within(card).getByText(example.parentLabel).closest('tr') as HTMLElement;
       const expandButton = parentRow.querySelector('.ant-table-row-expand-icon') as HTMLElement;
       fireEvent.click(expandButton);
-      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: example.radioName }),
+      ).not.toBeInTheDocument();
       fireEvent.click(expandButton);
-      const restoredRadio = within(card).getByRole('radio', { name: radioName });
+      const restoredRadio = within(card).getByRole('radio', { name: example.radioName });
       expect(restoredRadio).toBeChecked();
       expect(
         within(
           restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement,
-        ).getByText(finalValue),
+        ).getByText(example.finalValue),
       ).toBeInTheDocument();
     },
   );
 });
 
 describe('Issue #5 demo directory navigation', () => {
-  it('publishes the fourteen actual examples as stable catalog links in five groups, with localized text before Advanced last', () => {
-    setExampleHash();
-    render(<App />);
-
-    const directory = navigation();
-    expect(within(directory).getAllByRole('group')).toHaveLength(5);
-    expect(within(directory).getAllByRole('button', { name: /展开|收起/ })).toHaveLength(5);
-
-    for (const [id, title] of navigationExamples) {
-      expect(within(directory).getByRole('link', { name: title })).toHaveAttribute(
-        'href',
-        `#example-${id}`,
-      );
-    }
-    expect(
-      within(directory)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual(navigationExamples.map(([, title]) => title));
-    expect(navigationGroups.every((group) => directory.textContent?.includes(group))).toBe(true);
-    expect(within(directory).getAllByRole('link').at(-1)).toHaveTextContent('综合高级配置');
-  });
-
   it.each([
     ['', '基础递归对比', ''],
     ['#example-basic', '基础递归对比', '#example-basic-recursive'],
@@ -897,12 +937,15 @@ describe('Issue #5 demo directory navigation', () => {
   });
 
   it.each(navigationExamples)(
-    'routes %s through its directory entry and retains source plus copy actions',
-    (_id, title) => {
-      setExampleHash();
+    'cold-starts %s through its stable hash and retains directory, source, and copy actions',
+    (id, title) => {
+      setExampleHash(id);
       render(<App />);
 
-      fireEvent.click(within(navigation()).getByRole('link', { name: title }));
+      expect(within(navigation()).getByRole('link', { name: title })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
       const card = exampleCard(title);
       expect(card).toBeVisible();
       fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
