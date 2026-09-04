@@ -70,8 +70,28 @@ export function RecursiveComparisonTable({
   expandedKeys,
   onExpandedChange,
   merge,
-  ...config
+  ...receivedConfig
 }: RecursiveComparisonTableProps) {
+  const config = useMemo<BuildComparisonConfig>(
+    () => ({
+      arrayItemKeyFields: receivedConfig.arrayItemKeyFields,
+      comparison: receivedConfig.comparison,
+      containerSummary: receivedConfig.containerSummary,
+      nodeSearchable: receivedConfig.nodeSearchable,
+      propertyDefinitions: receivedConfig.propertyDefinitions,
+      rules: receivedConfig.rules,
+      selection: receivedConfig.selection,
+    }),
+    [
+      receivedConfig.arrayItemKeyFields,
+      receivedConfig.comparison,
+      receivedConfig.containerSummary,
+      receivedConfig.nodeSearchable,
+      receivedConfig.propertyDefinitions,
+      receivedConfig.rules,
+      receivedConfig.selection,
+    ],
+  );
   const [query, setQuery] = useState('');
   const [onlyDifferences, setOnlyDifferences] = useState(
     config.comparison?.onlyDifferences ?? false,
@@ -295,14 +315,13 @@ export function RecursiveComparisonTable({
     setAnnouncedInheritedRowId(row.id);
     publishMergeEdits(nextEdits);
   };
-  const usesLegacyLeafOnlyMergeControls =
-    merge?.onChange !== undefined &&
-    config.arrayItemKeyFields === undefined &&
-    merge.edits === undefined &&
-    merge.defaultEdits === undefined &&
-    merge.onEditsChange === undefined &&
-    !hasContainerResolution(rows, activeResolutions);
-  const hierarchicalRowIds = useMemo(() => collectHierarchicalRowIds(rows), [rows]);
+  const explicitlyShowsContainerMergeControls =
+    config.arrayItemKeyFields !== undefined ||
+    merge?.edits !== undefined ||
+    merge?.defaultEdits !== undefined ||
+    merge?.onEditsChange !== undefined ||
+    hasContainerResolution(rows, activeResolutions);
+  const hierarchicalRows = useMemo(() => collectHierarchicalRows(rows), [rows]);
   const mergeScopeByRowId = useMemo(
     () =>
       new Map(
@@ -310,12 +329,13 @@ export function RecursiveComparisonTable({
           .filter(
             (entry) =>
               entry.role !== 'container' ||
-              !hierarchicalRowIds.has(entry.resolutionKey) ||
-              !usesLegacyLeafOnlyMergeControls,
+              !hierarchicalRows.has(entry.resolutionKey) ||
+              explicitlyShowsContainerMergeControls ||
+              hasContainerInheritanceScope(hierarchicalRows.get(entry.resolutionKey)),
           )
           .map((entry) => [entry.resolutionKey, entry]) ?? [],
       ),
-    [hierarchicalRowIds, mergeResult, usesLegacyLeafOnlyMergeControls],
+    [explicitlyShowsContainerMergeControls, hierarchicalRows, mergeResult],
   );
   const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
@@ -634,18 +654,34 @@ function hasContainerResolution(
       hasContainerResolution(row.children ?? [], resolutions),
   );
 }
-function collectHierarchicalRowIds(rows: readonly ComparisonRow[]): ReadonlySet<string> {
-  const result = new Set<string>();
+function collectHierarchicalRows(
+  rows: readonly ComparisonRow[],
+): ReadonlyMap<string, ComparisonRow> {
+  const result = new Map<string, ComparisonRow>();
   const visit = (currentRows: readonly ComparisonRow[]) => {
     currentRows.forEach((row) => {
       if (row.children?.length) {
-        result.add(row.id);
+        result.set(row.id, row);
         visit(row.children);
       }
     });
   };
   visit(rows);
   return result;
+}
+function hasContainerInheritanceScope(row: ComparisonRow | undefined): boolean {
+  if (!row) return false;
+  let differingLeafCount = 0;
+  let hasStableLeaf = false;
+  const visit = (children: readonly ComparisonRow[]) => {
+    children.forEach((child) => {
+      if (child.children?.length) visit(child.children);
+      else if (child.hasOwnDifference) differingLeafCount += 1;
+      else hasStableLeaf = true;
+    });
+  };
+  visit(row.children ?? []);
+  return hasStableLeaf || differingLeafCount > 1;
 }
 function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
   const leftKeys = Object.keys(left);
