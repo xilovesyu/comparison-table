@@ -691,6 +691,8 @@ export type {
   DifferenceOptions,
   DisplayRule,
   KeyedArrayTarget,
+  MergeEdit,
+  MergeEdits,
   MergeOptions,
   MergePatch,
   MergeResolution,
