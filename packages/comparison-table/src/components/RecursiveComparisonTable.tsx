@@ -321,7 +321,13 @@ export function RecursiveComparisonTable({
     merge?.defaultEdits !== undefined ||
     merge?.onEditsChange !== undefined ||
     hasContainerResolution(rows, activeResolutions);
-  const hierarchicalRows = useMemo(() => collectHierarchicalRows(rows), [rows]);
+  const hierarchicalRowIds = useMemo(() => collectHierarchicalRowIds(rows), [rows]);
+  const soleRootResolutionKey = useMemo(() => {
+    const rootEntries = mergeResult?.scope.filter(
+      (entry) => entry.active && entry.parentResolutionKey === undefined,
+    );
+    return rootEntries?.length === 1 ? rootEntries[0]?.resolutionKey : undefined;
+  }, [mergeResult]);
   const mergeScopeByRowId = useMemo(
     () =>
       new Map(
@@ -329,23 +335,35 @@ export function RecursiveComparisonTable({
           .filter(
             (entry) =>
               entry.role !== 'container' ||
-              !hierarchicalRows.has(entry.resolutionKey) ||
+              !hierarchicalRowIds.has(entry.resolutionKey) ||
               explicitlyShowsContainerMergeControls ||
-              hasContainerInheritanceScope(hierarchicalRows.get(entry.resolutionKey)),
+              entry.resolutionKey === soleRootResolutionKey,
           )
           .map((entry) => [entry.resolutionKey, entry]) ?? [],
       ),
-    [explicitlyShowsContainerMergeControls, hierarchicalRows, mergeResult],
+    [explicitlyShowsContainerMergeControls, hierarchicalRowIds, mergeResult, soleRootResolutionKey],
+  );
+  const mergeDecisionByRowId = useMemo(
+    () =>
+      new Map(
+        mergeResult?.sourceDecisions
+          .filter((decision) => decision.kind !== 'stale')
+          .map((decision) => [decision.resolutionKey, decision]) ?? [],
+      ),
+    [mergeResult],
+  );
+  const unresolvedMergeRowIds = useMemo(
+    () =>
+      new Set(
+        mergeResult?.sourceDecisions
+          .filter((decision) => decision.kind === 'unresolved' || decision.kind === 'stale')
+          .map((decision) => decision.resolutionKey) ?? [],
+      ),
+    [mergeResult],
   );
   const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
-      (entry) =>
-        entry.active &&
-        mergeResult.sourceDecisions.some(
-          (decision) =>
-            decision.resolutionKey === entry.resolutionKey &&
-            (decision.kind === 'unresolved' || decision.kind === 'stale'),
-        ),
+      (entry) => entry.active && unresolvedMergeRowIds.has(entry.resolutionKey),
     ),
   );
   const columns: ColumnsType<ComparisonRow> = [
@@ -481,9 +499,7 @@ export function RecursiveComparisonTable({
                 );
               }
               if (!scopeEntry) return null;
-              const decision = mergeResult?.sourceDecisions.find(
-                (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
-              );
+              const decision = mergeDecisionByRowId.get(row.id);
               const edit = activeEdits[row.id];
               const hasManualEdit = Object.prototype.hasOwnProperty.call(activeEdits, row.id);
               const editClearButton = hasManualEdit ? (
@@ -654,34 +670,18 @@ function hasContainerResolution(
       hasContainerResolution(row.children ?? [], resolutions),
   );
 }
-function collectHierarchicalRows(
-  rows: readonly ComparisonRow[],
-): ReadonlyMap<string, ComparisonRow> {
-  const result = new Map<string, ComparisonRow>();
+function collectHierarchicalRowIds(rows: readonly ComparisonRow[]): ReadonlySet<string> {
+  const result = new Set<string>();
   const visit = (currentRows: readonly ComparisonRow[]) => {
     currentRows.forEach((row) => {
       if (row.children?.length) {
-        result.set(row.id, row);
+        result.add(row.id);
         visit(row.children);
       }
     });
   };
   visit(rows);
   return result;
-}
-function hasContainerInheritanceScope(row: ComparisonRow | undefined): boolean {
-  if (!row) return false;
-  let differingLeafCount = 0;
-  let hasStableLeaf = false;
-  const visit = (children: readonly ComparisonRow[]) => {
-    children.forEach((child) => {
-      if (child.children?.length) visit(child.children);
-      else if (child.hasOwnDifference) differingLeafCount += 1;
-      else hasStableLeaf = true;
-    });
-  };
-  visit(row.children ?? []);
-  return hasStableLeaf || differingLeafCount > 1;
 }
 function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
   const leftKeys = Object.keys(left);
