@@ -295,13 +295,14 @@ export function RecursiveComparisonTable({
     setAnnouncedInheritedRowId(row.id);
     publishMergeEdits(nextEdits);
   };
-  const explicitlyShowsContainerMergeControls =
-    config.arrayItemKeyFields !== undefined ||
-    merge?.edits !== undefined ||
-    merge?.defaultEdits !== undefined ||
-    merge?.onEditsChange !== undefined ||
-    hasContainerResolution(rows, activeResolutions);
-  const hierarchicalRows = useMemo(() => collectHierarchicalRows(rows), [rows]);
+  const usesLegacyLeafOnlyMergeControls =
+    merge?.onChange !== undefined &&
+    config.arrayItemKeyFields === undefined &&
+    merge.edits === undefined &&
+    merge.defaultEdits === undefined &&
+    merge.onEditsChange === undefined &&
+    !hasContainerResolution(rows, activeResolutions);
+  const hierarchicalRowIds = useMemo(() => collectHierarchicalRowIds(rows), [rows]);
   const mergeScopeByRowId = useMemo(
     () =>
       new Map(
@@ -309,13 +310,12 @@ export function RecursiveComparisonTable({
           .filter(
             (entry) =>
               entry.role !== 'container' ||
-              !hierarchicalRows.has(entry.resolutionKey) ||
-              explicitlyShowsContainerMergeControls ||
-              hasMultipleDecisionChildren(hierarchicalRows.get(entry.resolutionKey)),
+              !hierarchicalRowIds.has(entry.resolutionKey) ||
+              !usesLegacyLeafOnlyMergeControls,
           )
           .map((entry) => [entry.resolutionKey, entry]) ?? [],
       ),
-    [explicitlyShowsContainerMergeControls, hierarchicalRows, mergeResult],
+    [hierarchicalRowIds, mergeResult, usesLegacyLeafOnlyMergeControls],
   );
   const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
@@ -634,35 +634,18 @@ function hasContainerResolution(
       hasContainerResolution(row.children ?? [], resolutions),
   );
 }
-function collectHierarchicalRows(
-  rows: readonly ComparisonRow[],
-): ReadonlyMap<string, ComparisonRow> {
-  const result = new Map<string, ComparisonRow>();
+function collectHierarchicalRowIds(rows: readonly ComparisonRow[]): ReadonlySet<string> {
+  const result = new Set<string>();
   const visit = (currentRows: readonly ComparisonRow[]) => {
     currentRows.forEach((row) => {
       if (row.children?.length) {
-        result.set(row.id, row);
+        result.add(row.id);
         visit(row.children);
       }
     });
   };
   visit(rows);
   return result;
-}
-function hasMultipleDecisionChildren(row: ComparisonRow | undefined): boolean {
-  if (!row) return false;
-  let count = 0;
-  const visit = (children: readonly ComparisonRow[]): boolean => {
-    for (const child of children) {
-      if (child.children?.length) {
-        if (visit(child.children)) return true;
-      } else if (child.hasOwnDifference && ++count > 1) {
-        return true;
-      }
-    }
-    return false;
-  };
-  return visit(row.children ?? []);
 }
 function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
   const leftKeys = Object.keys(left);
