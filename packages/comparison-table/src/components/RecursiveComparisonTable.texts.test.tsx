@@ -179,6 +179,31 @@ describe('Issue #18 local text overrides', () => {
     expect(screen.getAllByRole('columnheader')[0]).toHaveTextContent(/^$/);
   });
 
+  it('ignores inherited static and formatter overrides while applying own text keys', () => {
+    const inheritedOnlyDifferencesCount = vi.fn(
+      ({ count }: { count: number }) => `INHERITED COUNT ${count}`,
+    );
+    const inheritedTexts: ComparisonTableTextOverrides = Object.create({
+      tableRegionLabel: 'INHERITED-TEXT-SHOULD-NOT-APPLY',
+      onlyDifferencesCount: inheritedOnlyDifferencesCount,
+    });
+    Object.defineProperty(inheritedTexts, 'propertyColumn', {
+      configurable: true,
+      enumerable: true,
+      value: 'Own field',
+      writable: true,
+    });
+
+    render(<RecursiveComparisonTable versions={versions} texts={inheritedTexts} />);
+
+    expect
+      .soft(screen.queryByRole('region', { name: 'Recursive comparison table' }))
+      .toBeInTheDocument();
+    expect.soft(screen.getByRole('columnheader', { name: 'Own field' })).toBeInTheDocument();
+    expect.soft(screen.queryByText(/INHERITED COUNT/)).not.toBeInTheDocument();
+    expect.soft(inheritedOnlyDifferencesCount).not.toHaveBeenCalled();
+  });
+
   it('fails fast when a dynamic formatter returns a non-string value', () => {
     const invalidFormatter: () => string = new Proxy(() => '', {
       apply: () => 42,
