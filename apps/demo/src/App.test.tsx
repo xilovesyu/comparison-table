@@ -529,11 +529,11 @@ describe('documentation examples', () => {
   );
 
   it.each([
-    ['final-merge', '最终版本合并'],
-    ['advanced-configuration', '综合高级配置'],
+    ['final-merge', '最终版本合并', /^Clear edit /i],
+    ['advanced-configuration', '综合高级配置', /^清除 reviewNote 的编辑$/],
   ] as const)(
     'keeps controlled and default source/edit modes plus raw source copy synchronized in %s',
-    (id, _title) => {
+    (id, _title, expectedClearEditName) => {
       const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
       const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
       Object.defineProperty(navigator, 'clipboard', {
@@ -563,7 +563,9 @@ describe('documentation examples', () => {
         expect(
           within(card).getByText(/defaultValue.*defaultEdits.*未触发完成提交/i),
         ).toBeInTheDocument();
-        expect(within(card).getByRole('button', { name: /^Clear edit /i })).toBeInTheDocument();
+        expect(
+          within(card).getByRole('button', { name: expectedClearEditName }),
+        ).toBeInTheDocument();
       } finally {
         if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
         else Reflect.deleteProperty(navigator, 'clipboard');
