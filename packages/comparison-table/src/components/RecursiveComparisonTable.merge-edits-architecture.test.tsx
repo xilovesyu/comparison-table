@@ -19,6 +19,56 @@ const primitiveVersions = [
 ];
 
 describe('Issue #17 architecture follow-up contracts', () => {
+  it('starts the edited planner for plain uncontrolled merge so object and keyed containers are selectable', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'base',
+            label: 'Base',
+            data: {
+              profile: { name: 'Base name' },
+              lines: [{ sku: 'P-100', quantity: 1 }],
+            },
+          },
+          {
+            id: 'review',
+            label: 'Review',
+            data: {
+              profile: { name: 'Review name' },
+              lines: [{ sku: 'P-100', quantity: 2 }],
+            },
+          },
+        ]}
+        arrayItemKeyFields={{ lines: 'sku' }}
+        merge={{ enabled: true }}
+      />,
+    );
+
+    const profileSource = screen.getByRole('radio', { name: 'profile Review' });
+    const arraySource = screen.getByRole('radio', { name: 'lines Review' });
+    const itemSource = screen.getByRole('radio', { name: 'lines.P-100 Review' });
+    for (const sourceControl of [profileSource, arraySource, itemSource]) {
+      expect(sourceControl).toHaveClass('ant-radio-input');
+    }
+
+    fireEvent.click(profileSource);
+    expect(profileSource).toBeChecked();
+    expect(screen.getAllByText('Review name')).toHaveLength(2);
+  });
+
+  it('starts the edited planner for plain uncontrolled merge so a primitive accepts its first raw edit', () => {
+    render(<RecursiveComparisonTable versions={primitiveVersions} merge={{ enabled: true }} />);
+
+    const titleEditor = screen.getByRole('textbox', { name: 'Edit title' });
+    expect(titleEditor).toHaveClass('ant-input');
+    fireEvent.change(titleEditor, { target: { value: 'first raw edit' } });
+
+    expect(titleEditor).toHaveValue('first raw edit');
+    const titleRow = screen.getByText('title').closest('tr') as HTMLElement;
+    expect(titleRow.querySelector('td:last-child')).toHaveTextContent('first raw edit');
+  });
+
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
     const title = rowId('title');
     const onChange = vi.fn();
@@ -300,10 +350,7 @@ describe('Issue #17 architecture follow-up contracts', () => {
       </button>
     );
     const accountEditor: MergeEditor = ({ onCommit }) => (
-      <button
-        type="button"
-        onClick={() => onCommit({ kind: 'set', value: { id: 'C-42', tier: 2 } })}
-      >
+      <button type="button" onClick={() => onCommit({ kind: 'set', value: 'C-42' })}>
         Commit custom account
       </button>
     );
@@ -385,15 +432,61 @@ describe('Issue #17 architecture follow-up contracts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Commit custom account' }));
     expect(onEditsChange).toHaveBeenCalledTimes(3);
     expect(onEditsChange.mock.calls[2]?.[0]).toEqual({
-      [rowId('account')]: { kind: 'set', value: { id: 'C-42', tier: 2 } },
+      [rowId('account')]: { kind: 'set', value: 'C-42' },
     });
     expect(onEditsChange.mock.calls[2]?.[1].mergedData).toMatchObject({
-      account: { id: 'C-42', tier: 2 },
+      account: 'C-42',
     });
     expect(onEditsChange.mock.calls[2]?.[1].mergedData).not.toMatchObject({
       account: 'DISPLAY ACCOUNT ONLY',
     });
   });
+
+  it.each([
+    ['object', { nested: true }],
+    ['array', ['not', 'primitive']],
+  ] as const)(
+    'rejects a custom mergeEditor %s commit with path/type feedback and no result mutation',
+    (type, unsafeValue) => {
+      const onChange = vi.fn();
+      const onEditsChange = vi.fn();
+      const unsafeEditor: MergeEditor = ({ error, onCommit }) => (
+        <div>
+          <button type="button" onClick={() => onCommit({ kind: 'set', value: unsafeValue })}>
+            Commit unsafe {type}
+          </button>
+          {error && <span role="alert">{error}</span>}
+        </div>
+      );
+      render(
+        <RecursiveComparisonTable
+          versions={[
+            { id: 'base', label: 'Base', data: { title: 'base title' } },
+            { id: 'review', label: 'Review', data: { title: 'review title' } },
+          ]}
+          rules={[{ path: 'title', mergeEditor: unsafeEditor }]}
+          merge={{
+            enabled: true,
+            value: { [rowId('title')]: source('review') },
+            edits: {},
+            onChange,
+            onEditsChange,
+          }}
+        />,
+      );
+
+      expect(screen.getByRole('radio', { name: 'title Review' })).toBeChecked();
+      fireEvent.click(screen.getByRole('button', { name: `Commit unsafe ${type}` }));
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        new RegExp(`title.*unsupported ${type}|unsupported ${type}.*title`, 'i'),
+      );
+      expect(screen.getByRole('radio', { name: 'title Review' })).toBeChecked();
+      expect(screen.getAllByText('review title')).toHaveLength(2);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onEditsChange).not.toHaveBeenCalled();
+    },
+  );
 
   it('keeps a custom invalid draft local until its validator permits a raw commit', () => {
     const onEditsChange = vi.fn();
