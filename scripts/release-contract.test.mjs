@@ -271,3 +271,125 @@ test('manual runbook covers container inheritance, raw editors, dual modes, and 
   assert.match(manualRunbook, /onComplete.*(?:value|source).*edits.*(?:pair|echo)/is);
   assert.match(manualRunbook, /resolvedPatch.*(?:canonical|stable).*non[- ]overlap.*migrat/is);
 });
+
+const comparisonTextKeys = [
+  'tableRegionLabel',
+  'propertyColumn',
+  'baselineBadge',
+  'baselineBadgeAriaLabel',
+  'differenceIndicator',
+  'differenceIndicatorAriaLabel',
+  'globalSearchLabel',
+  'globalSearchPlaceholder',
+  'onlyDifferencesLabel',
+  'onlyDifferencesCount',
+  'nodeSearchLabel',
+  'nodeFilterLabel',
+  'nodeFilterPlaceholder',
+  'finalColumn',
+  'sourceChoiceLabel',
+  'presenceGroupLabel',
+  'includeFromLabel',
+  'excludeLabel',
+  'clearResolutionLabel',
+  'clearEditLabel',
+  'editValueLabel',
+  'setNullLabel',
+  'deleteValueLabel',
+  'inheritedSourceStatus',
+  'needsSelectionStatus',
+  'completeStatus',
+  'unresolvedStatus',
+  'deletedStatus',
+  'addedStatus',
+  'removedStatus',
+  'missingStatus',
+  'validationError',
+];
+
+test('public text override types export the complete documented inventory with JSDoc boundaries', async () => {
+  const entrySource = await readWorkspaceFile('packages/comparison-table/src/index.ts');
+  const comparisonSource = await readWorkspaceFile(
+    'packages/comparison-table/src/core/comparison.ts',
+  );
+  const typeSource = await readWorkspaceFile('packages/comparison-table/src/core/types.ts');
+  const componentSource = await readWorkspaceFile(
+    'packages/comparison-table/src/components/RecursiveComparisonTable.tsx',
+  );
+
+  assert.match(entrySource, /export \* from ['"]\.\/core\/comparison['"]/);
+  assert.match(comparisonSource, /export type \{[\s\S]*ComparisonTableTexts[\s\S]*\}/);
+  assert.match(comparisonSource, /export type \{[\s\S]*ComparisonTableTextOverrides[\s\S]*\}/);
+  assert.match(typeSource, /export interface ComparisonTableTexts/);
+  assert.match(typeSource, /export type ComparisonTableTextOverrides/);
+  assert.match(componentSource, /texts\?: ComparisonTableTextOverrides/);
+  for (const key of comparisonTextKeys) {
+    assert.match(
+      typeSource,
+      new RegExp(`\\b${key}\\b`),
+      `public text inventory must include ${key}`,
+    );
+  }
+
+  assert.match(typeSource, /texts?[\s\S]*(?:omitted|missing).*built-in default/is);
+  assert.match(typeSource, /undefined.*built-in default/is);
+  assert.match(typeSource, /empty string.*(?:valid|preserved)/is);
+  assert.match(typeSource, /formatter.*return.*string.*non-string.*(?:fail|throw)/is);
+  assert.match(typeSource, /formatter.*(?:count|propertyLabel|path|versionLabel)/is);
+  assert.match(
+    componentSource,
+    /merge\.finalLabel.*texts\.finalColumn.*(?:built-in|default).*Final/is,
+  );
+  assert.match(componentSource, /ConfigProvider.*Ant Design.*(?:outside|host|not owned)/is);
+  assert.match(
+    componentSource,
+    /(?:version|PropertyDefinition|DisplayRule).*label.*raw value.*renderer.*mergeEditor.*(?:not|never).*texts/is,
+  );
+});
+
+test('both READMEs document every local text key, fallback, ownership, and Final priority', async () => {
+  const readmes = await Promise.all([
+    readWorkspaceFile('README.md'),
+    readWorkspaceFile('packages/comparison-table/README.md'),
+  ]);
+
+  for (const content of readmes) {
+    assert.match(content, /ComparisonTableTextOverrides/);
+    assert.match(content, /texts=.*(?:per-table|local)|per-table.*texts|local.*texts/is);
+    for (const key of comparisonTextKeys) {
+      assert.match(content, new RegExp('`' + key + '`'), `README must list ${key}`);
+    }
+    assert.match(content, /(?:omitted|missing).*built-in default/is);
+    assert.match(content, /undefined.*(?:fallback|built-in default)/is);
+    assert.match(content, /empty string.*(?:valid|preserved)/is);
+    assert.match(content, /formatter.*(?:count|propertyLabel|path|versionLabel).*return.*string/is);
+    assert.match(content, /merge\.finalLabel\s*>\s*texts\.finalColumn\s*>\s*(?:default|Final)/is);
+    assert.match(content, /ConfigProvider.*Ant Design.*locale/is);
+    assert.match(
+      content,
+      /(?:version|property|DisplayRule).*label.*raw value.*renderer.*mergeEditor.*(?:not|never).*(?:translated|overridden|owned)/is,
+    );
+    assert.match(content, /user.*text.*(?:not|never).*(?:translated|overridden|owned)/is);
+  }
+});
+
+test('manual runbook covers local text fallback, dynamic context, accessibility, Final, and AntD ownership', async () => {
+  const manualRunbook = await readWorkspaceFile('docs/manual-testing/README.md');
+
+  assert.match(manualRunbook, /S13[\s\S]*(?:text|文案|本地化)/i);
+  assert.match(manualRunbook, /MT-23[\s\S]*(?:text|文案|本地化)/i);
+  assert.match(manualRunbook, /#example-text-overrides/);
+  assert.match(manualRunbook, /default.*partial.*fallback|默认.*局部.*回退/is);
+  assert.match(manualRunbook, /long.*property.*version|长.*属性.*版本/is);
+  assert.match(
+    manualRunbook,
+    /keyboard.*(?:screen reader|accessible name)|键盘.*(?:读屏|可访问名称)/is,
+  );
+  assert.match(manualRunbook, /Final.*source.*presence.*edit.*validation/is);
+  assert.match(manualRunbook, /merge\.finalLabel.*texts\.finalColumn.*Final/is);
+  assert.match(manualRunbook, /ConfigProvider.*Ant Design.*locale/is);
+  assert.match(
+    manualRunbook,
+    /(?:user|用户).*(?:label|文案|文本).*(?:不|not).*(?:接管|翻译|override)/is,
+  );
+});

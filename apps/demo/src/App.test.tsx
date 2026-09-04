@@ -17,6 +17,7 @@ const navigationExamples = [
   ['keyed-array', '业务键数组对齐'],
   ['container-summary', '容器摘要'],
   ['final-merge', '最终版本合并'],
+  ['text-overrides', '内置文案配置与本地化'],
   ['advanced-configuration', '综合高级配置'],
 ] as const;
 
@@ -66,6 +67,20 @@ describe('documentation examples', () => {
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByText(/RecursiveComparisonTable/)).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: '复制源代码' })).toBeInTheDocument();
+  });
+
+  it('keeps the original built-in text when an existing example does not pass texts', () => {
+    const card = renderExample('basic-recursive');
+
+    expect(
+      within(card).getByRole('region', { name: 'Recursive comparison table' }),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole('columnheader', { name: 'Property' })).toBeInTheDocument();
+    expect(within(card).getByRole('textbox', { name: 'Search comparison' })).toHaveAttribute(
+      'placeholder',
+      'Search properties and values',
+    );
+    expect(within(card).getByRole('switch', { name: 'Only show differences' })).toBeInTheDocument();
   });
 
   it('shows summary money as a non-expandable first-level value', () => {
@@ -265,6 +280,102 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/containerSummary=/);
   });
 
+  it('places a localized built-in-text example before Advanced and keeps its raw source and copy action synchronized', () => {
+    const localizedIndex = navigationExamples.findIndex(([id]) => id === 'text-overrides');
+    const advancedIndex = navigationExamples.findIndex(([id]) => id === 'advanced-configuration');
+    expect(localizedIndex).toBe(advancedIndex - 1);
+
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    try {
+      const card = renderExample('text-overrides');
+      expect(within(card).getByRole('region', { name: '本地化递归对比表' })).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '字段' })).toBeInTheDocument();
+      expect(within(card).getByRole('textbox', { name: '搜索对比内容' })).toHaveAttribute(
+        'placeholder',
+        '搜索属性和值',
+      );
+      expect(within(card).getByRole('switch', { name: '仅显示差异' })).toBeInTheDocument();
+      expect(within(card).getByText(/^共 \d+ 项差异$/)).toBeInTheDocument();
+      expect(
+        within(card).getByRole('button', { name: '搜索 客户资料（customer）' }),
+      ).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '本地化结果' })).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: 'customer.name 采用复核版' }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radiogroup', { name: 'lines.P-300 的存在状态' }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: 'lines.P-300 从复核版加入' }),
+      ).toBeInTheDocument();
+
+      const editor = within(card).getByRole('spinbutton', { name: '编辑 amount' });
+      fireEvent.change(editor, { target: { value: 'not-a-number' } });
+      fireEvent.blur(editor);
+      expect(within(card).getByRole('alert')).toHaveTextContent(/amount.*无效/i);
+
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+      const sourceText = sourcePanel.textContent ?? '';
+      expect(sourceText).toMatch(/const localizedTexts/);
+      expect(sourceText).toMatch(/texts={localizedTexts}/);
+      expect(sourceText).toMatch(/onlyDifferencesCount/);
+      expect(sourceText).toMatch(/sourceChoiceLabel/);
+      expect(sourceText).toMatch(/presenceGroupLabel/);
+      expect(sourceText).toMatch(/validationError/);
+      fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain('texts={localizedTexts}');
+      expect(writeText.mock.calls[0]?.[0]).toContain('validationError');
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('integrates local text overrides into Advanced without dropping merge, keyed, renderer, or summary capabilities', () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    try {
+      const card = renderExample('advanced-configuration');
+
+      expect(within(card).getByRole('region', { name: '综合配置对比表' })).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '属性' })).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '最终结果' })).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: /^lines\.P-300 从复核版加入$/ }),
+      ).toBeInTheDocument();
+      expect(within(card).getByText('本地金额：USD 980')).toBeInTheDocument();
+
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+      const sourceText = sourcePanel.textContent ?? '';
+      expect(sourceText).toMatch(/texts=/);
+      expect(sourceText).toMatch(/sourceChoiceLabel/);
+      expect(sourceText).toMatch(/arrayItemKeyFields/);
+      expect(sourceText).toMatch(/containerSummary/);
+      expect(sourceText).toMatch(/renderers=/);
+      expect(sourceText).toMatch(/merge={{/);
+      fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain('texts=');
+      expect(writeText.mock.calls[0]?.[0]).toContain('sourceChoiceLabel');
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
   it.each([
     {
       id: 'final-merge' as const,
@@ -285,8 +396,8 @@ describe('documentation examples', () => {
       const advancedIndex = navigationExamples.findIndex(
         ([exampleId]) => exampleId === 'advanced-configuration',
       );
-      expect(navigationExamples).toHaveLength(13);
-      expect(finalIndex).toBe(advancedIndex - 1);
+      expect(navigationExamples).toHaveLength(14);
+      expect(finalIndex).toBeLessThan(advancedIndex);
 
       const card = renderExample(id);
       const containerSource = within(card).getByRole('radio', {
@@ -564,7 +675,7 @@ describe('documentation examples', () => {
 });
 
 describe('Issue #5 demo directory navigation', () => {
-  it('publishes the thirteen actual examples as stable catalog links in five groups, with Final merge before Advanced last', () => {
+  it('publishes the fourteen actual examples as stable catalog links in five groups, with localized text before Advanced last', () => {
     setExampleHash();
     render(<App />);
 
@@ -746,7 +857,7 @@ describe('Issue #5 demo directory navigation', () => {
 });
 
 describe('Issue #5 architecture navigation compatibility', () => {
-  it('keeps all thirteen stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
+  it('keeps all fourteen stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
     window.history.replaceState({}, '', '/');
     render(<App />);
 
@@ -772,6 +883,7 @@ describe('Issue #5 architecture navigation compatibility', () => {
       '#example-keyed-array',
       '#example-container-summary',
       '#example-final-merge',
+      '#example-text-overrides',
       '#example-advanced-configuration',
     ]);
   });
