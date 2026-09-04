@@ -170,7 +170,10 @@ describe('Issue #17 architecture follow-up contracts', () => {
     expect(onChange.mock.calls[0]?.[1]).toMatchObject({
       mergedData: { profile: { name: 'Review' } },
     });
-    expect(screen.getAllByText('Review')).toHaveLength(2);
+    const reviewChildSource = screen.getByRole('radio', { name: 'profile.name Review' });
+    const nameCells = reviewChildSource.closest('tr')!.querySelectorAll('td');
+    expect(nameCells.item(2)).toHaveTextContent(/^Review$/);
+    expect(nameCells.item(3)).toHaveTextContent(/^Review/);
 
     const childOverride = screen.getByRole('radio', { name: 'profile.name Base' });
     fireEvent.click(childOverride);
@@ -184,7 +187,8 @@ describe('Issue #17 architecture follow-up contracts', () => {
     expect(onChange.mock.calls[1]?.[1]).toMatchObject({
       mergedData: { profile: { name: 'Base' } },
     });
-    expect(screen.getAllByText('Base')).toHaveLength(2);
+    expect(nameCells.item(1)).toHaveTextContent(/^Base$/);
+    expect(nameCells.item(3)).toHaveTextContent(/^Base/);
   });
 
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
