@@ -373,6 +373,41 @@ test('both READMEs document every local text key, fallback, ownership, and Final
   }
 });
 
+test('README inventories and the localization example classify every context formatter consistently with the public type', async () => {
+  const readmes = await Promise.all([
+    readWorkspaceFile('README.md'),
+    readWorkspaceFile('packages/comparison-table/README.md'),
+  ]);
+  const typeSource = await readWorkspaceFile('packages/comparison-table/src/core/types.ts');
+  const exampleSource = await readWorkspaceFile('apps/demo/src/examples/TextOverridesExample.tsx');
+  const contextualFormatterKeys = [
+    'nodeSearchLabel',
+    'nodeFilterLabel',
+    'nodeFilterPlaceholder',
+    'missingStatus',
+  ];
+  const exampleFormatterKeys = ['nodeSearchLabel', 'nodeFilterLabel', 'nodeFilterPlaceholder'];
+
+  for (const content of readmes) {
+    const staticInventory = content.match(/- Static keys:([\s\S]*?)- Dynamic formatter keys:/)?.[1];
+    const dynamicInventory = content.match(
+      /- Dynamic formatter keys:([\s\S]*?)(?:\r?\n\r?\n|$)/,
+    )?.[1];
+    assert.ok(staticInventory, 'README must retain an explicit static-key inventory');
+    assert.ok(dynamicInventory, 'README must retain an explicit formatter-key inventory');
+
+    for (const key of contextualFormatterKeys) {
+      assert.doesNotMatch(staticInventory, new RegExp('`' + key + '`'));
+      assert.match(dynamicInventory, new RegExp('`' + key + '`'));
+      assert.match(typeSource, new RegExp(`readonly\\s+${key}\\s*:\\s*\\(`));
+    }
+  }
+
+  for (const key of exampleFormatterKeys) {
+    assert.match(exampleSource, new RegExp(`\\b${key}\\s*:\\s*\\(`));
+  }
+});
+
 test('manual runbook covers local text fallback, dynamic context, accessibility, Final, and AntD ownership', async () => {
   const manualRunbook = await readWorkspaceFile('docs/manual-testing/README.md');
 

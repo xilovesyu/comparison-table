@@ -246,11 +246,19 @@ describe('Issue #18 local text overrides', () => {
     );
 
     expect(screen.getByRole('radio', { name: 'Source title from Review' })).toBeChecked();
-    expect(screen.getByRole('button', { name: 'Reset source title' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reset edit amount' })).toBeInTheDocument();
+    expect
+      .soft(screen.getByRole('button', { name: 'Reset source title' }))
+      .toHaveTextContent('Reset source title');
+    expect
+      .soft(screen.getByRole('button', { name: 'Reset edit amount' }))
+      .toHaveTextContent('Reset edit amount');
     expect(screen.getByRole('spinbutton', { name: 'Edit raw amount' })).toHaveValue(7);
-    expect(screen.getByRole('button', { name: 'Null raw amount' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete raw amount' })).toBeInTheDocument();
+    expect
+      .soft(screen.getByRole('button', { name: 'Null raw amount' }))
+      .toHaveTextContent('Null raw amount');
+    expect
+      .soft(screen.getByRole('button', { name: 'Delete raw amount' }))
+      .toHaveTextContent('Delete raw amount');
     expect(screen.getByText('Everything selected')).toHaveAttribute('aria-live', 'polite');
 
     const amount = screen.getByRole('spinbutton', { name: 'Edit raw amount' });
@@ -305,6 +313,14 @@ describe('Issue #18 local text overrides', () => {
   });
 
   it('localizes keyed presence controls and Added, Removed, and Missing badges', () => {
+    const missingStatus = ({
+      path,
+      versionLabels,
+    }: {
+      path: readonly (string | number)[];
+      versionLabels: readonly string[];
+    }) => `Absent ${path.join('/')} from ${versionLabels.join(' + ')}`;
+
     render(
       <RecursiveComparisonTable
         versions={[
@@ -346,18 +362,20 @@ describe('Issue #18 local text overrides', () => {
           completeStatus: 'Resolved',
           addedStatus: 'New item',
           removedStatus: 'Gone item',
-          missingStatus: 'Absent',
+          missingStatus,
         })}
       />,
     );
 
     expect(screen.getByRole('radiogroup', { name: 'Presence lines/P-300' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Keep lines/P-300 from Review' })).toBeInTheDocument();
+    expect.soft(screen.queryByText('Keep lines/P-300 from Review')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Drop lines/P-300' })).toBeInTheDocument();
+    expect.soft(screen.queryByText('Drop lines/P-300')).toBeInTheDocument();
     expect(screen.getByText('Choose a result')).toHaveAttribute('aria-live', 'polite');
     expect(screen.getByText('New item')).toBeInTheDocument();
     expect(screen.getByText('Gone item')).toBeInTheDocument();
-    expect(screen.getByText(/Absent.*review/i)).toBeInTheDocument();
+    expect(screen.getByText('Absent lines/P-400 from Review')).toBeInTheDocument();
   });
 
   it('keeps text dictionaries isolated between table instances', () => {
