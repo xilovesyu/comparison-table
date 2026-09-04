@@ -69,6 +69,34 @@ describe('Issue #17 architecture follow-up contracts', () => {
     expect(titleRow.querySelector('td:last-child')).toHaveTextContent('first raw edit');
   });
 
+  it('shows a plain object container source on the first uncontrolled render without keyed or edit configuration', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'base',
+            label: 'Base',
+            data: { profile: { name: 'Base name', level: 1 } },
+          },
+          {
+            id: 'review',
+            label: 'Review',
+            data: { profile: { name: 'Review name', level: 2 } },
+          },
+        ]}
+        merge={{ enabled: true }}
+      />,
+    );
+
+    const profileSource = screen.getByRole('radio', { name: 'profile Review' });
+    expect(profileSource).toHaveClass('ant-radio-input');
+    fireEvent.click(profileSource);
+
+    expect(profileSource).toBeChecked();
+    expect(screen.getAllByText('Review name')).toHaveLength(2);
+    expect(screen.getAllByText('2')).toHaveLength(2);
+  });
+
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
     const title = rowId('title');
     const onChange = vi.fn();
@@ -483,6 +511,48 @@ describe('Issue #17 architecture follow-up contracts', () => {
       );
       expect(screen.getByRole('radio', { name: 'title Review' })).toBeChecked();
       expect(screen.getAllByText('review title')).toHaveLength(2);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onEditsChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['object', { nested: true }],
+    ['array', ['not', 'primitive']],
+  ] as const)(
+    'rejects externally controlled custom-editor %s edits before a result can be produced',
+    (type, unsafeValue) => {
+      const title = rowId('title');
+      const controlledEdits: MergeEdits = {
+        [title]: { kind: 'set', value: unsafeValue },
+      };
+      const originalValue = structuredClone(unsafeValue);
+      const onChange = vi.fn();
+      const onEditsChange = vi.fn();
+      const customEditor: MergeEditor = () => <span>Custom title editor</span>;
+
+      expect(() =>
+        render(
+          <RecursiveComparisonTable
+            versions={[
+              { id: 'base', label: 'Base', data: { title: 'base title' } },
+              { id: 'review', label: 'Review', data: { title: 'review title' } },
+            ]}
+            rules={[{ path: 'title', mergeEditor: customEditor }]}
+            merge={{
+              enabled: true,
+              value: { [title]: source('review') },
+              edits: controlledEdits,
+              onChange,
+              onEditsChange,
+            }}
+          />,
+        ),
+      ).toThrow(new RegExp(`title.*unsupported ${type}|unsupported ${type}.*title`, 'i'));
+
+      expect(controlledEdits).toEqual({
+        [title]: { kind: 'set', value: originalValue },
+      });
       expect(onChange).not.toHaveBeenCalled();
       expect(onEditsChange).not.toHaveBeenCalled();
     },
