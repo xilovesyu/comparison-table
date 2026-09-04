@@ -215,6 +215,38 @@ test('both READMEs document the source-and-edit merge contract and migration bou
   }
 });
 
+test('both READMEs define baseline-relative patch replay and inherited-source audit semantics', async () => {
+  const readmes = await Promise.all([
+    readWorkspaceFile('README.md'),
+    readWorkspaceFile('packages/comparison-table/README.md'),
+  ]);
+
+  for (const content of readmes) {
+    const paragraphs = content.split(/\r?\n\s*\r?\n/);
+    const patchContract = paragraphs.find((paragraph) => /resolvedPatch/.test(paragraph));
+    const auditContract = paragraphs.find(
+      (paragraph) => /sourceDecisions/.test(paragraph) && /\bscope\b/.test(paragraph),
+    );
+
+    assert.ok(patchContract, 'README must contain a resolvedPatch contract paragraph');
+    assert.match(patchContract, /(?:baseline-relative|relative to (?:the )?baseline)/i);
+    assert.match(patchContract, /final.*(?:leaf|presence).*(?:operation|patch)/i);
+    assert.match(patchContract, /replay.*(?:independent|does not depend).*user.*click.*order/i);
+    assert.match(
+      patchContract,
+      /replay.*(?:independent|does not depend).*parent.*child.*patch.*order/i,
+    );
+
+    assert.ok(
+      auditContract,
+      'README must place sourceDecisions and scope in one audit-contract paragraph',
+    );
+    assert.match(auditContract, /(?:parent|container).*source.*inherit/i);
+    assert.match(auditContract, /child.*override/i);
+    assert.match(auditContract, /audit/i);
+  }
+});
+
 test('public Merge edit JSDoc specifies raw editor isolation and controlled pair echo semantics', async () => {
   const typeSource = await readWorkspaceFile('packages/comparison-table/src/core/types.ts');
 
