@@ -195,3 +195,47 @@ test('manual runbook covers Final merge API modes and U1/U2 edge cases', async (
   assert.match(manualRunbook, /JSON-like.*Date.*deep|深度独立.*Date/is);
   assert.match(manualRunbook, /onComplete.*用户.*incomplete.*complete.*mount/is);
 });
+
+test('both READMEs document the source-and-edit merge contract and migration boundary', async () => {
+  const readmes = await Promise.all([
+    readWorkspaceFile('README.md'),
+    readWorkspaceFile('packages/comparison-table/README.md'),
+  ]);
+
+  for (const content of readmes) {
+    assert.match(content, /Merge resolution is off by default|合并.*默认关闭/i);
+    assert.match(content, /merge.*enabled.*true/is);
+    assert.match(content, /MergeResolutions.*MergeEdits|source.*edits.*independent/is);
+    assert.match(content, /\bedits\b.*\bdefaultEdits\b.*\bonEditsChange\b/is);
+    assert.match(content, /container.*source.*inherit.*child.*override.*clear/is);
+    assert.match(content, /keyed.*array.*item.*presence/is);
+    assert.match(content, /mergeEditor.*(?:Date|decimal|enum|custom)/is);
+    assert.match(content, /raw.*(?:renderer|renderValue).*isolation|renderer.*not.*editor/is);
+    assert.match(content, /resolvedPatch.*(?:canonical|stable).*non[- ]overlap.*migrat/is);
+  }
+});
+
+test('public Merge edit JSDoc specifies raw editor isolation and controlled pair echo semantics', async () => {
+  const typeSource = await readWorkspaceFile('packages/comparison-table/src/core/types.ts');
+
+  for (const publicType of ['MergeEdit', 'MergeEdits', 'MergeEditor', 'MergeEditorProps']) {
+    assert.match(typeSource, new RegExp(`export (?:interface|type) ${publicType}`));
+  }
+  assert.match(typeSource, /mergeEditor[\s\S]*raw.*(?:not|never).*renderer/is);
+  assert.match(typeSource, /\bedits\b[\s\S]*independent.*(?:source|value)/is);
+  assert.match(typeSource, /onComplete[\s\S]*(?:value|source).*edits.*(?:pair|both).*echo/is);
+  assert.match(typeSource, /resolvedPatch[\s\S]*(?:canonical|stable).*non[- ]overlap.*migrat/is);
+});
+
+test('manual runbook covers container inheritance, raw editors, dual modes, and patch migration', async () => {
+  const manualRunbook = await readWorkspaceFile('docs/manual-testing/README.md');
+
+  assert.match(manualRunbook, /MT-22[\s\S]*(?:Final|merge).*(?:edit|编辑)/is);
+  assert.match(manualRunbook, /Ant Design|AntD/i);
+  assert.match(manualRunbook, /container.*source.*inherit.*child.*override.*clear/is);
+  assert.match(manualRunbook, /keyed.*array.*item.*presence/is);
+  assert.match(manualRunbook, /primitive.*raw.*edit.*mergeEditor/is);
+  assert.match(manualRunbook, /controlled.*uncontrolled.*defaultEdits/is);
+  assert.match(manualRunbook, /onComplete.*(?:value|source).*edits.*(?:pair|echo)/is);
+  assert.match(manualRunbook, /resolvedPatch.*(?:canonical|stable).*non[- ]overlap.*migrat/is);
+});
