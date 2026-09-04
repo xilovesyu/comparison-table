@@ -713,6 +713,8 @@ function score(r: DisplayRule): number {
 export type {
   BuildComparisonConfig,
   ComparisonRow,
+  ComparisonTableTexts,
+  ComparisonTableTextOverrides,
   ComparisonVersion,
   DifferenceComparator,
   DifferenceIndicatorContext,
