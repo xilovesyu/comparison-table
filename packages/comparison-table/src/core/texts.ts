@@ -118,7 +118,10 @@ function resolveText<Key extends keyof ComparisonTableTexts>(
   overrides: ComparisonTableTextOverrides | undefined,
   key: Key,
 ): ComparisonTableTexts[Key] {
-  const override = overrides?.[key];
+  const override =
+    overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, key)
+      ? overrides[key]
+      : undefined;
   return override === undefined ? defaultComparisonTableTexts[key] : override;
 }
 

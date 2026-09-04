@@ -63,12 +63,18 @@ export interface ComparisonTableTexts {
   readonly includeFromLabel: (
     context: Readonly<{ path: PropertyPath; versionLabel: string }>,
   ) => string;
+  readonly includeFromText: (context: Readonly<{ versionLabel: string }>) => string;
   readonly excludeLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly excludeText: string;
   readonly clearResolutionLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly clearResolutionText: string;
   readonly clearEditLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly clearEditText: string;
   readonly editValueLabel: (context: Readonly<{ path: PropertyPath }>) => string;
   readonly setNullLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly setNullText: string;
   readonly deleteValueLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly deleteValueText: string;
   readonly inheritedSourceStatus: (
     context: Readonly<{ path: PropertyPath; sourcePath: string; versionLabel: string }>,
   ) => string;
@@ -78,12 +84,20 @@ export interface ComparisonTableTexts {
   readonly deletedStatus: string;
   readonly addedStatus: string;
   readonly removedStatus: string;
-  readonly missingStatus: string;
+  readonly missingStatus: (
+    context: Readonly<{
+      path: PropertyPath;
+      versionIds: readonly string[];
+      versionLabels: readonly string[];
+    }>,
+  ) => string;
   readonly validationError: (context: Readonly<{ path: PropertyPath; error: string }>) => string;
 }
 
 export type ComparisonTableTextOverrides = Partial<ComparisonTableTexts>;
 ```
+
+最终 inventory 共 38 个键；`*Label` 仅负责 accessible name，六个 `*Text` 键独立负责对应控件的可见文本。
 
 实现前的 UI inventory test 必须核对上述清单覆盖所有由库产生的可见字符串、placeholder、title、`aria-label`、`aria-live` 状态和错误文本。如果同一可见文本与 accessible name 需要独立覆盖，使用独立键，不让调用方从 DOM 文本反推无障碍名称。
 
