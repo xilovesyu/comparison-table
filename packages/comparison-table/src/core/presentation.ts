@@ -1,6 +1,10 @@
-import type { ComparisonRow, ContainerSummary } from './types';
+import type { ComparisonRow, ContainerSummary, MergeEditor } from './types';
 
 const summariesByRows = new WeakMap<readonly ComparisonRow[], Map<string, ContainerSummary>>();
+const mergeEditorsByRows = new WeakMap<
+  readonly ComparisonRow[],
+  Map<string, false | 'text' | 'number' | 'boolean' | MergeEditor>
+>();
 
 export function registerContainerSummaries(
   rows: readonly ComparisonRow[],
@@ -13,6 +17,19 @@ export function getContainerSummaries(
   rows: readonly ComparisonRow[],
 ): Map<string, ContainerSummary> {
   return summariesByRows.get(rows) ?? new Map();
+}
+
+export function registerMergeEditors(
+  rows: readonly ComparisonRow[],
+  editors: Map<string, false | 'text' | 'number' | 'boolean' | MergeEditor>,
+): void {
+  mergeEditorsByRows.set(rows, editors);
+}
+
+export function getMergeEditors(
+  rows: readonly ComparisonRow[],
+): Map<string, false | 'text' | 'number' | 'boolean' | MergeEditor> {
+  return mergeEditorsByRows.get(rows) ?? new Map();
 }
 
 export function copyComparisonRow(

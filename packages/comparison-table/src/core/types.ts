@@ -35,6 +35,8 @@ export interface PropertyDefinition {
   renderValue?: ValueRenderer;
   /** Display-only formatter for plain object or array cells. */
   containerSummary?: ContainerSummary;
+  /** Raw-value editor used by the opt-in Final merge column. */
+  readonly mergeEditor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   /** Reserved metadata for consumers describing explicit expandability. */
   expandable?: boolean;
   /** Reserved metadata for consumers describing default expansion. */
@@ -93,6 +95,8 @@ export interface DisplayRule {
   renderer?: string;
   /** Display-only formatter for plain object or array cells matched by this rule. */
   containerSummary?: ContainerSummary;
+  /** Raw-value editor used by the opt-in Final merge column. */
+  readonly mergeEditor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   /** Diff badge inherited by descendants unless they override it. */
   differenceIndicator?: DifferenceIndicatorSetting;
   /** Subtree-search affordance inherited by descendants unless overridden. */
@@ -153,6 +157,20 @@ export type MergeResolutions = Readonly<Record<MergeResolutionKey, MergeResoluti
 
 /** One committed primitive raw-value edit, addressed by a comparison row id. */
 export type MergeEdit = Readonly<{ kind: 'set'; value: unknown }> | Readonly<{ kind: 'delete' }>;
+
+/** Props supplied to a custom raw-value merge editor. */
+export interface MergeEditorProps {
+  readonly path: PropertyPath;
+  readonly value: unknown;
+  readonly disabled?: boolean;
+  readonly invalid?: boolean;
+  readonly error?: string;
+  readonly onCommit: (edit: MergeEdit) => void;
+  readonly onClear: () => void;
+}
+
+/** Renders a custom raw-value editor for the opt-in Final merge column. */
+export type MergeEditor = (props: MergeEditorProps) => React.ReactNode;
 
 /** Independent committed edits keyed exactly by {@link MergeResolutionKey}. */
 export type MergeEdits = Readonly<Record<MergeResolutionKey, MergeEdit>>;

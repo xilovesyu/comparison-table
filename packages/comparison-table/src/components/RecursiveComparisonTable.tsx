@@ -12,6 +12,7 @@ import {
   type ComparisonVersion,
   type DifferenceOptions,
   type MergeEdit,
+  type MergeEditor,
   type MergeEdits,
   type MergeOptions,
   type MergeResolution,
@@ -21,7 +22,7 @@ import {
   type SearchOptions,
 } from '../core/comparison';
 import { buildMergeResult } from '../core/merge';
-import { copyComparisonRow, getContainerSummaries } from '../core/presentation';
+import { copyComparisonRow, getContainerSummaries, getMergeEditors } from '../core/presentation';
 import {
   createRendererRegistry,
   type RendererOverrides,
@@ -79,6 +80,16 @@ export function RecursiveComparisonTable({
   const [nodeQueries, setNodeQueries] = useState<Record<string, string>>({});
   const rows = useMemo(() => buildComparisonRows(versions, config), [versions, config]);
   const containerSummaries = useMemo(() => getContainerSummaries(rows), [rows]);
+  const mergeEditors = useMemo(() => getMergeEditors(rows), [rows]);
+  const structuredEditKeys = useMemo(
+    () =>
+      new Set(
+        [...mergeEditors.entries()]
+          .filter(([, editor]) => typeof editor === 'function')
+          .map(([resolutionKey]) => resolutionKey),
+      ),
+    [mergeEditors],
+  );
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
   const locallyFilteredRows = useMemo(
     () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
@@ -105,7 +116,7 @@ export function RecursiveComparisonTable({
   const [internalEdits, setInternalEdits] = useState<MergeEdits>(() => ({
     ...(merge?.defaultEdits ?? {}),
   }));
-  const [invalidEditPaths, setInvalidEditPaths] = useState<ReadonlySet<string>>(() => new Set());
+  const [editErrors, setEditErrors] = useState<Readonly<Record<string, string>>>(() => ({}));
   const [announcedInheritedRowId, setAnnouncedInheritedRowId] = useState<string>();
   const activeResolutions = merge?.value ?? internalResolutions;
   const activeEdits = merge?.edits ?? internalEdits;
@@ -124,6 +135,7 @@ export function RecursiveComparisonTable({
             baselineId,
             config.arrayItemKeyFields,
             usesEditedMergePlanner ? activeEdits : undefined,
+            structuredEditKeys,
           )
         : undefined,
     [
@@ -135,6 +147,7 @@ export function RecursiveComparisonTable({
       rows,
       usesEditedMergePlanner,
       versions,
+      structuredEditKeys,
     ],
   );
   const pendingControlledCompletion = useRef<{
@@ -142,6 +155,7 @@ export function RecursiveComparisonTable({
     edits: MergeEdits;
     previousResolutions: MergeResolutions;
     previousEdits: MergeEdits;
+    completionProposed: boolean;
   }>();
   useEffect(() => {
     const pending = pendingControlledCompletion.current;
@@ -153,9 +167,13 @@ export function RecursiveComparisonTable({
     const resolutionsMatch = equalResolutions(activeResolutions, pending.resolutions);
     const editsMatch = equalEdits(activeEdits, pending.edits);
     if (resolutionsMatch && editsMatch) {
-      pendingControlledCompletion.current = undefined;
-      if (!mergeResult?.isComplete) return;
-      merge.onComplete?.(mergeResult);
+      if (pending.completionProposed && mergeResult?.isComplete) {
+        pendingControlledCompletion.current = undefined;
+        merge.onComplete?.(mergeResult);
+      } else {
+        pending.previousResolutions = activeResolutions;
+        pending.previousEdits = activeEdits;
+      }
       return;
     }
     const resolutionsRemainExpected =
@@ -168,35 +186,57 @@ export function RecursiveComparisonTable({
       pendingControlledCompletion.current = undefined;
     }
   }, [activeEdits, activeResolutions, merge, mergeEnabled, mergeResult]);
-  const rememberControlledCompletion = (
+  const rememberControlledProposal = (
     nextResolutions: MergeResolutions,
     nextEdits: MergeEdits,
     nextComplete: boolean,
   ) => {
-    if (!mergeResult || mergeResult.isComplete || !nextComplete) return false;
     if (merge?.value === undefined && merge?.edits === undefined) return false;
+    const pending = pendingControlledCompletion.current;
     pendingControlledCompletion.current = {
       resolutions: nextResolutions,
       edits: nextEdits,
-      previousResolutions: activeResolutions,
-      previousEdits: activeEdits,
+      previousResolutions: pending?.previousResolutions ?? activeResolutions,
+      previousEdits: pending?.previousEdits ?? activeEdits,
+      completionProposed:
+        Boolean(pending?.completionProposed) ||
+        Boolean(mergeResult && !mergeResult.isComplete && nextComplete),
     };
     return true;
   };
+  const proposalPair = (): { resolutions: MergeResolutions; edits: MergeEdits } => {
+    const pending = pendingControlledCompletion.current;
+    if (!pending) return { resolutions: activeResolutions, edits: activeEdits };
+    const resolutionsExpected =
+      merge?.value === undefined ||
+      equalResolutions(activeResolutions, pending.previousResolutions) ||
+      equalResolutions(activeResolutions, pending.resolutions);
+    const editsExpected =
+      merge?.edits === undefined ||
+      equalEdits(activeEdits, pending.previousEdits) ||
+      equalEdits(activeEdits, pending.edits);
+    if (resolutionsExpected && editsExpected) {
+      return { resolutions: pending.resolutions, edits: pending.edits };
+    }
+    pendingControlledCompletion.current = undefined;
+    return { resolutions: activeResolutions, edits: activeEdits };
+  };
   const publishMergeResolutions = (nextResolutions: MergeResolutions) => {
     if (!mergeEnabled || !mergeResult) return;
+    const pairedEdits = proposalPair().edits;
     const nextResult = buildMergeResult(
       rows,
       versions,
       nextResolutions,
       baselineId,
       config.arrayItemKeyFields,
-      usesEditedMergePlanner ? activeEdits : undefined,
+      usesEditedMergePlanner ? pairedEdits : undefined,
+      structuredEditKeys,
     );
     if (merge?.value === undefined) setInternalResolutions(nextResolutions);
-    const waitsForEcho = rememberControlledCompletion(
+    const waitsForEcho = rememberControlledProposal(
       nextResolutions,
-      activeEdits,
+      pairedEdits,
       nextResult.isComplete,
     );
     merge?.onChange?.(nextResolutions, nextResult);
@@ -206,17 +246,19 @@ export function RecursiveComparisonTable({
   };
   const publishMergeEdits = (nextEdits: MergeEdits) => {
     if (!mergeEnabled || !mergeResult) return;
+    const pairedResolutions = proposalPair().resolutions;
     const nextResult = buildMergeResult(
       rows,
       versions,
-      activeResolutions,
+      pairedResolutions,
       baselineId,
       config.arrayItemKeyFields,
       nextEdits,
+      structuredEditKeys,
     );
     if (merge?.edits === undefined) setInternalEdits(nextEdits);
-    const waitsForEcho = rememberControlledCompletion(
-      activeResolutions,
+    const waitsForEcho = rememberControlledProposal(
+      pairedResolutions,
       nextEdits,
       nextResult.isComplete,
     );
@@ -232,7 +274,9 @@ export function RecursiveComparisonTable({
     });
   };
   const clearMergeResolution = (resolutionKey: string) => {
-    const nextResolutions: Record<string, MergeResolution> = { ...activeResolutions };
+    const nextResolutions: Record<string, MergeResolution> = {
+      ...activeResolutions,
+    };
     delete nextResolutions[resolutionKey];
     setAnnouncedInheritedRowId(resolutionKey);
     publishMergeResolutions(nextResolutions);
@@ -241,13 +285,19 @@ export function RecursiveComparisonTable({
     updateMergeResolution(row.id, { kind: 'source', versionId });
   };
   const updateMergeEdit = (row: ComparisonRow, edit: MergeEdit) => {
-    setInvalidEditPaths((paths) => {
-      if (!paths.has(row.id)) return paths;
-      const next = new Set(paths);
-      next.delete(row.id);
+    setEditErrors((errors) => {
+      if (!(row.id in errors)) return errors;
+      const next = { ...errors };
+      delete next[row.id];
       return next;
     });
     publishMergeEdits({ ...activeEdits, [row.id]: edit });
+  };
+  const clearMergeEdit = (row: ComparisonRow) => {
+    const nextEdits: Record<string, MergeEdit> = { ...activeEdits };
+    delete nextEdits[row.id];
+    setAnnouncedInheritedRowId(row.id);
+    publishMergeEdits(nextEdits);
   };
   const mergeScopeByRowId = useMemo(
     () => new Map(mergeResult?.scope.map((entry) => [entry.resolutionKey, entry]) ?? []),
@@ -401,6 +451,16 @@ export function RecursiveComparisonTable({
                 (candidate) => candidate.kind !== 'stale' && candidate.resolutionKey === row.id,
               );
               const edit = activeEdits[row.id];
+              const hasManualEdit = Object.prototype.hasOwnProperty.call(activeEdits, row.id);
+              const editClearButton = hasManualEdit ? (
+                <Button
+                  aria-label={`Clear edit ${row.property.path.join('.')}`}
+                  size="small"
+                  onClick={() => clearMergeEdit(row)}
+                >
+                  Clear edit
+                </Button>
+              ) : null;
               const inherited =
                 !hasManualResolution && !edit
                   ? findInheritedResolution(
@@ -416,16 +476,18 @@ export function RecursiveComparisonTable({
                     row={row}
                     edit={edit}
                     sourceDecision={decision}
-                    invalid={invalidEditPaths.has(row.id)}
-                    onInvalid={(invalid) =>
-                      setInvalidEditPaths((paths) => {
-                        const next = new Set(paths);
-                        if (invalid) next.add(row.id);
-                        else next.delete(row.id);
+                    editor={mergeEditors.get(row.id)}
+                    error={editErrors[row.id]}
+                    onError={(error) =>
+                      setEditErrors((errors) => {
+                        const next = { ...errors };
+                        if (error) next[row.id] = error;
+                        else delete next[row.id];
                         return next;
                       })
                     }
                     onEdit={(nextEdit) => updateMergeEdit(row, nextEdit)}
+                    onClear={() => clearMergeEdit(row)}
                   />
                 ) : null;
               if (edit) {
@@ -450,6 +512,7 @@ export function RecursiveComparisonTable({
                         )
                       : 'Deleted'}
                     {editor}
+                    {editClearButton}
                     {clearButton}
                   </div>
                 );
@@ -459,6 +522,7 @@ export function RecursiveComparisonTable({
                   <div>
                     <span>Unresolved</span>
                     {editor}
+                    {editClearButton}
                     {clearButton}
                   </div>
                 );
@@ -485,6 +549,7 @@ export function RecursiveComparisonTable({
                     </span>
                   )}
                   {editor}
+                  {editClearButton}
                   {clearButton}
                 </div>
               );
@@ -611,16 +676,20 @@ function MergeValueEditor({
   row,
   edit,
   sourceDecision,
-  invalid,
-  onInvalid,
+  editor,
+  error,
+  onError,
   onEdit,
+  onClear,
 }: {
   row: ComparisonRow;
   edit?: MergeEdit;
   sourceDecision?: MergeSourceDecision;
-  invalid: boolean;
-  onInvalid: (invalid: boolean) => void;
+  editor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
+  error?: string;
+  onError: (error?: string) => void;
   onEdit: (edit: MergeEdit) => void;
+  onClear: () => void;
 }) {
   const pathLabel = row.property.path.join('.');
   const sourceVersionId =
@@ -631,7 +700,27 @@ function MergeValueEditor({
     ? row.values[sourceVersionId]
     : Object.values(row.values).find((value) => value !== undefined);
   const editValue = edit?.kind === 'set' ? edit.value : sourceValue;
-  const valueType = getPropertyType(sourceValue);
+  if (editor === false) return null;
+  if (typeof editor === 'function') {
+    const CustomEditor = editor;
+    return (
+      <div className="comparison-merge-editor">
+        <CustomEditor
+          path={[...row.property.path]}
+          value={editValue}
+          invalid={Boolean(error)}
+          error={error}
+          onCommit={(nextEdit) => {
+            onError(undefined);
+            onEdit(nextEdit);
+          }}
+          onClear={onClear}
+        />
+      </div>
+    );
+  }
+  const valueType = editor ?? getPropertyType(sourceValue);
+  const invalid = Boolean(error);
   const controls = (() => {
     if (valueType === 'number') {
       const numberValue =
@@ -644,15 +733,17 @@ function MergeValueEditor({
           value={numberValue}
           onChange={(value) => {
             if (typeof value === 'number' && Number.isFinite(value)) {
-              onInvalid(false);
+              onError(undefined);
               onEdit({ kind: 'set', value });
             } else {
-              onInvalid(true);
+              onError(`${pathLabel} must be a finite number`);
             }
           }}
           onBlur={(event) => {
             const value = event.currentTarget.value.trim();
-            if (value !== '' && !Number.isFinite(Number(value))) onInvalid(true);
+            if (value !== '' && !Number.isFinite(Number(value))) {
+              onError(`${pathLabel} must be a finite number`);
+            }
           }}
         />
       );
@@ -691,7 +782,7 @@ function MergeValueEditor({
       >
         Delete
       </Button>
-      {invalid && <span role="alert">{pathLabel} must be a finite number</span>}
+      {error && <span role="alert">{error}</span>}
     </div>
   );
 }

@@ -29,6 +29,7 @@ export function buildMergeResult<T>(
   configuredBaselineId?: string,
   arrayItemKeyFields?: Readonly<Record<string, string>>,
   edits?: MergeEdits,
+  structuredEditKeys?: ReadonlySet<string>,
 ): MergeResult<T> {
   if (edits !== undefined) {
     return buildEditedMergeResult(
@@ -38,6 +39,7 @@ export function buildMergeResult<T>(
       configuredBaselineId,
       arrayItemKeyFields,
       edits,
+      structuredEditKeys,
     );
   }
   const baseline = configuredBaselineId
@@ -336,6 +338,7 @@ function buildEditedMergeResult<T>(
   configuredBaselineId: string | undefined,
   arrayItemKeyFields: Readonly<Record<string, string>> | undefined,
   edits: MergeEdits,
+  structuredEditKeys: ReadonlySet<string> | undefined,
 ): MergeResult<T> {
   const baseline = configuredBaselineId
     ? versions.find((version) => version.id === configuredBaselineId)
@@ -385,11 +388,11 @@ function buildEditedMergeResult<T>(
   const markInvalidSource = (
     row: ComparisonRow,
     versionId: string,
-    keyedItem?: KeyedItemContext,
+    allowedSourceVersionIds: readonly string[],
   ): boolean => {
     const reason = !versionIds.has(versionId)
       ? 'source-version-unavailable'
-      : keyedItem && !keyedItem.presentVersionIds.includes(versionId)
+      : !allowedSourceVersionIds.includes(versionId)
         ? 'source-not-present'
         : undefined;
     if (!reason) return false;
@@ -451,15 +454,19 @@ function buildEditedMergeResult<T>(
 
   const processLeaf = (row: ComparisonRow, context: EditedMergeContext): void => {
     const role = roleFor(row, keyFields);
-    const allowedSourceVersionIds = context.keyedItem
-      ? context.keyedItem.presentVersionIds
-      : versions.map((version) => version.id);
+    const allowedSourceVersionIds = allowedSourcesFor(
+      row,
+      role,
+      versions,
+      keyFields,
+      context.keyedItem,
+    );
     addScope(row, role, context, allowedSourceVersionIds);
     if (!context.active || context.dormant) return;
 
     const edit = edits[row.id];
     if (edit) {
-      const value = editValue(edit, row.property.path);
+      const value = editValue(edit, row.property.path, structuredEditKeys?.has(row.id) === true);
       if (value === undefined) deletePath(mergedData, row.property.path, keyFields);
       else assignPath(mergedData, row.property.path, value, keyFields);
       pushRelativePatch(row, value, 'user-edit', undefined, context.suppressPatches);
@@ -487,7 +494,7 @@ function buildEditedMergeResult<T>(
       markUnresolved(row, role);
       return;
     }
-    if (markInvalidSource(row, sourceVersionId, context.keyedItem)) return;
+    if (markInvalidSource(row, sourceVersionId, allowedSourceVersionIds)) return;
 
     const value = cloneValue(row.values[sourceVersionId], row.property.path);
     if (value === undefined) deletePath(mergedData, row.property.path, keyFields);
@@ -516,9 +523,7 @@ function buildEditedMergeResult<T>(
     children: readonly ComparisonRow[] = row.children ?? [],
   ): void => {
     const role: Exclude<MergeScopeRole, 'keyed-presence'> = 'container';
-    const allowedSourceVersionIds = keyedItem
-      ? keyedItem.presentVersionIds
-      : versions.map((version) => version.id);
+    const allowedSourceVersionIds = allowedSourcesFor(row, role, versions, keyFields, keyedItem);
     addScope(row, role, context, allowedSourceVersionIds);
     const resolution = resolutions[row.id];
     let inheritedVersionId = context.inheritedVersionId;
@@ -529,7 +534,7 @@ function buildEditedMergeResult<T>(
           resolutionKey: row.id,
           reason: 'exclude-not-allowed',
         });
-      } else if (!markInvalidSource(row, resolution.versionId, keyedItem)) {
+      } else if (!markInvalidSource(row, resolution.versionId, allowedSourceVersionIds)) {
         inheritedVersionId = resolution.versionId;
         sourceDecisions.push({
           kind: 'source',
@@ -598,7 +603,10 @@ function buildEditedMergeResult<T>(
       return;
     }
 
-    if (!includeVersionId || markInvalidSource(row, includeVersionId, keyedItem)) {
+    if (
+      !includeVersionId ||
+      markInvalidSource(row, includeVersionId, keyedItem.presentVersionIds)
+    ) {
       processRows(children, {
         ...context,
         active: false,
@@ -700,8 +708,32 @@ function roleFor(
   if (values.some(Array.isArray)) {
     return keyFields.has(pathKey(row.property.path)) ? 'container' : 'non-keyed-array';
   }
-  if (values.some((value) => value !== null && typeof value === 'object')) return 'container';
+  if (
+    values.some((value) => value !== null && typeof value === 'object' && !(value instanceof Date))
+  ) {
+    return 'container';
+  }
   return 'value';
+}
+
+function allowedSourcesFor(
+  row: ComparisonRow,
+  role: Exclude<MergeScopeRole, 'keyed-presence'>,
+  versions: readonly ComparisonVersion[],
+  keyFields: KeyFields,
+  keyedItem?: KeyedItemContext,
+): readonly string[] {
+  if (keyedItem) return keyedItem.presentVersionIds;
+  if (role === 'value') return versions.map((version) => version.id);
+  const requiresArray = role === 'non-keyed-array' || keyFields.has(pathKey(row.property.path));
+  return versions
+    .filter((version) => {
+      const value = row.values[version.id];
+      return requiresArray
+        ? Array.isArray(value)
+        : value !== null && typeof value === 'object' && !Array.isArray(value);
+    })
+    .map((version) => version.id);
 }
 
 function keyedItemContext(
@@ -849,7 +881,7 @@ function cloneValue<T>(value: T, path: PropertyPath): T {
   }
 }
 
-function editValue(edit: MergeEdit, path: PropertyPath): unknown {
+function editValue(edit: MergeEdit, path: PropertyPath, allowStructured = false): unknown {
   if (edit.kind === 'delete') return undefined;
   const value = edit.value;
   if (
@@ -860,6 +892,7 @@ function editValue(edit: MergeEdit, path: PropertyPath): unknown {
   ) {
     return cloneValue(value, path);
   }
+  if (allowStructured) return cloneValue(value, path);
   const type = Array.isArray(value) ? 'array' : value instanceof Date ? 'date' : typeof value;
   throw new Error(`Cannot edit merge value at ${displayPath(path)}: unsupported ${type}`);
 }

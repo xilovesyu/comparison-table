@@ -1,37 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type {
-  MergeEdit,
   MergeEdits,
+  MergeEditor,
   MergeResolution,
   MergeResolutions,
   MergeResult,
-  PropertyPath,
 } from '../core/types';
 import { RecursiveComparisonTable } from './RecursiveComparisonTable';
-
-interface TestMergeEditorContext {
-  readonly path: PropertyPath;
-  readonly sourceValue: unknown;
-  readonly edit?: MergeEdit;
-  readonly commit: (edit: MergeEdit) => void;
-  readonly reportError: (message: string) => void;
-}
-
-type TestMergeEditor = (context: TestMergeEditorContext) => ReactNode;
-
-declare module '../core/types' {
-  interface PropertyDefinition {
-    /** Test-only placeholder for the approved Issue #17 custom raw editor seam. */
-    mergeEditor?: TestMergeEditor;
-  }
-
-  interface DisplayRule {
-    /** Test-only placeholder for the approved Issue #17 custom raw editor seam. */
-    mergeEditor?: TestMergeEditor;
-  }
-}
 
 const rowId = (...path: string[]) => JSON.stringify(path);
 const source = (versionId: string): MergeResolution => ({ kind: 'source', versionId });
@@ -312,18 +289,21 @@ describe('Issue #17 architecture follow-up contracts', () => {
   it('uses definition and rule merge editors to validate and commit raw values, never renderer text', () => {
     const reviewedAt = new Date('2026-09-05T10:00:00.000Z');
     const onEditsChange = vi.fn<(edits: MergeEdits, result: MergeResult) => void>();
-    const dateEditor: TestMergeEditor = ({ commit }) => (
-      <button type="button" onClick={() => commit({ kind: 'set', value: reviewedAt })}>
+    const dateEditor: MergeEditor = ({ onCommit }) => (
+      <button type="button" onClick={() => onCommit({ kind: 'set', value: reviewedAt })}>
         Commit reviewed date
       </button>
     );
-    const statusEditor: TestMergeEditor = ({ commit }) => (
-      <button type="button" onClick={() => commit({ kind: 'set', value: 'approved' })}>
+    const statusEditor: MergeEditor = ({ onCommit }) => (
+      <button type="button" onClick={() => onCommit({ kind: 'set', value: 'approved' })}>
         Commit status enum
       </button>
     );
-    const accountEditor: TestMergeEditor = ({ commit }) => (
-      <button type="button" onClick={() => commit({ kind: 'set', value: { id: 'C-42', tier: 2 } })}>
+    const accountEditor: MergeEditor = ({ onCommit }) => (
+      <button
+        type="button"
+        onClick={() => onCommit({ kind: 'set', value: { id: 'C-42', tier: 2 } })}
+      >
         Commit custom account
       </button>
     );
@@ -417,16 +397,26 @@ describe('Issue #17 architecture follow-up contracts', () => {
 
   it('keeps a custom invalid draft local until its validator permits a raw commit', () => {
     const onEditsChange = vi.fn();
-    const decimalEditor: TestMergeEditor = ({ commit, reportError }) => (
-      <div>
-        <button type="button" onClick={() => reportError('price must be a decimal')}>
-          Reject decimal draft
-        </button>
-        <button type="button" onClick={() => commit({ kind: 'set', value: '12.34' })}>
-          Commit decimal raw value
-        </button>
-      </div>
-    );
+    const decimalEditor: MergeEditor = ({ onCommit }) => {
+      const [error, setError] = useState<string>();
+      return (
+        <div>
+          <button type="button" onClick={() => setError('price must be a decimal')}>
+            Reject decimal draft
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setError(undefined);
+              onCommit({ kind: 'set', value: '12.34' });
+            }}
+          >
+            Commit decimal raw value
+          </button>
+          {error && <span role="alert">{error}</span>}
+        </div>
+      );
+    };
     render(
       <RecursiveComparisonTable
         versions={[
