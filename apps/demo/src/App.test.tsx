@@ -392,6 +392,55 @@ describe('documentation examples', () => {
     }
   });
 
+  it('localizes Advanced Missing and keyed child merge controls in visible text and aria', () => {
+    const card = renderExample('advanced-configuration');
+    const missingRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-400'])}']`,
+    ) as HTMLElement;
+    expect(missingRow).toBeInTheDocument();
+    expect.soft(within(missingRow).queryByText('lines.P-400 在复核版缺失')).toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('radio', { name: /^lines\.P-300 从复核版加入$/ }));
+
+    const presenceRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-300'])}']`,
+    ) as HTMLElement;
+    const presenceFinalCell = presenceRow.querySelector('td:last-child') as HTMLElement;
+    const clearSource = within(presenceFinalCell).getByRole('button');
+    expect.soft(clearSource).toHaveAccessibleName('清除 lines.P-300 的来源');
+    expect.soft(clearSource).toHaveTextContent(/^清除来源$/);
+    fireEvent.click(within(presenceRow).getByRole('button', { name: 'Expand row' }));
+
+    const quantityRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-300', 'quantity'])}']`,
+    ) as HTMLElement;
+    const quantityFinalCell = quantityRow.querySelector('td:last-child') as HTMLElement;
+    const quantityEditor = within(quantityFinalCell).getByRole('spinbutton');
+    expect.soft(quantityEditor).toHaveAccessibleName('编辑 lines.P-300.quantity');
+    const setNull = within(quantityFinalCell).getByRole('button', {
+      name: /^(?:Set lines\.P-300\.quantity to null|将 lines\.P-300\.quantity 设为空值)$/,
+    });
+    const deleteValue = within(quantityFinalCell).getByRole('button', {
+      name: /^(?:Delete lines\.P-300\.quantity|删除 lines\.P-300\.quantity)$/,
+    });
+    expect.soft(setNull).toHaveAccessibleName('将 lines.P-300.quantity 设为空值');
+    expect.soft(setNull).toHaveTextContent(/^设为空值$/);
+    expect.soft(deleteValue).toHaveAccessibleName('删除 lines.P-300.quantity');
+    expect.soft(deleteValue).toHaveTextContent(/^删除值$/);
+
+    fireEvent.click(setNull);
+    const updatedQuantityRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-300', 'quantity'])}']`,
+    ) as HTMLElement;
+    const clearEdit = within(
+      updatedQuantityRow.querySelector('td:last-child') as HTMLElement,
+    ).getByRole('button', {
+      name: /^(?:Clear edit lines\.P-300\.quantity|清除 lines\.P-300\.quantity 的编辑)$/,
+    });
+    expect.soft(clearEdit).toHaveAccessibleName('清除 lines.P-300.quantity 的编辑');
+    expect.soft(clearEdit).toHaveTextContent(/^清除编辑$/);
+  });
+
   it.each([
     {
       id: 'final-merge' as const,
