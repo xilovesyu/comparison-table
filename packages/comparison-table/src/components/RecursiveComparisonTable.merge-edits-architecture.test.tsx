@@ -111,6 +111,33 @@ describe('Issue #17 architecture follow-up contracts', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps the first plain object container source when only one direct child differs', () => {
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'base',
+            label: 'Base',
+            data: { profile: { name: 'Base name', unchanged: 'same' } },
+          },
+          {
+            id: 'review',
+            label: 'Review',
+            data: { profile: { name: 'Review name', unchanged: 'same' } },
+          },
+        ]}
+        merge={{ enabled: true }}
+      />,
+    );
+
+    const profileSource = screen.getByRole('radio', { name: 'profile Review' });
+    expect(profileSource).toHaveClass('ant-radio-input');
+    fireEvent.click(profileSource);
+
+    expect(profileSource).toBeChecked();
+    expect(screen.getAllByText('Review name')).toHaveLength(2);
+  });
+
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
     const title = rowId('title');
     const onChange = vi.fn();
