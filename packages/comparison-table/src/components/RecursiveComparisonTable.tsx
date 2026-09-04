@@ -120,11 +120,7 @@ export function RecursiveComparisonTable({
   const [announcedInheritedRowId, setAnnouncedInheritedRowId] = useState<string>();
   const activeResolutions = merge?.value ?? internalResolutions;
   const activeEdits = merge?.edits ?? internalEdits;
-  const usesEditedMergePlanner =
-    merge?.edits !== undefined ||
-    merge?.defaultEdits !== undefined ||
-    merge?.onEditsChange !== undefined ||
-    hasContainerResolution(rows, activeResolutions);
+  const usesEditedMergePlanner = mergeEnabled;
   const mergeResult = useMemo(
     () =>
       mergeEnabled
@@ -299,9 +295,26 @@ export function RecursiveComparisonTable({
     setAnnouncedInheritedRowId(row.id);
     publishMergeEdits(nextEdits);
   };
+  const showContainerMergeControls =
+    config.arrayItemKeyFields !== undefined ||
+    merge?.edits !== undefined ||
+    merge?.defaultEdits !== undefined ||
+    merge?.onEditsChange !== undefined ||
+    hasContainerResolution(rows, activeResolutions);
+  const hierarchicalRowIds = useMemo(() => collectHierarchicalRowIds(rows), [rows]);
   const mergeScopeByRowId = useMemo(
-    () => new Map(mergeResult?.scope.map((entry) => [entry.resolutionKey, entry]) ?? []),
-    [mergeResult],
+    () =>
+      new Map(
+        mergeResult?.scope
+          .filter(
+            (entry) =>
+              entry.role !== 'container' ||
+              !hierarchicalRowIds.has(entry.resolutionKey) ||
+              showContainerMergeControls,
+          )
+          .map((entry) => [entry.resolutionKey, entry]) ?? [],
+      ),
+    [hierarchicalRowIds, mergeResult, showContainerMergeControls],
   );
   const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
@@ -620,6 +633,19 @@ function hasContainerResolution(
       hasContainerResolution(row.children ?? [], resolutions),
   );
 }
+function collectHierarchicalRowIds(rows: readonly ComparisonRow[]): ReadonlySet<string> {
+  const result = new Set<string>();
+  const visit = (currentRows: readonly ComparisonRow[]) => {
+    currentRows.forEach((row) => {
+      if (row.children?.length) {
+        result.add(row.id);
+        visit(row.children);
+      }
+    });
+  };
+  visit(rows);
+  return result;
+}
 function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
   const leftKeys = Object.keys(left);
   const rightKeys = Object.keys(right);
@@ -711,6 +737,11 @@ function MergeValueEditor({
           invalid={Boolean(error)}
           error={error}
           onCommit={(nextEdit) => {
+            const validationError = validateCustomMergeEdit(pathLabel, nextEdit);
+            if (validationError) {
+              onError(validationError);
+              return;
+            }
             onError(undefined);
             onEdit(nextEdit);
           }}
@@ -785,6 +816,22 @@ function MergeValueEditor({
       {error && <span role="alert">{error}</span>}
     </div>
   );
+}
+function validateCustomMergeEdit(pathLabel: string, edit: MergeEdit): string | undefined {
+  if (edit.kind === 'delete') return undefined;
+  const value = edit.value;
+  if (value instanceof Date) return undefined;
+  if (Array.isArray(value)) return `${pathLabel}: unsupported array edit value`;
+  if (value !== null && typeof value === 'object') {
+    return `${pathLabel}: unsupported object edit value`;
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    return `${pathLabel}: unsupported non-finite number edit value`;
+  }
+  if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+    return `${pathLabel}: unsupported ${typeof value} edit value`;
+  }
+  return undefined;
 }
 function PropertyCell({
   row,
