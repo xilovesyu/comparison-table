@@ -197,6 +197,20 @@ user-submitted incomplete-to-complete transition after controlled writeback. Mou
 it; neither do `defaultValue` initialization, duplicate rerenders, or unrelated external
 replacements. This is the U2 submission boundary.
 
+`MergeResolutions` source decisions and `MergeEdits` raw edits are independent. The edits contract uses
+`edits`, `defaultEdits`, and `onEditsChange`; controlled callers pair `value` with `edits`, while
+uncontrolled callers pair `defaultValue` with `defaultEdits`. Controlled completion waits for the parent to echo both the
+value/source and edits pair. An object or keyed-array container source is inherited by visible children;
+a child source or edit overrides it, and Clear falls back to the nearest active ancestor. Keyed array
+items retain their separate presence Include/Exclude decision.
+
+`PropertyDefinition.mergeEditor` overrides `DisplayRule.mergeEditor`; `false` disables editing. The
+built-in text, number, and boolean editors commit primitive raw data. A custom `mergeEditor` can validate
+and commit Date, decimal, enum, or custom structured values. Raw renderer isolation keeps editor state
+separate from `renderer`/`renderValue`: display output is never treated as merge input. `resolvedPatch` is the
+canonical, stable, non-overlap migration contract and should be applied in order rather than rebuilt
+from rendered cells.
+
 ## Renderers
 
 ### Container summaries

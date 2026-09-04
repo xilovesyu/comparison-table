@@ -35,7 +35,7 @@ export interface PropertyDefinition {
   renderValue?: ValueRenderer;
   /** Display-only formatter for plain object or array cells. */
   containerSummary?: ContainerSummary;
-  /** Raw-value editor used by the opt-in Final merge column. */
+  /** Raw-value editor used by Final; it commits raw data and never reads renderer output. */
   readonly mergeEditor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   /** Reserved metadata for consumers describing explicit expandability. */
   expandable?: boolean;
@@ -95,7 +95,7 @@ export interface DisplayRule {
   renderer?: string;
   /** Display-only formatter for plain object or array cells matched by this rule. */
   containerSummary?: ContainerSummary;
-  /** Raw-value editor used by the opt-in Final merge column. */
+  /** Raw-value editor used by Final; it commits raw data and never reads renderer output. */
   readonly mergeEditor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   /** Diff badge inherited by descendants unless they override it. */
   differenceIndicator?: DifferenceIndicatorSetting;
@@ -172,7 +172,7 @@ export interface MergeEditorProps {
 /** Renders a custom raw-value editor for the opt-in Final merge column. */
 export type MergeEditor = (props: MergeEditorProps) => React.ReactNode;
 
-/** Independent committed edits keyed exactly by {@link MergeResolutionKey}. */
+/** Committed raw edits keyed exactly by row id and controlled independently from source value choices. */
 export type MergeEdits = Readonly<Record<MergeResolutionKey, MergeEdit>>;
 /** Semantic role of an entry in the active merge scope. */
 export type MergeScopeRole = 'value' | 'keyed-presence' | 'container' | 'non-keyed-array';
@@ -281,8 +281,12 @@ export interface MergeResult<T = unknown> {
    * Values that cannot be cloned, including functions and symbols, fail with path/type context.
    */
   readonly mergedData: T;
-  /** Resolved raw-value updates within the current scope. */
+  /**
+   * Canonical, stable, non-overlap raw operations. Consumers migrating from source-only merge
+   * results should apply this patch once in order rather than recomputing edits from rendered cells.
+   */
   readonly resolvedPatch: readonly MergePatch[];
+  /** The resolvedPatch contract is canonical, stable, and non-overlap for migrations. */
   /** Entries included by the current comparison configuration. */
   readonly scope: readonly MergeScopeEntry[];
   /** Direct-difference paths that still require a source choice. */
@@ -313,8 +317,8 @@ export interface MergeOptions<T = unknown> {
   readonly onEditsChange?: (edits: MergeEdits, result: MergeResult<T>) => void;
   /**
    * `onComplete` fires once after a user proposal transitions the effective result from incomplete to
-   * complete. In controlled mode this waits for parent writeback; mount does not fire it, nor do
-   * external replacements.
+   * complete. In controlled mode the value/source and edits pair must both echo from the parent;
+   * mount does not fire it, nor do external replacements.
    */
   readonly onComplete?: (result: MergeResult<T>) => void;
 }

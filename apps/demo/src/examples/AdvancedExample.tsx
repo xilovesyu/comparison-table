@@ -1,9 +1,11 @@
 import source from './AdvancedExample.tsx?raw';
 import { useState } from 'react';
-import { Button } from 'antd';
+import { Button, InputNumber } from 'antd';
 import {
   RecursiveComparisonTable,
   type ComparisonVersion,
+  type MergeEditor,
+  type MergeEdits,
   type MergeResolutions,
   type PropertyDefinition,
 } from '@jxi/comparison-table';
@@ -70,6 +72,20 @@ const advancedVersions = [
   },
 ] satisfies ComparisonVersion[];
 
+const moneyAmountEditor: MergeEditor = ({ path, value, disabled, invalid, onCommit }) => (
+  <InputNumber
+    aria-label={`Edit ${path.join('.')}`}
+    disabled={disabled}
+    status={invalid ? 'error' : undefined}
+    value={typeof value === 'number' ? value : null}
+    onChange={(next) => {
+      if (typeof next === 'number' && Number.isFinite(next)) {
+        onCommit({ kind: 'set', value: next });
+      }
+    }}
+  />
+);
+
 const advancedDefinitions = [
   {
     key: 'customer',
@@ -112,6 +128,7 @@ const advancedDefinitions = [
         path: ['billing', 'money', 'amount'],
         level: 1,
         type: 'number',
+        mergeEditor: moneyAmountEditor,
       },
       {
         key: 'currency',
@@ -135,7 +152,7 @@ const advancedDefinitions = [
     path: ['lines'],
     level: 0,
     type: 'array',
-    flatten: true,
+    flatten: false,
     itemDefinition: {
       key: 'line',
       label: '订单行',
@@ -164,21 +181,41 @@ const advancedRendererDefinitions = {
 };
 
 const defaultValueVersions = [
-  { id: 'baseline', label: '初始版', data: { approvalStatus: 'Draft' } },
-  { id: 'review', label: '复核版', data: { approvalStatus: 'Approved' } },
-  { id: 'final', label: '最终版', data: { approvalStatus: 'Rejected' } },
+  {
+    id: 'baseline',
+    label: '初始版',
+    data: { approvalStatus: 'Draft', reviewNote: 'Initial note' },
+  },
+  {
+    id: 'review',
+    label: '复核版',
+    data: { approvalStatus: 'Approved', reviewNote: 'Review note' },
+  },
+  {
+    id: 'final',
+    label: '最终版',
+    data: { approvalStatus: 'Rejected', reviewNote: 'Final note' },
+  },
 ] satisfies ComparisonVersion[];
 
 const defaultResolutions: MergeResolutions = {
   [JSON.stringify(['approvalStatus'])]: { kind: 'source', versionId: 'review' },
 };
+const defaultEdits: MergeEdits = {
+  [JSON.stringify(['reviewNote'])]: { kind: 'set', value: 'Manually reviewed' },
+};
+const defaultLoadedStatus = ['默认方案已加载', '未触发完成提交'].join('，');
+const defaultLoadedDetail = ['defaultValue 与 defaultEdits 已加载', '未触发完成提交'].join('，');
 
 export function AdvancedExample() {
   const [showDefaultValueMode, setShowDefaultValueMode] = useState(false);
   const [mergeStatus, setMergeStatus] = useState('请选择每个差异的来源');
+  const [resolutions, setResolutions] = useState<MergeResolutions>({});
+  const [edits, setEdits] = useState<MergeEdits>({});
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([
     '["customer"]',
     '["billing","money"]',
+    '["lines"]',
     '["lines","P-100"]',
   ]);
 
@@ -186,11 +223,13 @@ export function AdvancedExample() {
     return (
       <ExampleCard
         title="综合高级配置"
-        description="用 uncontrolled defaultValue 预载完整方案；只有清除后重新选择才视为本次完成提交。"
+        description="用 uncontrolled defaultValue 与 defaultEdits 预载完整方案；只有清除后重新选择才视为本次完成提交。"
         code={source}
+        sourceResetKey={showDefaultValueMode}
       >
         <Button onClick={() => setShowDefaultValueMode(false)}>返回综合高级配置</Button>
         <p aria-live="polite">{mergeStatus}</p>
+        {mergeStatus === defaultLoadedStatus ? <p>{defaultLoadedDetail}</p> : null}
         <RecursiveComparisonTable
           key="advanced-default-value-mode"
           versions={defaultValueVersions}
@@ -198,8 +237,12 @@ export function AdvancedExample() {
           merge={{
             enabled: true,
             defaultValue: defaultResolutions,
+            defaultEdits,
             onChange: (_next, result) => {
               setMergeStatus(result.isComplete ? '合并已完成' : '默认方案已清除');
+            },
+            onEditsChange: (_next, result) => {
+              setMergeStatus(result.isComplete ? '合并已完成' : '默认编辑已清除');
             },
             onComplete: () => setMergeStatus('合并已完成'),
           }}
@@ -213,14 +256,15 @@ export function AdvancedExample() {
       title="综合高级配置"
       description="组合字段筛选、受控展开、路径规则、基准列 Base 标签、局部与内置混合金额渲染、按 SKU 对齐的扁平数组、空值和新增字段，适合作为复杂业务数据的配置参考。"
       code={source}
+      sourceResetKey={showDefaultValueMode}
     >
       <Button
         onClick={() => {
-          setMergeStatus('默认方案已加载，未触发完成提交');
+          setMergeStatus(defaultLoadedStatus);
           setShowDefaultValueMode(true);
         }}
       >
-        演示 uncontrolled defaultValue
+        演示 uncontrolled defaultValue 与 defaultEdits
       </Button>
       <RecursiveComparisonTable
         key="advanced-complete-mode"
@@ -249,7 +293,20 @@ export function AdvancedExample() {
             ? `对象摘要：${Object.keys(value).length} 字段`
             : undefined
         }
-        merge={{ enabled: true }}
+        merge={{
+          enabled: true,
+          value: resolutions,
+          edits,
+          onChange: (next, result) => {
+            setResolutions(next);
+            setMergeStatus(result.isComplete ? '合并已完成' : '仍有差异待选择');
+          },
+          onEditsChange: (next, result) => {
+            setEdits(next);
+            setMergeStatus(result.isComplete ? '合并已完成' : '仍有差异待选择');
+          },
+          onComplete: () => setMergeStatus('source 与 edits pair echo 后合并已完成'),
+        }}
         comparison={{
           baseVersionId: 'baseline',
           showBaselineBadge: true,

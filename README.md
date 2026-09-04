@@ -76,6 +76,20 @@ their logical path and type (the U1 clone boundary). `onComplete` is limited to 
 incomplete-to-complete transition; mount, initial `defaultValue`, duplicate rerenders, and external
 controlled replacements do not trigger it (the U2 submission boundary).
 
+Source choices (`MergeResolutions`) and committed raw edits (`MergeEdits`) are independent state.
+Use `edits`, `defaultEdits`, and `onEditsChange` beside `value`, `defaultValue`, and `onChange`.
+In controlled mode, `onComplete` waits until the parent echoes both the value/source and edits pair.
+Selecting a container source makes visible children inherit it; a child can override that source and
+Clear returns the child to its nearest active ancestor. This applies to object containers, keyed array
+containers and items, while keyed item presence still resolves with Include or Exclude first.
+
+Raw renderer isolation means `mergeEditor` commits raw values and never reads `renderer` or
+`renderValue` output. The built-in text,
+number, and boolean editors cover primitive edits; a custom `mergeEditor` supports domain validation
+and raw values such as Date, decimal, enum, or custom structured data. `resolvedPatch` is the canonical,
+stable, non-overlap migration surface: apply its ordered operations instead of reconstructing changes
+from displayed cells.
+
 ## What it supports
 
 - Any number of version columns, with recursive objects, arrays, nulls, and newly introduced fields.
