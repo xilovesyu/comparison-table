@@ -295,13 +295,13 @@ export function RecursiveComparisonTable({
     setAnnouncedInheritedRowId(row.id);
     publishMergeEdits(nextEdits);
   };
-  const showContainerMergeControls =
+  const explicitlyShowsContainerMergeControls =
     config.arrayItemKeyFields !== undefined ||
     merge?.edits !== undefined ||
     merge?.defaultEdits !== undefined ||
     merge?.onEditsChange !== undefined ||
     hasContainerResolution(rows, activeResolutions);
-  const hierarchicalRowIds = useMemo(() => collectHierarchicalRowIds(rows), [rows]);
+  const hierarchicalRows = useMemo(() => collectHierarchicalRows(rows), [rows]);
   const mergeScopeByRowId = useMemo(
     () =>
       new Map(
@@ -309,12 +309,13 @@ export function RecursiveComparisonTable({
           .filter(
             (entry) =>
               entry.role !== 'container' ||
-              !hierarchicalRowIds.has(entry.resolutionKey) ||
-              showContainerMergeControls,
+              !hierarchicalRows.has(entry.resolutionKey) ||
+              explicitlyShowsContainerMergeControls ||
+              hasMultipleDecisionChildren(hierarchicalRows.get(entry.resolutionKey)),
           )
           .map((entry) => [entry.resolutionKey, entry]) ?? [],
       ),
-    [hierarchicalRowIds, mergeResult, showContainerMergeControls],
+    [explicitlyShowsContainerMergeControls, hierarchicalRows, mergeResult],
   );
   const needsMergeSelection = Boolean(
     mergeResult?.scope.some(
@@ -633,18 +634,35 @@ function hasContainerResolution(
       hasContainerResolution(row.children ?? [], resolutions),
   );
 }
-function collectHierarchicalRowIds(rows: readonly ComparisonRow[]): ReadonlySet<string> {
-  const result = new Set<string>();
+function collectHierarchicalRows(
+  rows: readonly ComparisonRow[],
+): ReadonlyMap<string, ComparisonRow> {
+  const result = new Map<string, ComparisonRow>();
   const visit = (currentRows: readonly ComparisonRow[]) => {
     currentRows.forEach((row) => {
       if (row.children?.length) {
-        result.add(row.id);
+        result.set(row.id, row);
         visit(row.children);
       }
     });
   };
   visit(rows);
   return result;
+}
+function hasMultipleDecisionChildren(row: ComparisonRow | undefined): boolean {
+  if (!row) return false;
+  let count = 0;
+  const visit = (children: readonly ComparisonRow[]): boolean => {
+    for (const child of children) {
+      if (child.children?.length) {
+        if (visit(child.children)) return true;
+      } else if (child.hasOwnDifference && ++count > 1) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return visit(row.children ?? []);
 }
 function equalResolutions(left: MergeResolutions, right: MergeResolutions): boolean {
   const leftKeys = Object.keys(left);

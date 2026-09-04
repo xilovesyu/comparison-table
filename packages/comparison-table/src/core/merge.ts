@@ -892,7 +892,7 @@ function editValue(edit: MergeEdit, path: PropertyPath, allowStructured = false)
   ) {
     return cloneValue(value, path);
   }
-  if (allowStructured) return cloneValue(value, path);
+  if (allowStructured && value instanceof Date) return cloneValue(value, path);
   const type = Array.isArray(value) ? 'array' : value instanceof Date ? 'date' : typeof value;
   throw new Error(`Cannot edit merge value at ${displayPath(path)}: unsupported ${type}`);
 }

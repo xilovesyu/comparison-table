@@ -206,7 +206,8 @@ items retain their separate presence Include/Exclude decision.
 
 `PropertyDefinition.mergeEditor` overrides `DisplayRule.mergeEditor`; `false` disables editing. The
 built-in text, number, and boolean editors commit primitive raw data. A custom `mergeEditor` can validate
-and commit Date, decimal, enum, or custom structured values. Raw renderer isolation keeps editor state
+and commit Date, decimal, enum, or other custom primitive values; object and array edit values are
+rejected even with a custom editor. Raw renderer isolation keeps editor state
 separate from `renderer`/`renderValue`: display output is never treated as merge input. `resolvedPatch` is the
 canonical, stable, non-overlap migration contract and should be applied in order rather than rebuilt
 from rendered cells.

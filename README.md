@@ -86,7 +86,8 @@ containers and items, while keyed item presence still resolves with Include or E
 Raw renderer isolation means `mergeEditor` commits raw values and never reads `renderer` or
 `renderValue` output. The built-in text,
 number, and boolean editors cover primitive edits; a custom `mergeEditor` supports domain validation
-and raw values such as Date, decimal, enum, or custom structured data. `resolvedPatch` is the canonical,
+and raw values such as Date, decimal, enum, or other custom primitives. Object and array edit values
+are rejected even when a custom editor is configured. `resolvedPatch` is the canonical,
 stable, non-overlap migration surface: apply its ordered operations instead of reconstructing changes
 from displayed cells.
 
