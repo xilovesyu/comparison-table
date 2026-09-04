@@ -174,7 +174,9 @@ describe('Issue #18 local text overrides', () => {
   });
 
   it('fails fast when a dynamic formatter returns a non-string value', () => {
-    const invalidFormatter = () => Reflect.get({ value: 42 }, 'value');
+    const invalidFormatter: () => string = new Proxy(() => '', {
+      apply: () => 42,
+    });
 
     expect(() =>
       render(
