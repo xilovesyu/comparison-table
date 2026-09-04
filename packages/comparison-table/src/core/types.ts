@@ -1,7 +1,14 @@
 /** A path to a field in a version record. Numeric parts address array items. */
 export type PropertyPath = readonly (string | number)[];
 
-/** All user-facing text owned by the comparison table. */
+/**
+ * All user-facing built-in text owned by the comparison table.
+ *
+ * When `texts` is omitted, or an override key is missing, the built-in default is used. An own
+ * `undefined` override also uses the built-in default, while an empty string is valid and preserved.
+ * Dynamic formatter contexts provide the relevant `count`, `propertyLabel`, `path`, or
+ * `versionLabel`; every formatter must return a string and a runtime non-string result throws.
+ */
 export interface ComparisonTableTexts {
   readonly tableRegionLabel: string;
   readonly propertyColumn: string;
@@ -49,7 +56,10 @@ export interface ComparisonTableTexts {
   readonly validationError: (context: Readonly<{ path: PropertyPath; error: string }>) => string;
 }
 
-/** Per-table partial text overrides. Explicit `undefined` values use the built-in default. */
+/**
+ * Per-table partial text overrides. Missing and explicit `undefined` values use the built-in
+ * default; an empty string is a valid override.
+ */
 export type ComparisonTableTextOverrides = Partial<ComparisonTableTexts>;
 
 /** Value kinds recognized by the recursive walker and built-in renderers. */

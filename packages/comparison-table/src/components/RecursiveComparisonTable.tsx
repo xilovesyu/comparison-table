@@ -50,7 +50,13 @@ export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
   expandedKeys?: React.Key[];
   /** Reports expansion changes for controlled or uncontrolled usage. */
   onExpandedChange?: (keys: React.Key[]) => void;
-  /** Per-table overrides for visible, status, and accessible text owned by this component. */
+  /**
+   * Per-table overrides for visible, status, and accessible text owned by this component.
+   * Final priority is `merge.finalLabel`, then `texts.finalColumn`, then the built-in default
+   * `Final`. The host `ConfigProvider` owns Ant Design locale outside this API.
+   * Version, PropertyDefinition, and DisplayRule labels, raw value output, renderer output, and
+   * mergeEditor output are never translated or overridden by `texts`.
+   */
   texts?: ComparisonTableTextOverrides;
   /**
    * Opt-in Final-column merge resolution. Omit it (or leave `enabled` false) for the legacy table.

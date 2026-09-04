@@ -15,6 +15,7 @@ import {
   RegistryExample,
   RendererExample,
   SelectionExample,
+  TextOverridesExample,
 } from './examples';
 import { DemoExampleIdContext } from './demoContext';
 import './app.css';
@@ -75,6 +76,12 @@ const demoExamples: readonly DemoExample[] = [
     title: '最终版本合并',
     group: '高级',
     Component: memo(FinalMergeExample),
+  },
+  {
+    id: 'text-overrides',
+    title: '内置文案配置与本地化',
+    group: '高级',
+    Component: memo(TextOverridesExample),
   },
   {
     id: 'advanced-configuration',

@@ -4,6 +4,7 @@ import { Button, InputNumber } from 'antd';
 import {
   RecursiveComparisonTable,
   type ComparisonVersion,
+  type ComparisonTableTextOverrides,
   type MergeEditor,
   type MergeEdits,
   type MergeResolutions,
@@ -180,6 +181,17 @@ const advancedRendererDefinitions = {
   },
 };
 
+const advancedTexts = {
+  tableRegionLabel: '综合配置对比表',
+  propertyColumn: '属性',
+  finalColumn: '最终结果',
+  sourceChoiceLabel: ({ path, versionLabel }) => `${path.join('.')} ${versionLabel}`,
+  presenceGroupLabel: ({ path }) => `${path.join('.')} 的存在状态`,
+  includeFromLabel: ({ path, versionLabel }) => `${path.join('.')} 从${versionLabel}加入`,
+  excludeLabel: ({ path }) => `${path.join('.')} 排除`,
+  validationError: ({ path, error }) => `${path.join('.')} 无效：${error}`,
+} satisfies ComparisonTableTextOverrides;
+
 const defaultValueVersions = [
   {
     id: 'baseline',
@@ -234,6 +246,7 @@ export function AdvancedExample() {
           key="advanced-default-value-mode"
           versions={defaultValueVersions}
           comparison={{ baseVersionId: 'baseline' }}
+          texts={advancedTexts}
           merge={{
             enabled: true,
             defaultValue: defaultResolutions,
@@ -320,6 +333,7 @@ export function AdvancedExample() {
         }}
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
+        texts={advancedTexts}
       />
     </ExampleCard>
   );

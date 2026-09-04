@@ -94,6 +94,32 @@ canonical, stable, non-overlap migration surface containing final leaf and prese
 Replay is independent of user click order, and replay is independent of parent/child patch execution order;
 consumers need not reconstruct changes from displayed cells.
 
+## Per-table built-in text overrides
+
+Pass a local `texts` object typed as `ComparisonTableTextOverrides` to replace component-owned
+visible, status, and accessible text for one table. The complete inventory is:
+
+- Static keys: `tableRegionLabel`, `propertyColumn`, `baselineBadge`,
+  `baselineBadgeAriaLabel`, `differenceIndicator`, `differenceIndicatorAriaLabel`,
+  `globalSearchLabel`, `globalSearchPlaceholder`, `onlyDifferencesLabel`, `nodeSearchLabel`,
+  `nodeFilterLabel`, `nodeFilterPlaceholder`, `finalColumn`, `needsSelectionStatus`,
+  `completeStatus`, `unresolvedStatus`, `deletedStatus`, `addedStatus`, `removedStatus`, and
+  `missingStatus`.
+- Dynamic formatter keys: `onlyDifferencesCount`, `sourceChoiceLabel`, `presenceGroupLabel`,
+  `includeFromLabel`, `excludeLabel`, `clearResolutionLabel`, `clearEditLabel`, `editValueLabel`,
+  `setNullLabel`, `deleteValueLabel`, `inheritedSourceStatus`, and `validationError`.
+
+An omitted or missing override uses the built-in default. An own `undefined` value also falls back
+to the built-in default, while an empty string is valid and preserved. Formatter contexts expose
+the relevant `count`, `propertyLabel`, `path`, or `versionLabel`, and each formatter must return a
+string; a runtime non-string result fails fast.
+
+The Final heading priority is `merge.finalLabel > texts.finalColumn > Final`. The `texts` API owns
+only this component's built-in wording. Version and property labels, including
+`PropertyDefinition` and `DisplayRule` labels, raw value output, `renderer` output, `mergeEditor`
+output, and all other user text are never translated or overridden by `texts`. Use Ant Design's
+`ConfigProvider` for Ant Design locale and internal control wording.
+
 ## What it supports
 
 - Any number of version columns, with recursive objects, arrays, nulls, and newly introduced fields.
@@ -135,13 +161,15 @@ pnpm --filter @jxi/comparison-table-demo dev
 - [Business-keyed array example](http://localhost:5173/#example-keyed-array)
 - [Container summary example](http://localhost:5173/#example-container-summary)
 - [Final merge example](http://localhost:5173/#example-final-merge)
+- [Built-in text overrides example](http://localhost:5173/#example-text-overrides)
 - [Advanced configuration example](http://localhost:5173/#example-advanced-configuration)
 
 The directory uses stable fragment URLs, keeps visited examples mounted so their local state survives
 navigation, and leaves unvisited examples out of the initial render. Its catalog and examples are in
 [App.tsx](apps/demo/src/App.tsx), [KeyedArrayExample.tsx](apps/demo/src/examples/KeyedArrayExample.tsx),
 [ContainerSummaryExample.tsx](apps/demo/src/examples/ContainerSummaryExample.tsx),
-[FinalMergeExample.tsx](apps/demo/src/examples/FinalMergeExample.tsx), and
+[FinalMergeExample.tsx](apps/demo/src/examples/FinalMergeExample.tsx),
+[TextOverridesExample.tsx](apps/demo/src/examples/TextOverridesExample.tsx), and
 [AdvancedExample.tsx](apps/demo/src/examples/AdvancedExample.tsx).
 
 ### Live GitHub Pages demo
