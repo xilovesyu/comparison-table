@@ -195,7 +195,7 @@ describe('documentation examples', () => {
 
   it('shows an Advanced keyed item missing only in review and keeps it in the source panel', () => {
     const card = renderExample('advanced-configuration');
-    expect(within(card).getByText(/Missing in review/)).toBeInTheDocument();
+    expect(within(card).getByText('lines.P-400 在复核版缺失')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card.querySelector('.source-panel')!).getByText(/review/)).toBeInTheDocument();
   });
@@ -501,22 +501,22 @@ describe('documentation examples', () => {
     {
       id: 'final-merge' as const,
       title: 'Final',
-      primitivePath: 'customer.name',
-      customPath: 'lines.P-100.quantity',
+      primitiveEditName: 'Edit customer.name',
+      customEditName: 'Edit lines.P-100.quantity',
     },
     {
       id: 'advanced-configuration' as const,
       title: 'Advanced',
-      primitivePath: 'customer.tier',
-      customPath: 'billing.money.amount',
+      primitiveEditName: '编辑 customer.tier',
+      customEditName: '编辑 billing.money.amount',
     },
   ])(
     'demonstrates controlled raw edits and a custom mergeEditor in the $title example',
-    ({ id, primitivePath, customPath }) => {
+    ({ id, primitiveEditName, customEditName }) => {
       const card = renderExample(id);
 
-      expect(within(card).getByLabelText(`Edit ${primitivePath}`)).toBeInTheDocument();
-      expect(within(card).getByLabelText(`Edit ${customPath}`)).toBeInTheDocument();
+      expect(within(card).getByLabelText(primitiveEditName)).toBeInTheDocument();
+      expect(within(card).getByLabelText(customEditName)).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
       const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
       const sourceText = sourcePanel.textContent ?? '';
@@ -631,7 +631,7 @@ describe('documentation examples', () => {
     expect(selected).toBeChecked();
     expect(within(card).queryByText('合并已完成')).not.toBeInTheDocument();
 
-    fireEvent.click(within(card).getByRole('button', { name: /^Clear approvalStatus$/i }));
+    fireEvent.click(within(card).getByRole('button', { name: /^清除 approvalStatus 的来源$/i }));
     expect(selected).not.toBeChecked();
     expect(within(card).getByText(/仍有差异待选择|Needs selection/)).toBeInTheDocument();
 
