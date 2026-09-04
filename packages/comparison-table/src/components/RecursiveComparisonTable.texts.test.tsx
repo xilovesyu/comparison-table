@@ -495,11 +495,20 @@ describe('Issue #18 local text overrides', () => {
       />,
     );
 
-    expect(screen.getByRole('radiogroup', { name: 'Presence lines/P-300' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Keep lines/P-300 from Review' })).toBeInTheDocument();
-    expect.soft(screen.queryByText('Keep lines/P-300 from Review')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Drop lines/P-300' })).toBeInTheDocument();
-    expect.soft(screen.queryByText('Drop lines/P-300')).toBeInTheDocument();
+    const p300PresenceGroup = screen.getByRole('radiogroup', {
+      name: 'Presence lines/P-300',
+    });
+    expect(p300PresenceGroup).toBeInTheDocument();
+    expect(
+      within(p300PresenceGroup).getByRole('radio', { name: 'Keep lines/P-300 from Review' }),
+    ).toBeInTheDocument();
+    expect
+      .soft(within(p300PresenceGroup).queryByText('Keep lines/P-300 from Review'))
+      .toBeInTheDocument();
+    expect(
+      within(p300PresenceGroup).getByRole('radio', { name: 'Drop lines/P-300' }),
+    ).toBeInTheDocument();
+    expect.soft(within(p300PresenceGroup).queryByText('Drop lines/P-300')).toBeInTheDocument();
     expect(screen.getByText('Choose a result')).toHaveAttribute('aria-live', 'polite');
     expect(screen.getByText('New item')).toBeInTheDocument();
     expect(screen.getByText('Gone item')).toBeInTheDocument();
