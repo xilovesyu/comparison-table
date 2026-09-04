@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -98,7 +98,17 @@ describe('Issue #17 architecture follow-up contracts', () => {
     const levelCells = Array.from(levelRow.querySelectorAll('td'));
     expect(levelCells).toHaveLength(4);
     expect(levelCells[2]).toHaveTextContent(/^2$/);
-    expect(levelCells[3]).toHaveTextContent(/^2$/);
+    expect(levelCells[3]).toHaveTextContent(/^2/);
+    expect(
+      within(levelCells[3] as HTMLElement).getByRole('button', {
+        name: 'Set profile.level to null',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(levelCells[3] as HTMLElement).getByRole('button', {
+        name: 'Delete profile.level',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
