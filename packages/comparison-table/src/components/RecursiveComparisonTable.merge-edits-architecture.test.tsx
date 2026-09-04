@@ -94,7 +94,11 @@ describe('Issue #17 architecture follow-up contracts', () => {
 
     expect(profileSource).toBeChecked();
     expect(screen.getAllByText('Review name')).toHaveLength(2);
-    expect(screen.getAllByText('2')).toHaveLength(2);
+    const levelRow = screen.getByText('level').closest('tr') as HTMLElement;
+    const levelCells = Array.from(levelRow.querySelectorAll('td'));
+    expect(levelCells).toHaveLength(4);
+    expect(levelCells[2]).toHaveTextContent(/^2$/);
+    expect(levelCells[3]).toHaveTextContent(/^2$/);
   });
 
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
