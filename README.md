@@ -102,17 +102,19 @@ visible, status, and accessible text for one table. The complete inventory is:
 - Static keys: `tableRegionLabel`, `propertyColumn`, `baselineBadge`,
   `baselineBadgeAriaLabel`, `differenceIndicator`, `differenceIndicatorAriaLabel`,
   `globalSearchLabel`, `globalSearchPlaceholder`, `onlyDifferencesLabel`, `finalColumn`,
+  `excludeText`, `clearResolutionText`, `clearEditText`, `setNullText`, `deleteValueText`,
   `needsSelectionStatus`, `completeStatus`, `unresolvedStatus`, `deletedStatus`, `addedStatus`, and
   `removedStatus`.
 - Dynamic formatter keys: `onlyDifferencesCount`, `nodeSearchLabel`, `nodeFilterLabel`,
   `nodeFilterPlaceholder`, `sourceChoiceLabel`, `presenceGroupLabel`, `includeFromLabel`,
-  `excludeLabel`, `clearResolutionLabel`, `clearEditLabel`, `editValueLabel`, `setNullLabel`,
+  `includeFromText`, `excludeLabel`, `clearResolutionLabel`, `clearEditLabel`, `editValueLabel`, `setNullLabel`,
   `deleteValueLabel`, `inheritedSourceStatus`, `missingStatus`, and `validationError`.
 
 An omitted or missing override uses the built-in default. An own `undefined` value also falls back
 to the built-in default, while an empty string is valid and preserved. Formatter contexts expose
 the relevant `count`, `propertyLabel`, `path`, or `versionLabel`, and each formatter must return a
-string; a runtime non-string result fails fast.
+string; a runtime non-string result fails fast. In particular, `missingStatus` receives `path`,
+`versionIds`, and `versionLabels` for every missing version.
 
 The Final heading priority is `merge.finalLabel > texts.finalColumn > Final`. The `texts` API owns
 only this component's built-in wording. Version and property labels, including

@@ -76,7 +76,7 @@ const advancedVersions = [
 
 const moneyAmountEditor: MergeEditor = ({ path, value, disabled, invalid, onCommit }) => (
   <InputNumber
-    aria-label={`Edit ${path.join('.')}`}
+    aria-label={`编辑 ${path.join('.')}`}
     disabled={disabled}
     status={invalid ? 'error' : undefined}
     value={typeof value === 'number' ? value : null}
@@ -189,7 +189,19 @@ const advancedTexts = {
   sourceChoiceLabel: ({ path, versionLabel }) => `${path.join('.')} ${versionLabel}`,
   presenceGroupLabel: ({ path }) => `${path.join('.')} 的存在状态`,
   includeFromLabel: ({ path, versionLabel }) => `${path.join('.')} 从${versionLabel}加入`,
+  includeFromText: ({ versionLabel }) => `从${versionLabel}加入`,
   excludeLabel: ({ path }) => `${path.join('.')} 排除`,
+  excludeText: '排除',
+  clearResolutionLabel: ({ path }) => `清除 ${path.join('.')} 的来源`,
+  clearResolutionText: '清除来源',
+  clearEditLabel: ({ path }) => `清除 ${path.join('.')} 的编辑`,
+  clearEditText: '清除编辑',
+  editValueLabel: ({ path }) => `编辑 ${path.join('.')}`,
+  setNullLabel: ({ path }) => `将 ${path.join('.')} 设为空值`,
+  setNullText: '设为空值',
+  deleteValueLabel: ({ path }) => `删除 ${path.join('.')}`,
+  deleteValueText: '删除值',
+  missingStatus: ({ path, versionLabels }) => `${path.join('.')} 在${versionLabels.join('、')}缺失`,
   validationError: ({ path, error }) => `${path.join('.')} 无效：${error}`,
 } satisfies ComparisonTableTextOverrides;
 

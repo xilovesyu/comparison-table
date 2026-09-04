@@ -37,12 +37,18 @@ export interface ComparisonTableTexts {
   readonly includeFromLabel: (
     context: Readonly<{ path: PropertyPath; versionLabel: string }>,
   ) => string;
+  readonly includeFromText: (context: Readonly<{ versionLabel: string }>) => string;
   readonly excludeLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly excludeText: string;
   readonly clearResolutionLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly clearResolutionText: string;
   readonly clearEditLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly clearEditText: string;
   readonly editValueLabel: (context: Readonly<{ path: PropertyPath }>) => string;
   readonly setNullLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly setNullText: string;
   readonly deleteValueLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly deleteValueText: string;
   readonly inheritedSourceStatus: (
     context: Readonly<{ path: PropertyPath; sourcePath: string; versionLabel: string }>,
   ) => string;

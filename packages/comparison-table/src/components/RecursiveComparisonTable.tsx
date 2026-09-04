@@ -486,7 +486,7 @@ export function RecursiveComparisonTable({
                   size="small"
                   onClick={() => clearMergeResolution(row.id)}
                 >
-                  {clearResolutionLabel}
+                  {resolvedTexts.clearResolutionText}
                 </Button>
               ) : null;
               if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
@@ -504,6 +504,9 @@ export function RecursiveComparisonTable({
                         path: row.property.path,
                         versionLabel: version.label,
                       });
+                      const includeFromText = resolvedTexts.includeFromText({
+                        versionLabel: version.label,
+                      });
                       return (
                         <Radio
                           key={versionId}
@@ -516,7 +519,7 @@ export function RecursiveComparisonTable({
                             updateMergeResolution(row.id, { kind: 'source', versionId })
                           }
                         >
-                          {includeFromLabel}
+                          {includeFromText}
                         </Radio>
                       );
                     })}
@@ -526,7 +529,7 @@ export function RecursiveComparisonTable({
                       checked={resolution?.kind === 'exclude'}
                       onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
                     >
-                      {excludeLabel}
+                      {resolvedTexts.excludeText}
                     </Radio>
                     {clearButton}
                     {resolution && <span aria-live="polite">{resolvedTexts.completeStatus}</span>}
@@ -544,7 +547,7 @@ export function RecursiveComparisonTable({
                   size="small"
                   onClick={() => clearMergeEdit(row)}
                 >
-                  {clearEditLabel}
+                  {resolvedTexts.clearEditText}
                 </Button>
               ) : null;
               const inherited =
@@ -895,10 +898,10 @@ function MergeValueEditor({
         aria-label={setNullLabel}
         onClick={() => onEdit({ kind: 'set', value: null })}
       >
-        {setNullLabel}
+        {texts.setNullText}
       </Button>
       <Button size="small" aria-label={deleteValueLabel} onClick={() => onEdit({ kind: 'delete' })}>
-        {deleteValueLabel}
+        {texts.deleteValueText}
       </Button>
       {displayError && <span role="alert">{displayError}</span>}
     </div>
