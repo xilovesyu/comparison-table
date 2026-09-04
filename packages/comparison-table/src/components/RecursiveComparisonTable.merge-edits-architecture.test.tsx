@@ -138,6 +138,55 @@ describe('Issue #17 architecture follow-up contracts', () => {
     expect(screen.getAllByText('Review name')).toHaveLength(2);
   });
 
+  it('publishes the first single-child object container source through an uncontrolled onChange callback', () => {
+    const profile = rowId('profile');
+    const name = rowId('profile', 'name');
+    const onChange = vi.fn();
+
+    render(
+      <RecursiveComparisonTable
+        versions={[
+          {
+            id: 'base',
+            label: 'Base',
+            data: { profile: { name: 'Base name', unchanged: 'same' } },
+          },
+          {
+            id: 'review',
+            label: 'Review',
+            data: { profile: { name: 'Review name', unchanged: 'same' } },
+          },
+        ]}
+        merge={{ enabled: true, onChange }}
+      />,
+    );
+
+    const profileSource = screen.getByRole('radio', { name: 'profile Review' });
+    fireEvent.click(profileSource);
+
+    expect(profileSource).toBeChecked();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0]?.[0]).toEqual({ [profile]: source('review') });
+    expect(onChange.mock.calls[0]?.[1]).toMatchObject({
+      mergedData: { profile: { name: 'Review name', unchanged: 'same' } },
+    });
+    expect(screen.getAllByText('Review name')).toHaveLength(2);
+
+    const childOverride = screen.getByRole('radio', { name: 'profile.name Base' });
+    fireEvent.click(childOverride);
+
+    expect(childOverride).toBeChecked();
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onChange.mock.calls[1]?.[0]).toEqual({
+      [profile]: source('review'),
+      [name]: source('base'),
+    });
+    expect(onChange.mock.calls[1]?.[1]).toMatchObject({
+      mergedData: { profile: { name: 'Base name', unchanged: 'same' } },
+    });
+    expect(screen.getAllByText('Base name')).toHaveLength(2);
+  });
+
   it('clears a committed edit and falls back to the explicit source without clearing it', () => {
     const title = rowId('title');
     const onChange = vi.fn();
