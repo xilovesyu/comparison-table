@@ -213,9 +213,9 @@ describe('documentation examples', () => {
 
   it('keeps the Advanced comparison interactive when its source panel is opened', () => {
     const card = renderExample('advanced-configuration');
-    expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(card).getByLabelText('综合配置对比表')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
-    expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(card).getByLabelText('综合配置对比表')).toBeInTheDocument();
     expect(
       within(card)
         .getByText(/const advancedVersions/)
@@ -255,7 +255,21 @@ describe('documentation examples', () => {
 
       navigateToExample('advanced-configuration');
       expect(mergeCard).toHaveAttribute('hidden');
-      expect(within(navigation()).getAllByRole('link').at(-2)).toHaveTextContent('最终版本合并');
+      const directoryLinks = within(navigation()).getAllByRole('link');
+      const finalIndex = directoryLinks.findIndex(
+        (link) => link.getAttribute('href') === '#example-final-merge',
+      );
+      const textsIndex = directoryLinks.findIndex(
+        (link) => link.getAttribute('href') === '#example-text-overrides',
+      );
+      const advancedIndex = directoryLinks.findIndex(
+        (link) => link.getAttribute('href') === '#example-advanced-configuration',
+      );
+      expect(finalIndex).toBeGreaterThanOrEqual(0);
+      expect(textsIndex).toBeGreaterThanOrEqual(0);
+      expect(advancedIndex).toBeGreaterThanOrEqual(0);
+      expect(finalIndex).toBeLessThan(textsIndex);
+      expect(textsIndex).toBeLessThan(advancedIndex);
     } finally {
       if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
       else Reflect.deleteProperty(navigator, 'clipboard');
@@ -265,10 +279,12 @@ describe('documentation examples', () => {
   it('integrates merge, keyed presence, renderer, and container summaries into Advanced and its source panel', () => {
     const advancedCard = renderExample('advanced-configuration');
 
-    expect(within(advancedCard).getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
+    expect(
+      within(advancedCard).getByRole('columnheader', { name: '最终结果' }),
+    ).toBeInTheDocument();
     expect(
       within(advancedCard).getByRole('radio', {
-        name: /^lines\.P-300 Include from 复核版$/i,
+        name: /^lines\.P-300 从复核版加入$/i,
       }),
     ).toBeInTheDocument();
     expect(within(advancedCard).getByText('本地金额：USD 980')).toBeInTheDocument();
@@ -382,22 +398,28 @@ describe('documentation examples', () => {
       title: '最终版本合并',
       childPath: 'customer.name',
       childValue: 'Mia Zhang',
+      presenceName: /^lines\.P-300 Include from 复核版$/i,
     },
     {
       id: 'advanced-configuration' as const,
       title: '综合高级配置',
       childPath: 'customer.tier',
       childValue: 'PLATINUM',
+      presenceName: /^lines\.P-300 从复核版加入$/i,
     },
   ])(
     'keeps Final before Advanced and demonstrates container inheritance plus keyed item and presence choices in $title',
-    ({ id, childPath, childValue }) => {
+    ({ id, childPath, childValue, presenceName }) => {
       const finalIndex = navigationExamples.findIndex(([exampleId]) => exampleId === 'final-merge');
+      const textsIndex = navigationExamples.findIndex(
+        ([exampleId]) => exampleId === 'text-overrides',
+      );
       const advancedIndex = navigationExamples.findIndex(
         ([exampleId]) => exampleId === 'advanced-configuration',
       );
       expect(navigationExamples).toHaveLength(14);
-      expect(finalIndex).toBeLessThan(advancedIndex);
+      expect(finalIndex).toBeLessThan(textsIndex);
+      expect(textsIndex).toBeLessThan(advancedIndex);
 
       const card = renderExample(id);
       const containerSource = within(card).getByRole('radio', {
@@ -420,7 +442,7 @@ describe('documentation examples', () => {
       ).toBeInTheDocument();
       expect(
         within(card).getByRole('radio', {
-          name: /^lines\.P-300 Include from 复核版$/i,
+          name: presenceName,
         }),
       ).toBeInTheDocument();
     },
@@ -527,7 +549,7 @@ describe('documentation examples', () => {
       ).not.toBeInTheDocument();
 
       expect(
-        within(card).getByRole('radio', { name: /^lines\.P-300 Include from 复核版$/i }),
+        within(card).getByRole('radio', { name: /^lines\.P-300 从复核版加入$/i }),
       ).toBeInTheDocument();
       expect(within(card).getByText('本地金额：USD 980')).toBeInTheDocument();
 
@@ -787,7 +809,7 @@ describe('Issue #5 demo directory navigation', () => {
     fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
     const advanced = exampleCard('综合高级配置');
     fireEvent.click(within(advanced).getByRole('button', { name: '查看源代码' }));
-    expect(within(advanced).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(advanced).getByLabelText('综合配置对比表')).toBeInTheDocument();
 
     fireEvent.click(within(navigation()).getByRole('link', { name: '基础递归对比' }));
     expect(
@@ -799,7 +821,7 @@ describe('Issue #5 demo directory navigation', () => {
     ).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
     expect(
-      within(exampleCard('综合高级配置')).getByLabelText('Recursive comparison table'),
+      within(exampleCard('综合高级配置')).getByLabelText('综合配置对比表'),
     ).toBeInTheDocument();
     expect(
       within(exampleCard('综合高级配置')).getByRole('button', { name: '隐藏源代码' }),
