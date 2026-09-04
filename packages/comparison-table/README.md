@@ -162,6 +162,10 @@ Merge resolution is off by default. Set `merge={{ enabled: true }}` to append a 
 which a reviewer chooses the raw source version for every direct difference. Use `value` with
 `onChange` for controlled usage, or seed uncontrolled usage once with `defaultValue`:
 
+`resolvedPatch` is the baseline-relative, canonical, stable, non-overlap migration contract containing final leaf and presence operations.
+Replay is independent of user click order, and replay is independent of parent/child patch execution order;
+it need not be rebuilt from rendered cells.
+
 ```tsx
 const [resolutions, setResolutions] = useState<MergeResolutions>({});
 
@@ -203,14 +207,14 @@ uncontrolled callers pair `defaultValue` with `defaultEdits`. Controlled complet
 value/source and edits pair. An object or keyed-array container source is inherited by visible children;
 a child source or edit overrides it, and Clear falls back to the nearest active ancestor. Keyed array
 items retain their separate presence Include/Exclude decision.
+`scope` and `sourceDecisions` jointly provide the audit trail: scope records active parent/container
+source inheritance, while source decisions record each child override or inherited outcome.
 
 `PropertyDefinition.mergeEditor` overrides `DisplayRule.mergeEditor`; `false` disables editing. The
 built-in text, number, and boolean editors commit primitive raw data. A custom `mergeEditor` can validate
 and commit Date, decimal, enum, or other custom primitive values; object and array edit values are
 rejected even with a custom editor. Raw renderer isolation keeps editor state
-separate from `renderer`/`renderValue`: display output is never treated as merge input. `resolvedPatch` is the
-canonical, stable, non-overlap migration contract and should be applied in order rather than rebuilt
-from rendered cells.
+separate from `renderer`/`renderValue`: display output is never treated as merge input.
 
 ## Renderers
 
