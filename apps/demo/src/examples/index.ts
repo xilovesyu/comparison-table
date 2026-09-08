@@ -11,3 +11,4 @@ export { PresentationControlsExample } from './PresentationControlsExample';
 export { RegistryExample } from './RegistryExample';
 export { RendererExample } from './RendererExample';
 export { SelectionExample } from './SelectionExample';
+export { TextOverridesExample } from './TextOverridesExample';

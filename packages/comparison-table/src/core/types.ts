@@ -1,6 +1,79 @@
 /** A path to a field in a version record. Numeric parts address array items. */
 export type PropertyPath = readonly (string | number)[];
 
+/**
+ * All user-facing built-in text owned by the comparison table.
+ *
+ * When `texts` is omitted, or an override key is missing, the built-in default is used. An own
+ * `undefined` override also uses the built-in default, while an empty string is valid and preserved.
+ * Dynamic formatter contexts provide the relevant `count`, `propertyLabel`, `path`, or
+ * `versionLabel`; every formatter must return a string and a runtime non-string result throws.
+ */
+export interface ComparisonTableTexts {
+  readonly tableRegionLabel: string;
+  readonly propertyColumn: string;
+  readonly baselineBadge: string;
+  readonly baselineBadgeAriaLabel: string;
+  readonly differenceIndicator: string;
+  readonly differenceIndicatorAriaLabel: string;
+  readonly globalSearchLabel: string;
+  readonly globalSearchPlaceholder: string;
+  readonly onlyDifferencesLabel: string;
+  readonly onlyDifferencesCount: (context: Readonly<{ count: number }>) => string;
+  readonly nodeSearchLabel: (
+    context: Readonly<{ propertyLabel: string; path: PropertyPath }>,
+  ) => string;
+  readonly nodeFilterLabel: (
+    context: Readonly<{ propertyLabel: string; path: PropertyPath }>,
+  ) => string;
+  readonly nodeFilterPlaceholder: (
+    context: Readonly<{ propertyLabel: string; path: PropertyPath }>,
+  ) => string;
+  readonly finalColumn: string;
+  readonly sourceChoiceLabel: (
+    context: Readonly<{ path: PropertyPath; versionLabel: string }>,
+  ) => string;
+  readonly presenceGroupLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly includeFromLabel: (
+    context: Readonly<{ path: PropertyPath; versionLabel: string }>,
+  ) => string;
+  readonly includeFromText: (context: Readonly<{ versionLabel: string }>) => string;
+  readonly excludeLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly excludeText: string;
+  readonly clearResolutionLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly clearResolutionText: string;
+  readonly clearEditLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly clearEditText: string;
+  readonly editValueLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly setNullLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly setNullText: string;
+  readonly deleteValueLabel: (context: Readonly<{ path: PropertyPath }>) => string;
+  readonly deleteValueText: string;
+  readonly inheritedSourceStatus: (
+    context: Readonly<{ path: PropertyPath; sourcePath: string; versionLabel: string }>,
+  ) => string;
+  readonly needsSelectionStatus: string;
+  readonly completeStatus: string;
+  readonly unresolvedStatus: string;
+  readonly deletedStatus: string;
+  readonly addedStatus: string;
+  readonly removedStatus: string;
+  readonly missingStatus: (
+    context: Readonly<{
+      path: PropertyPath;
+      versionIds: readonly string[];
+      versionLabels: readonly string[];
+    }>,
+  ) => string;
+  readonly validationError: (context: Readonly<{ path: PropertyPath; error: string }>) => string;
+}
+
+/**
+ * Per-table partial text overrides. Missing and explicit `undefined` values use the built-in
+ * default; an empty string is a valid override.
+ */
+export type ComparisonTableTextOverrides = Partial<ComparisonTableTexts>;
+
 /** Value kinds recognized by the recursive walker and built-in renderers. */
 export type PropertyType =
   'array' | 'boolean' | 'date' | 'null' | 'number' | 'object' | 'string' | 'undefined' | 'unknown';

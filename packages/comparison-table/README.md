@@ -40,6 +40,7 @@ export function VersionComparison() {
 | `defaultExpandedKeys` | `React.Key[]`                  | —            | Initial uncontrolled expansion keys.                       |
 | `expandedKeys`        | `React.Key[]`                  | —            | Controlled expansion keys.                                 |
 | `onExpandedChange`    | `(keys: React.Key[]) => void`  | —            | Receives expansion changes.                                |
+| `texts`               | `ComparisonTableTextOverrides` | built-ins    | Per-table built-in visible and accessible text overrides.  |
 | `merge`               | `MergeOptions`                 | disabled     | Opts into the interactive `Final` merge column.            |
 
 ### BuildComparisonConfig
@@ -155,6 +156,34 @@ as a permanent removal.
 When `propertyDefinitions` addresses a keyed array, use its `itemDefinition` template for keyed
 items (including flattened layouts). Numeric item-index paths conflict with keyed alignment and
 are rejected.
+
+## Per-table built-in text overrides
+
+Pass a local `texts` object typed as `ComparisonTableTextOverrides` to replace component-owned
+visible, status, and accessible text for one table. The complete inventory is:
+
+- Static keys: `tableRegionLabel`, `propertyColumn`, `baselineBadge`,
+  `baselineBadgeAriaLabel`, `differenceIndicator`, `differenceIndicatorAriaLabel`,
+  `globalSearchLabel`, `globalSearchPlaceholder`, `onlyDifferencesLabel`, `finalColumn`,
+  `excludeText`, `clearResolutionText`, `clearEditText`, `setNullText`, `deleteValueText`,
+  `needsSelectionStatus`, `completeStatus`, `unresolvedStatus`, `deletedStatus`, `addedStatus`, and
+  `removedStatus`.
+- Dynamic formatter keys: `onlyDifferencesCount`, `nodeSearchLabel`, `nodeFilterLabel`,
+  `nodeFilterPlaceholder`, `sourceChoiceLabel`, `presenceGroupLabel`, `includeFromLabel`,
+  `includeFromText`, `excludeLabel`, `clearResolutionLabel`, `clearEditLabel`, `editValueLabel`, `setNullLabel`,
+  `deleteValueLabel`, `inheritedSourceStatus`, `missingStatus`, and `validationError`.
+
+An omitted or missing override uses the built-in default. An own `undefined` value also falls back
+to the built-in default, while an empty string is valid and preserved. Formatter contexts expose
+the relevant `count`, `propertyLabel`, `path`, or `versionLabel`, and each formatter must return a
+string; a runtime non-string result fails fast. In particular, `missingStatus` receives `path`,
+`versionIds`, and `versionLabels` for every missing version.
+
+The Final heading priority is `merge.finalLabel > texts.finalColumn > Final`. The `texts` API owns
+only this component's built-in wording. Version and property labels, including
+`PropertyDefinition` and `DisplayRule` labels, raw value output, `renderer` output, `mergeEditor`
+output, and all other user text are never translated or overridden by `texts`. Use Ant Design's
+`ConfigProvider` for Ant Design locale and internal control wording.
 
 ## Final merge resolution
 
@@ -288,6 +317,6 @@ Rules and property definitions can set `differenceIndicator` and `nodeSearchable
 
 ## Public exports
 
-The package exports `RecursiveComparisonTable`, `RecursiveComparisonTableProps`, row-building and filtering helpers, renderer APIs, and the public configuration types: `ComparisonVersion`, `BuildComparisonConfig`, `PropertyDefinition`, `DisplayRule`, `PropertySelection`, `DifferenceOptions`, `SearchOptions`, `MergeOptions`, `MergeResolutions`, `MergeResult`, `ValueRenderer`, and related context types.
+The package exports `RecursiveComparisonTable`, `RecursiveComparisonTableProps`, row-building and filtering helpers, renderer APIs, and the public configuration types: `ComparisonVersion`, `BuildComparisonConfig`, `PropertyDefinition`, `DisplayRule`, `PropertySelection`, `DifferenceOptions`, `SearchOptions`, `ComparisonTableTexts`, `ComparisonTableTextOverrides`, `MergeOptions`, `MergeResolutions`, `MergeResult`, `ValueRenderer`, and related context types.
 
 For real configurations and the full interactive gallery, see the [repository demo](https://github.com/xilovesyu/comparison-table#readme).

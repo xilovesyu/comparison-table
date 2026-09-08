@@ -9,6 +9,8 @@ import {
   getPropertyType,
   type BuildComparisonConfig,
   type ComparisonRow,
+  type ComparisonTableTexts,
+  type ComparisonTableTextOverrides,
   type ComparisonVersion,
   type DifferenceOptions,
   type MergeEdit,
@@ -28,6 +30,7 @@ import {
   type RendererOverrides,
   RendererRegistry,
 } from '../core/renderers';
+import { resolveComparisonTableTexts } from '../core/texts';
 
 /** Public props accepted by {@link RecursiveComparisonTable}. */
 export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
@@ -47,6 +50,14 @@ export interface RecursiveComparisonTableProps extends BuildComparisonConfig {
   expandedKeys?: React.Key[];
   /** Reports expansion changes for controlled or uncontrolled usage. */
   onExpandedChange?: (keys: React.Key[]) => void;
+  /**
+   * Per-table overrides for visible, status, and accessible text owned by this component.
+   * Final priority is `merge.finalLabel`, then `texts.finalColumn`, then the built-in default
+   * `Final`. The host `ConfigProvider` owns Ant Design locale outside this API.
+   * Version, PropertyDefinition, and DisplayRule labels, raw value output, renderer output, and
+   * mergeEditor output are never translated or overridden by `texts`.
+   */
+  texts?: ComparisonTableTextOverrides;
   /**
    * Opt-in Final-column merge resolution. Omit it (or leave `enabled` false) for the legacy table.
    * Supports controlled `value` or an uncontrolled `defaultValue` decision record.
@@ -70,8 +81,10 @@ export function RecursiveComparisonTable({
   expandedKeys,
   onExpandedChange,
   merge,
+  texts,
   ...receivedConfig
 }: RecursiveComparisonTableProps) {
+  const resolvedTexts = useMemo(() => resolveComparisonTableTexts(texts), [texts]);
   const config = useMemo<BuildComparisonConfig>(
     () => ({
       arrayItemKeyFields: receivedConfig.arrayItemKeyFields,
@@ -111,12 +124,17 @@ export function RecursiveComparisonTable({
     [mergeEditors],
   );
   const differenceRows = useMemo(() => filterDifferenceRows(rows), [rows]);
-  const locallyFilteredRows = useMemo(
-    () => applyNodeFilters(onlyDifferences ? differenceRows : rows, nodeQueries),
-    [onlyDifferences, differenceRows, rows, nodeQueries],
-  );
+  const locallyFilteredRows = useMemo(() => {
+    const sourceRows = onlyDifferences ? differenceRows : rows;
+    return Object.values(nodeQueries).some((value) => value.trim())
+      ? applyNodeFilters(sourceRows, nodeQueries)
+      : sourceRows;
+  }, [onlyDifferences, differenceRows, rows, nodeQueries]);
   const visibleRows = useMemo(
-    () => filterComparisonRows(locallyFilteredRows, query, searchOptions),
+    () =>
+      query.trim()
+        ? filterComparisonRows(locallyFilteredRows, query, searchOptions)
+        : locallyFilteredRows,
     [locallyFilteredRows, query, searchOptions],
   );
   const allKeys = useMemo(() => collectKeys(visibleRows), [visibleRows]);
@@ -368,7 +386,7 @@ export function RecursiveComparisonTable({
   );
   const columns: ColumnsType<ComparisonRow> = [
     {
-      title: 'Property',
+      title: resolvedTexts.propertyColumn,
       key: 'property',
       width: 300,
       render: (_: unknown, row) => (
@@ -383,7 +401,8 @@ export function RecursiveComparisonTable({
           }
           onQuery={(value) => setNodeQueries((queries) => ({ ...queries, [row.id]: value }))}
           baselineId={baselineId ?? versions[0]?.id}
-          versionIds={versions.map((version) => version.id)}
+          versions={versions}
+          texts={resolvedTexts}
         />
       ),
     },
@@ -397,8 +416,11 @@ export function RecursiveComparisonTable({
           <span className="comparison-version-header">
             <span className={headerClassName}>{version.label}</span>
             {isBaseline && config.comparison?.showBaselineBadge !== false && (
-              <span className="comparison-baseline-badge" aria-label="Base">
-                Base
+              <span
+                className="comparison-baseline-badge"
+                aria-label={resolvedTexts.baselineBadgeAriaLabel}
+              >
+                {resolvedTexts.baselineBadge}
               </span>
             )}
           </span>
@@ -431,7 +453,10 @@ export function RecursiveComparisonTable({
           return (
             <Radio
               name={`merge-source-${row.id}`}
-              aria-label={`${row.property.path.join('.')} ${version.label}`}
+              aria-label={resolvedTexts.sourceChoiceLabel({
+                path: row.property.path,
+                versionLabel: version.label,
+              })}
               checked={checked}
               onChange={() => selectMergeSource(row, version.id)}
             >
@@ -444,7 +469,7 @@ export function RecursiveComparisonTable({
     ...(mergeEnabled
       ? [
           {
-            title: merge?.finalLabel ?? 'Final',
+            title: merge?.finalLabel ?? resolvedTexts.finalColumn,
             key: 'merge-final',
             render: (_: unknown, row: ComparisonRow) => {
               const scopeEntry = mergeScopeByRowId.get(row.id);
@@ -452,28 +477,41 @@ export function RecursiveComparisonTable({
                 activeResolutions,
                 row.id,
               );
+              const clearResolutionLabel = resolvedTexts.clearResolutionLabel({
+                path: row.property.path,
+              });
               const clearButton = hasManualResolution ? (
                 <Button
-                  aria-label={`Clear ${row.property.path.join('.')}`}
+                  aria-label={clearResolutionLabel}
                   size="small"
                   onClick={() => clearMergeResolution(row.id)}
                 >
-                  Clear
+                  {resolvedTexts.clearResolutionText}
                 </Button>
               ) : null;
               if (scopeEntry?.role === 'keyed-presence' && scopeEntry.active) {
                 const resolution = activeResolutions[row.id];
-                const pathLabel = row.property.path.join('.');
+                const excludeLabel = resolvedTexts.excludeLabel({ path: row.property.path });
                 return (
-                  <div role="radiogroup" aria-label={`${pathLabel} presence`}>
+                  <div
+                    role="radiogroup"
+                    aria-label={resolvedTexts.presenceGroupLabel({ path: row.property.path })}
+                  >
                     {scopeEntry.allowedSourceVersionIds.map((versionId) => {
                       const version = versions.find((candidate) => candidate.id === versionId);
                       if (!version) return null;
+                      const includeFromLabel = resolvedTexts.includeFromLabel({
+                        path: row.property.path,
+                        versionLabel: version.label,
+                      });
+                      const includeFromText = resolvedTexts.includeFromText({
+                        versionLabel: version.label,
+                      });
                       return (
                         <Radio
                           key={versionId}
                           name={`merge-presence-${row.id}`}
-                          aria-label={`${pathLabel} Include from ${version.label}`}
+                          aria-label={includeFromLabel}
                           checked={
                             resolution?.kind === 'source' && resolution.versionId === versionId
                           }
@@ -481,20 +519,20 @@ export function RecursiveComparisonTable({
                             updateMergeResolution(row.id, { kind: 'source', versionId })
                           }
                         >
-                          Include from {version.label}
+                          {includeFromText}
                         </Radio>
                       );
                     })}
                     <Radio
                       name={`merge-presence-${row.id}`}
-                      aria-label={`${pathLabel} Exclude`}
+                      aria-label={excludeLabel}
                       checked={resolution?.kind === 'exclude'}
                       onChange={() => updateMergeResolution(row.id, { kind: 'exclude' })}
                     >
-                      Exclude
+                      {resolvedTexts.excludeText}
                     </Radio>
                     {clearButton}
-                    {resolution && <span aria-live="polite">Complete</span>}
+                    {resolution && <span aria-live="polite">{resolvedTexts.completeStatus}</span>}
                   </div>
                 );
               }
@@ -502,13 +540,14 @@ export function RecursiveComparisonTable({
               const decision = mergeDecisionByRowId.get(row.id);
               const edit = activeEdits[row.id];
               const hasManualEdit = Object.prototype.hasOwnProperty.call(activeEdits, row.id);
+              const clearEditLabel = resolvedTexts.clearEditLabel({ path: row.property.path });
               const editClearButton = hasManualEdit ? (
                 <Button
-                  aria-label={`Clear edit ${row.property.path.join('.')}`}
+                  aria-label={clearEditLabel}
                   size="small"
                   onClick={() => clearMergeEdit(row)}
                 >
-                  Clear edit
+                  {resolvedTexts.clearEditText}
                 </Button>
               ) : null;
               const inherited =
@@ -528,6 +567,7 @@ export function RecursiveComparisonTable({
                     sourceDecision={decision}
                     editor={mergeEditors.get(row.id)}
                     error={editErrors[row.id]}
+                    texts={resolvedTexts}
                     onError={(error) =>
                       setEditErrors((errors) => {
                         const next = { ...errors };
@@ -560,7 +600,7 @@ export function RecursiveComparisonTable({
                           containerSummaries.get(row.id),
                           config.containerSummary,
                         )
-                      : 'Deleted'}
+                      : resolvedTexts.deletedStatus}
                     {editor}
                     {editClearButton}
                     {clearButton}
@@ -570,7 +610,7 @@ export function RecursiveComparisonTable({
               if (!decision || !('sourceVersionId' in decision)) {
                 return (
                   <div>
-                    <span>Unresolved</span>
+                    <span>{resolvedTexts.unresolvedStatus}</span>
                     {editor}
                     {editClearButton}
                     {clearButton}
@@ -589,13 +629,17 @@ export function RecursiveComparisonTable({
                     containerSummaries.get(row.id),
                     config.containerSummary,
                   )
-                : 'Unresolved';
+                : resolvedTexts.unresolvedStatus;
               return (
                 <div>
                   {finalValue}
                   {inherited && announcedInheritedRowId === row.id && (
                     <span aria-live="polite">
-                      Inherited from {inherited.path}: {inherited.versionLabel}
+                      {resolvedTexts.inheritedSourceStatus({
+                        path: row.property.path,
+                        sourcePath: inherited.path,
+                        versionLabel: inherited.versionLabel,
+                      })}
                     </span>
                   )}
                   {editor}
@@ -609,27 +653,33 @@ export function RecursiveComparisonTable({
       : []),
   ];
   return (
-    <section aria-label="Recursive comparison table">
+    <section aria-label={resolvedTexts.tableRegionLabel}>
       <div className="comparison-toolbar">
         {searchable && (
           <Input
-            aria-label="Search comparison"
+            aria-label={resolvedTexts.globalSearchLabel}
             allowClear
-            placeholder="Search properties and values"
+            placeholder={resolvedTexts.globalSearchPlaceholder}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
         )}
         <Space className="comparison-difference-control">
           <Switch
-            aria-label="Only show differences"
+            aria-label={resolvedTexts.onlyDifferencesLabel}
             checked={onlyDifferences}
             onChange={setOnlyDifferences}
           />
-          <Typography.Text>仅显示差异（{countRows(differenceRows)}）</Typography.Text>
+          <Typography.Text>
+            {resolvedTexts.onlyDifferencesCount({ count: countRows(differenceRows) })}
+          </Typography.Text>
         </Space>
         {mergeEnabled && (
-          <span aria-live="polite">{needsMergeSelection ? 'Needs selection' : 'Complete'}</span>
+          <span aria-live="polite">
+            {needsMergeSelection
+              ? resolvedTexts.needsSelectionStatus
+              : resolvedTexts.completeStatus}
+          </span>
         )}
       </div>
       <Table<ComparisonRow>
@@ -741,6 +791,7 @@ function MergeValueEditor({
   sourceDecision,
   editor,
   error,
+  texts,
   onError,
   onEdit,
   onClear,
@@ -750,6 +801,7 @@ function MergeValueEditor({
   sourceDecision?: MergeSourceDecision;
   editor?: false | 'text' | 'number' | 'boolean' | MergeEditor;
   error?: string;
+  texts: ComparisonTableTexts;
   onError: (error?: string) => void;
   onEdit: (edit: MergeEdit) => void;
   onClear: () => void;
@@ -763,6 +815,9 @@ function MergeValueEditor({
     ? row.values[sourceVersionId]
     : Object.values(row.values).find((value) => value !== undefined);
   const editValue = edit?.kind === 'set' ? edit.value : sourceValue;
+  const displayError = error
+    ? texts.validationError({ path: row.property.path, error })
+    : undefined;
   if (editor === false) return null;
   if (typeof editor === 'function') {
     const CustomEditor = editor;
@@ -771,8 +826,8 @@ function MergeValueEditor({
         <CustomEditor
           path={[...row.property.path]}
           value={editValue}
-          invalid={Boolean(error)}
-          error={error}
+          invalid={Boolean(displayError)}
+          error={displayError}
           onCommit={(nextEdit) => {
             const validationError = validateCustomMergeEdit(pathLabel, nextEdit);
             if (validationError) {
@@ -788,7 +843,7 @@ function MergeValueEditor({
     );
   }
   const valueType = editor ?? getPropertyType(sourceValue);
-  const invalid = Boolean(error);
+  const invalid = Boolean(displayError);
   const controls = (() => {
     if (valueType === 'number') {
       const numberValue =
@@ -796,7 +851,7 @@ function MergeValueEditor({
       return (
         <InputNumber
           type="number"
-          aria-label={`Edit ${pathLabel}`}
+          aria-label={texts.editValueLabel({ path: row.property.path })}
           aria-invalid={invalid}
           value={numberValue}
           onChange={(value) => {
@@ -819,7 +874,7 @@ function MergeValueEditor({
     if (valueType === 'boolean') {
       return (
         <Switch
-          aria-label={`Edit ${pathLabel}`}
+          aria-label={texts.editValueLabel({ path: row.property.path })}
           checked={typeof editValue === 'boolean' ? editValue : false}
           onChange={(value) => onEdit({ kind: 'set', value })}
         />
@@ -827,30 +882,28 @@ function MergeValueEditor({
     }
     return (
       <Input
-        aria-label={`Edit ${pathLabel}`}
+        aria-label={texts.editValueLabel({ path: row.property.path })}
         value={typeof editValue === 'string' ? editValue : ''}
         onChange={(event) => onEdit({ kind: 'set', value: event.target.value })}
       />
     );
   })();
+  const setNullLabel = texts.setNullLabel({ path: row.property.path });
+  const deleteValueLabel = texts.deleteValueLabel({ path: row.property.path });
   return (
     <div className="comparison-merge-editor">
       {controls}
       <Button
         size="small"
-        aria-label={`Set ${pathLabel} to null`}
+        aria-label={setNullLabel}
         onClick={() => onEdit({ kind: 'set', value: null })}
       >
-        Null
+        {texts.setNullText}
       </Button>
-      <Button
-        size="small"
-        aria-label={`Delete ${pathLabel}`}
-        onClick={() => onEdit({ kind: 'delete' })}
-      >
-        Delete
+      <Button size="small" aria-label={deleteValueLabel} onClick={() => onEdit({ kind: 'delete' })}>
+        {texts.deleteValueText}
       </Button>
-      {error && <span role="alert">{error}</span>}
+      {displayError && <span role="alert">{displayError}</span>}
     </div>
   );
 }
@@ -877,7 +930,8 @@ function PropertyCell({
   onToggle,
   onQuery,
   baselineId,
-  versionIds,
+  versions,
+  texts,
 }: {
   row: ComparisonRow;
   open: boolean;
@@ -885,8 +939,10 @@ function PropertyCell({
   onToggle: () => void;
   onQuery: (value: string) => void;
   baselineId?: string;
-  versionIds: readonly string[];
+  versions: readonly ComparisonVersion[];
+  texts: ComparisonTableTexts;
 }) {
+  const versionIds = versions.map((version) => version.id);
   const expandable = Boolean(row.children?.length);
   const baselinePresent = baselineId ? row.presence?.[baselineId] : undefined;
   const missingVersionIds = versionIds.filter((id) => !row.presence?.[id]);
@@ -905,18 +961,28 @@ function PropertyCell({
       <span>{row.property.label}</span>
       {status && (
         <span className={`comparison-item-status comparison-item-status-${status}`}>
-          {status === 'added' ? 'Added' : 'Removed'}
+          {status === 'added' ? texts.addedStatus : texts.removedStatus}
         </span>
       )}
       {row.itemIdentity && !status && missingVersionIds.length > 0 && (
         <span className="comparison-item-status comparison-item-status-missing">
-          Missing in {missingVersionIds.join(', ')}
+          {texts.missingStatus({
+            path: row.property.path,
+            versionIds: missingVersionIds,
+            versionLabels: missingVersionIds.map(
+              (versionId) =>
+                versions.find((version) => version.id === versionId)?.label ?? versionId,
+            ),
+          })}
         </span>
       )}
-      <DifferenceIndicator row={row} indicator={row.differenceIndicator} />
+      <DifferenceIndicator row={row} indicator={row.differenceIndicator} texts={texts} />
       {expandable && row.nodeSearchable && (
         <Button
-          aria-label={`Search within ${row.property.label}`}
+          aria-label={texts.nodeSearchLabel({
+            propertyLabel: row.property.label,
+            path: row.property.path,
+          })}
           type="text"
           size="small"
           icon={<SearchOutlined />}
@@ -925,11 +991,17 @@ function PropertyCell({
       )}
       {open && (
         <Input
-          aria-label={`Filter ${row.property.label} children`}
+          aria-label={texts.nodeFilterLabel({
+            propertyLabel: row.property.label,
+            path: row.property.path,
+          })}
           size="small"
           allowClear
           value={query}
-          placeholder={`Filter ${row.property.label}`}
+          placeholder={texts.nodeFilterPlaceholder({
+            propertyLabel: row.property.label,
+            path: row.property.path,
+          })}
           onChange={(event) => onQuery(event.target.value)}
         />
       )}
@@ -939,9 +1011,11 @@ function PropertyCell({
 function DifferenceIndicator({
   row,
   indicator,
+  texts,
 }: {
   row: ComparisonRow;
   indicator: DifferenceOptions['differenceIndicator'];
+  texts: ComparisonTableTexts;
 }) {
   if (!row.hasDifference || indicator === false) return null;
   const info = {
@@ -958,9 +1032,9 @@ function DifferenceIndicator({
           ? 'comparison-difference-badge-direct'
           : 'comparison-difference-badge-parent'
       }`}
-      aria-label="Diff"
+      aria-label={texts.differenceIndicatorAriaLabel}
     >
-      Diff
+      {texts.differenceIndicator}
       {info.descendantDifferenceCount > 0 && <sup>{info.descendantDifferenceCount}</sup>}
     </span>
   );

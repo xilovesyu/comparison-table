@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { Button, InputNumber } from 'antd';
 import {
   RecursiveComparisonTable,
+  type BuildComparisonConfig,
   type ComparisonVersion,
+  type ComparisonTableTextOverrides,
   type MergeEditor,
   type MergeEdits,
   type MergeResolutions,
@@ -74,7 +76,7 @@ const advancedVersions = [
 
 const moneyAmountEditor: MergeEditor = ({ path, value, disabled, invalid, onCommit }) => (
   <InputNumber
-    aria-label={`Edit ${path.join('.')}`}
+    aria-label={`编辑 ${path.join('.')}`}
     disabled={disabled}
     status={invalid ? 'error' : undefined}
     value={typeof value === 'number' ? value : null}
@@ -180,6 +182,64 @@ const advancedRendererDefinitions = {
   },
 };
 
+const advancedTexts = {
+  tableRegionLabel: '综合配置对比表',
+  propertyColumn: '属性',
+  finalColumn: '最终结果',
+  sourceChoiceLabel: ({ path, versionLabel }) => `${path.join('.')} ${versionLabel}`,
+  presenceGroupLabel: ({ path }) => `${path.join('.')} 的存在状态`,
+  includeFromLabel: ({ path, versionLabel }) => `${path.join('.')} 从${versionLabel}加入`,
+  includeFromText: ({ versionLabel }) => `从${versionLabel}加入`,
+  excludeLabel: ({ path }) => `${path.join('.')} 排除`,
+  excludeText: '排除',
+  clearResolutionLabel: ({ path }) => `清除 ${path.join('.')} 的来源`,
+  clearResolutionText: '清除来源',
+  clearEditLabel: ({ path }) => `清除 ${path.join('.')} 的编辑`,
+  clearEditText: '清除编辑',
+  editValueLabel: ({ path }) => `编辑 ${path.join('.')}`,
+  setNullLabel: ({ path }) => `将 ${path.join('.')} 设为空值`,
+  setNullText: '设为空值',
+  deleteValueLabel: ({ path }) => `删除 ${path.join('.')}`,
+  deleteValueText: '删除值',
+  missingStatus: ({ path, versionLabels }) => `${path.join('.')} 在${versionLabels.join('、')}缺失`,
+  validationError: ({ path, error }) => `${path.join('.')} 无效：${error}`,
+} satisfies ComparisonTableTextOverrides;
+
+const advancedBuildConfig = {
+  arrayItemKeyFields: { lines: 'sku' },
+  selection: {
+    include: [
+      'customer',
+      'customer.*',
+      'billing.*',
+      'lines.*',
+      'reviewSteps',
+      'note',
+      'availability',
+    ],
+    exclude: ['customer.secret', 'internal.*'],
+  },
+  rules: [
+    { path: 'billing.money', renderer: 'localMoney' },
+    { path: 'billing.summaryMoney', renderer: 'money', expand: false },
+  ],
+  containerSummary: (value) =>
+    typeof value === 'object' && value !== null
+      ? `对象摘要：${Object.keys(value).length} 字段`
+      : undefined,
+  comparison: {
+    baseVersionId: 'baseline',
+    showBaselineBadge: true,
+    comparator: (values, context) => {
+      if (context.path.join('.') === 'billing.money.amount') {
+        const amounts = values.map(Number);
+        return Math.max(...amounts) - Math.min(...amounts) > 50;
+      }
+      return values.some((value, index) => index > 0 && value !== values[0]);
+    },
+  },
+} satisfies BuildComparisonConfig;
+
 const defaultValueVersions = [
   {
     id: 'baseline',
@@ -234,6 +294,7 @@ export function AdvancedExample() {
           key="advanced-default-value-mode"
           versions={defaultValueVersions}
           comparison={{ baseVersionId: 'baseline' }}
+          texts={advancedTexts}
           merge={{
             enabled: true,
             defaultValue: defaultResolutions,
@@ -266,33 +327,16 @@ export function AdvancedExample() {
       >
         演示 uncontrolled defaultValue 与 defaultEdits
       </Button>
+      {/* The stable config below is equivalent to arrayItemKeyFields={{ lines: 'sku' }}. */}
       <RecursiveComparisonTable
         key="advanced-complete-mode"
         versions={advancedVersions}
         propertyDefinitions={advancedDefinitions}
-        arrayItemKeyFields={{ lines: 'sku' }}
+        arrayItemKeyFields={advancedBuildConfig.arrayItemKeyFields}
         renderers={advancedRendererDefinitions}
-        selection={{
-          include: [
-            'customer',
-            'customer.*',
-            'billing.*',
-            'lines.*',
-            'reviewSteps',
-            'note',
-            'availability',
-          ],
-          exclude: ['customer.secret', 'internal.*'],
-        }}
-        rules={[
-          { path: 'billing.money', renderer: 'localMoney' },
-          { path: 'billing.summaryMoney', renderer: 'money', expand: false },
-        ]}
-        containerSummary={(value) =>
-          typeof value === 'object' && value !== null
-            ? `对象摘要：${Object.keys(value).length} 字段`
-            : undefined
-        }
+        selection={advancedBuildConfig.selection}
+        rules={advancedBuildConfig.rules}
+        containerSummary={advancedBuildConfig.containerSummary}
         merge={{
           enabled: true,
           value: resolutions,
@@ -307,19 +351,10 @@ export function AdvancedExample() {
           },
           onComplete: () => setMergeStatus('source 与 edits pair echo 后合并已完成'),
         }}
-        comparison={{
-          baseVersionId: 'baseline',
-          showBaselineBadge: true,
-          comparator: (values, context) => {
-            if (context.path.join('.') === 'billing.money.amount') {
-              const amounts = values.map(Number);
-              return Math.max(...amounts) - Math.min(...amounts) > 50;
-            }
-            return values.some((value, index) => index > 0 && value !== values[0]);
-          },
-        }}
+        comparison={advancedBuildConfig.comparison}
         expandedKeys={expandedKeys}
         onExpandedChange={setExpandedKeys}
+        texts={advancedTexts}
       />
     </ExampleCard>
   );

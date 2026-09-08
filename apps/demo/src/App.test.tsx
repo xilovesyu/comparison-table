@@ -17,6 +17,7 @@ const navigationExamples = [
   ['keyed-array', '业务键数组对齐'],
   ['container-summary', '容器摘要'],
   ['final-merge', '最终版本合并'],
+  ['text-overrides', '内置文案配置与本地化'],
   ['advanced-configuration', '综合高级配置'],
 ] as const;
 
@@ -53,12 +54,27 @@ afterEach(() => {
 });
 
 describe('documentation examples', () => {
-  it('shows the documented comparison scenarios', () => {
+  it('publishes the documented scenario metadata, links, groups, and order from one App render', () => {
+    setExampleHash();
+    render(<App />);
+
+    const directory = navigation();
+    expect(within(directory).getAllByRole('group')).toHaveLength(5);
+    expect(within(directory).getAllByRole('button', { name: /展开|收起/ })).toHaveLength(5);
+
     for (const [id, title] of navigationExamples) {
-      const card = renderExample(id);
-      expect(within(card).getByRole('heading', { name: title })).toBeInTheDocument();
-      cleanup();
+      expect(within(directory).getByRole('link', { name: title })).toHaveAttribute(
+        'href',
+        `#example-${id}`,
+      );
     }
+    expect(
+      within(directory)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(navigationExamples.map(([, title]) => title));
+    expect(navigationGroups.every((group) => directory.textContent?.includes(group))).toBe(true);
+    expect(within(directory).getAllByRole('link').at(-1)).toHaveTextContent('综合高级配置');
   });
 
   it('reveals a source panel for each example', () => {
@@ -66,6 +82,20 @@ describe('documentation examples', () => {
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card).getByText(/RecursiveComparisonTable/)).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: '复制源代码' })).toBeInTheDocument();
+  });
+
+  it('keeps the original built-in text when an existing example does not pass texts', () => {
+    const card = renderExample('basic-recursive');
+
+    expect(
+      within(card).getByRole('region', { name: 'Recursive comparison table' }),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole('columnheader', { name: 'Property' })).toBeInTheDocument();
+    expect(within(card).getByRole('textbox', { name: 'Search comparison' })).toHaveAttribute(
+      'placeholder',
+      'Search properties and values',
+    );
+    expect(within(card).getByRole('switch', { name: 'Only show differences' })).toBeInTheDocument();
   });
 
   it('shows summary money as a non-expandable first-level value', () => {
@@ -180,7 +210,7 @@ describe('documentation examples', () => {
 
   it('shows an Advanced keyed item missing only in review and keeps it in the source panel', () => {
     const card = renderExample('advanced-configuration');
-    expect(within(card).getByText(/Missing in review/)).toBeInTheDocument();
+    expect(within(card).getByText('lines.P-400 在复核版缺失')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
     expect(within(card.querySelector('.source-panel')!).getByText(/review/)).toBeInTheDocument();
   });
@@ -198,9 +228,9 @@ describe('documentation examples', () => {
 
   it('keeps the Advanced comparison interactive when its source panel is opened', () => {
     const card = renderExample('advanced-configuration');
-    expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(card).getByLabelText('综合配置对比表')).toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
-    expect(within(card).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(card).getByLabelText('综合配置对比表')).toBeInTheDocument();
     expect(
       within(card)
         .getByText(/const advancedVersions/)
@@ -240,7 +270,21 @@ describe('documentation examples', () => {
 
       navigateToExample('advanced-configuration');
       expect(mergeCard).toHaveAttribute('hidden');
-      expect(within(navigation()).getAllByRole('link').at(-2)).toHaveTextContent('最终版本合并');
+      const directoryLinks = within(navigation()).getAllByRole('link');
+      const finalIndex = directoryLinks.findIndex(
+        (link) => link.getAttribute('href') === '#example-final-merge',
+      );
+      const textsIndex = directoryLinks.findIndex(
+        (link) => link.getAttribute('href') === '#example-text-overrides',
+      );
+      const advancedIndex = directoryLinks.findIndex(
+        (link) => link.getAttribute('href') === '#example-advanced-configuration',
+      );
+      expect(finalIndex).toBeGreaterThanOrEqual(0);
+      expect(textsIndex).toBeGreaterThanOrEqual(0);
+      expect(advancedIndex).toBeGreaterThanOrEqual(0);
+      expect(finalIndex).toBeLessThan(textsIndex);
+      expect(textsIndex).toBeLessThan(advancedIndex);
     } finally {
       if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
       else Reflect.deleteProperty(navigator, 'clipboard');
@@ -250,10 +294,12 @@ describe('documentation examples', () => {
   it('integrates merge, keyed presence, renderer, and container summaries into Advanced and its source panel', () => {
     const advancedCard = renderExample('advanced-configuration');
 
-    expect(within(advancedCard).getByRole('columnheader', { name: 'Final' })).toBeInTheDocument();
+    expect(
+      within(advancedCard).getByRole('columnheader', { name: '最终结果' }),
+    ).toBeInTheDocument();
     expect(
       within(advancedCard).getByRole('radio', {
-        name: /^lines\.P-300 Include from 复核版$/i,
+        name: /^lines\.P-300 从复核版加入$/i,
       }),
     ).toBeInTheDocument();
     expect(within(advancedCard).getByText('本地金额：USD 980')).toBeInTheDocument();
@@ -265,28 +311,179 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/containerSummary=/);
   });
 
+  it('places a localized built-in-text example before Advanced and keeps its raw source and copy action synchronized', () => {
+    const localizedIndex = navigationExamples.findIndex(([id]) => id === 'text-overrides');
+    const advancedIndex = navigationExamples.findIndex(([id]) => id === 'advanced-configuration');
+    expect(localizedIndex).toBe(advancedIndex - 1);
+
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    try {
+      const card = renderExample('text-overrides');
+      expect(within(card).getByRole('region', { name: '本地化递归对比表' })).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '字段' })).toBeInTheDocument();
+      expect(within(card).getByRole('textbox', { name: '搜索对比内容' })).toHaveAttribute(
+        'placeholder',
+        '搜索属性和值',
+      );
+      expect(within(card).getByRole('switch', { name: '仅显示差异' })).toBeInTheDocument();
+      expect(within(card).getByText(/^共 \d+ 项差异$/)).toBeInTheDocument();
+      expect(
+        within(card).getByRole('button', { name: '搜索 客户资料（customer）' }),
+      ).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '本地化结果' })).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: 'customer.name 采用复核版' }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radiogroup', { name: 'lines.P-300 的存在状态' }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: 'lines.P-300 从复核版加入' }),
+      ).toBeInTheDocument();
+
+      const editor = within(card).getByRole('spinbutton', { name: '编辑 amount' });
+      fireEvent.change(editor, { target: { value: 'not-a-number' } });
+      fireEvent.blur(editor);
+      expect(within(card).getByRole('alert')).toHaveTextContent(/amount.*无效/i);
+
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+      const sourceText = sourcePanel.textContent ?? '';
+      expect(sourceText).toMatch(/const localizedTexts/);
+      expect(sourceText).toMatch(/texts={localizedTexts}/);
+      expect(sourceText).toMatch(/onlyDifferencesCount/);
+      expect(sourceText).toMatch(/sourceChoiceLabel/);
+      expect(sourceText).toMatch(/presenceGroupLabel/);
+      expect(sourceText).toMatch(/validationError/);
+      fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain('texts={localizedTexts}');
+      expect(writeText.mock.calls[0]?.[0]).toContain('validationError');
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('integrates local text overrides into Advanced without dropping merge, keyed, renderer, or summary capabilities', () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    try {
+      const card = renderExample('advanced-configuration');
+
+      expect(within(card).getByRole('region', { name: '综合配置对比表' })).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '属性' })).toBeInTheDocument();
+      expect(within(card).getByRole('columnheader', { name: '最终结果' })).toBeInTheDocument();
+      expect(
+        within(card).getByRole('radio', { name: /^lines\.P-300 从复核版加入$/ }),
+      ).toBeInTheDocument();
+      expect(within(card).getByText('本地金额：USD 980')).toBeInTheDocument();
+
+      fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
+      const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
+      const sourceText = sourcePanel.textContent ?? '';
+      expect(sourceText).toMatch(/texts=/);
+      expect(sourceText).toMatch(/sourceChoiceLabel/);
+      expect(sourceText).toMatch(/arrayItemKeyFields/);
+      expect(sourceText).toMatch(/containerSummary/);
+      expect(sourceText).toMatch(/renderers=/);
+      expect(sourceText).toMatch(/merge={{/);
+      fireEvent.click(within(sourcePanel).getByRole('button', { name: '复制源代码' }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain('texts=');
+      expect(writeText.mock.calls[0]?.[0]).toContain('sourceChoiceLabel');
+    } finally {
+      if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+      else Reflect.deleteProperty(navigator, 'clipboard');
+    }
+  });
+
+  it('localizes Advanced Missing and keyed child merge controls in visible text and aria', () => {
+    const card = renderExample('advanced-configuration');
+    const missingRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-400'])}']`,
+    ) as HTMLElement;
+    expect(missingRow).toBeInTheDocument();
+    expect.soft(within(missingRow).queryByText('lines.P-400 在复核版缺失')).toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('radio', { name: /^lines\.P-300 从复核版加入$/ }));
+
+    const presenceRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-300'])}']`,
+    ) as HTMLElement;
+    const presenceFinalCell = presenceRow.querySelector('td:last-child') as HTMLElement;
+    const clearSource = within(presenceFinalCell).getByRole('button');
+    expect.soft(clearSource).toHaveAccessibleName('清除 lines.P-300 的来源');
+    expect.soft(clearSource).toHaveTextContent(/^清除来源$/);
+    fireEvent.click(within(presenceRow).getByRole('button', { name: 'Expand row' }));
+
+    const quantityRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-300', 'quantity'])}']`,
+    ) as HTMLElement;
+    const quantityFinalCell = quantityRow.querySelector('td:last-child') as HTMLElement;
+    const quantityEditor = within(quantityFinalCell).getByRole('spinbutton');
+    expect.soft(quantityEditor).toHaveAccessibleName('编辑 lines.P-300.quantity');
+    const setNull = within(quantityFinalCell).getByRole('button', {
+      name: /^(?:Set lines\.P-300\.quantity to null|将 lines\.P-300\.quantity 设为空值)$/,
+    });
+    const deleteValue = within(quantityFinalCell).getByRole('button', {
+      name: /^(?:Delete lines\.P-300\.quantity|删除 lines\.P-300\.quantity)$/,
+    });
+    expect.soft(setNull).toHaveAccessibleName('将 lines.P-300.quantity 设为空值');
+    expect.soft(setNull).toHaveTextContent(/^设为空值$/);
+    expect.soft(deleteValue).toHaveAccessibleName('删除 lines.P-300.quantity');
+    expect.soft(deleteValue).toHaveTextContent(/^删除值$/);
+
+    fireEvent.click(setNull);
+    const updatedQuantityRow = card.querySelector(
+      `tr[data-row-key='${JSON.stringify(['lines', 'P-300', 'quantity'])}']`,
+    ) as HTMLElement;
+    const clearEdit = within(
+      updatedQuantityRow.querySelector('td:last-child') as HTMLElement,
+    ).getByRole('button', {
+      name: /^(?:Clear edit lines\.P-300\.quantity|清除 lines\.P-300\.quantity 的编辑)$/,
+    });
+    expect.soft(clearEdit).toHaveAccessibleName('清除 lines.P-300.quantity 的编辑');
+    expect.soft(clearEdit).toHaveTextContent(/^清除编辑$/);
+  });
+
   it.each([
     {
       id: 'final-merge' as const,
       title: '最终版本合并',
       childPath: 'customer.name',
       childValue: 'Mia Zhang',
+      presenceName: /^lines\.P-300 Include from 复核版$/i,
     },
     {
       id: 'advanced-configuration' as const,
       title: '综合高级配置',
       childPath: 'customer.tier',
       childValue: 'PLATINUM',
+      presenceName: /^lines\.P-300 从复核版加入$/i,
     },
   ])(
     'keeps Final before Advanced and demonstrates container inheritance plus keyed item and presence choices in $title',
-    ({ id, childPath, childValue }) => {
+    ({ id, childPath, childValue, presenceName }) => {
       const finalIndex = navigationExamples.findIndex(([exampleId]) => exampleId === 'final-merge');
+      const textsIndex = navigationExamples.findIndex(
+        ([exampleId]) => exampleId === 'text-overrides',
+      );
       const advancedIndex = navigationExamples.findIndex(
         ([exampleId]) => exampleId === 'advanced-configuration',
       );
-      expect(navigationExamples).toHaveLength(13);
-      expect(finalIndex).toBe(advancedIndex - 1);
+      expect(navigationExamples).toHaveLength(14);
+      expect(finalIndex).toBeLessThan(textsIndex);
+      expect(textsIndex).toBeLessThan(advancedIndex);
 
       const card = renderExample(id);
       const containerSource = within(card).getByRole('radio', {
@@ -309,7 +506,7 @@ describe('documentation examples', () => {
       ).toBeInTheDocument();
       expect(
         within(card).getByRole('radio', {
-          name: /^lines\.P-300 Include from 复核版$/i,
+          name: presenceName,
         }),
       ).toBeInTheDocument();
     },
@@ -319,22 +516,22 @@ describe('documentation examples', () => {
     {
       id: 'final-merge' as const,
       title: 'Final',
-      primitivePath: 'customer.name',
-      customPath: 'lines.P-100.quantity',
+      primitiveEditName: 'Edit customer.name',
+      customEditName: 'Edit lines.P-100.quantity',
     },
     {
       id: 'advanced-configuration' as const,
       title: 'Advanced',
-      primitivePath: 'customer.tier',
-      customPath: 'billing.money.amount',
+      primitiveEditName: '编辑 customer.tier',
+      customEditName: '编辑 billing.money.amount',
     },
   ])(
     'demonstrates controlled raw edits and a custom mergeEditor in the $title example',
-    ({ id, primitivePath, customPath }) => {
+    ({ id, primitiveEditName, customEditName }) => {
       const card = renderExample(id);
 
-      expect(within(card).getByLabelText(`Edit ${primitivePath}`)).toBeInTheDocument();
-      expect(within(card).getByLabelText(`Edit ${customPath}`)).toBeInTheDocument();
+      expect(within(card).getByLabelText(primitiveEditName)).toBeInTheDocument();
+      expect(within(card).getByLabelText(customEditName)).toBeInTheDocument();
       fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
       const sourcePanel = card.querySelector('.source-panel') as HTMLElement;
       const sourceText = sourcePanel.textContent ?? '';
@@ -347,11 +544,11 @@ describe('documentation examples', () => {
   );
 
   it.each([
-    ['final-merge', '最终版本合并'],
-    ['advanced-configuration', '综合高级配置'],
+    ['final-merge', '最终版本合并', /^Clear edit /i],
+    ['advanced-configuration', '综合高级配置', /^清除 reviewNote 的编辑$/],
   ] as const)(
     'keeps controlled and default source/edit modes plus raw source copy synchronized in %s',
-    (id, _title) => {
+    (id, _title, expectedClearEditName) => {
       const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
       const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
       Object.defineProperty(navigator, 'clipboard', {
@@ -381,7 +578,9 @@ describe('documentation examples', () => {
         expect(
           within(card).getByText(/defaultValue.*defaultEdits.*未触发完成提交/i),
         ).toBeInTheDocument();
-        expect(within(card).getByRole('button', { name: /^Clear edit /i })).toBeInTheDocument();
+        expect(
+          within(card).getByRole('button', { name: expectedClearEditName }),
+        ).toBeInTheDocument();
       } finally {
         if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
         else Reflect.deleteProperty(navigator, 'clipboard');
@@ -416,7 +615,7 @@ describe('documentation examples', () => {
       ).not.toBeInTheDocument();
 
       expect(
-        within(card).getByRole('radio', { name: /^lines\.P-300 Include from 复核版$/i }),
+        within(card).getByRole('radio', { name: /^lines\.P-300 从复核版加入$/i }),
       ).toBeInTheDocument();
       expect(within(card).getByText('本地金额：USD 980')).toBeInTheDocument();
 
@@ -449,7 +648,7 @@ describe('documentation examples', () => {
     expect(selected).toBeChecked();
     expect(within(card).queryByText('合并已完成')).not.toBeInTheDocument();
 
-    fireEvent.click(within(card).getByRole('button', { name: /^Clear approvalStatus$/i }));
+    fireEvent.click(within(card).getByRole('button', { name: /^清除 approvalStatus 的来源$/i }));
     expect(selected).not.toBeChecked();
     expect(within(card).getByText(/仍有差异待选择|Needs selection/)).toBeInTheDocument();
 
@@ -507,86 +706,111 @@ describe('documentation examples', () => {
     expect(sourcePanel.textContent).toMatch(/approvalStatus/);
   });
 
-  it.each([
+  const mergeVisibilityExamples = [
     {
       id: 'final-merge' as const,
+      title: '最终版本合并',
       radioName: /^customer\.name 复核版$/i,
       parentLabel: 'customer',
       finalValue: 'Mia Zhang',
     },
     {
       id: 'advanced-configuration' as const,
+      title: '综合高级配置',
       radioName: /^billing\.money\.amount 复核版$/i,
       parentLabel: '结算金额（可展开）',
       finalValue: '1,100',
     },
-  ])(
-    'keeps the $id Final decision and raw value through difference, search, node-search, and expansion visibility',
-    ({ id, radioName, parentLabel, finalValue }) => {
-      const card = renderExample(id);
-      const radio = within(card).getByRole('radio', { name: radioName });
-      fireEvent.click(radio);
-      expect(radio).toBeChecked();
+  ] as const;
 
-      const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
-      expect(within(finalCell).getByText(finalValue)).toBeInTheDocument();
+  function renderSelectedMergeExample({
+    id,
+    title,
+    radioName,
+    finalValue,
+  }: (typeof mergeVisibilityExamples)[number]) {
+    setExampleHash(id);
+    render(<App />);
+    const card = exampleCard(title);
+    const radio = within(card).getByRole('radio', { name: radioName });
+    fireEvent.click(radio);
+    expect(radio).toBeChecked();
+    const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+    expect(within(finalCell).getByText(finalValue)).toBeInTheDocument();
+    return { card, radio };
+  }
 
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through only-differences visibility',
+    (example) => {
+      const { card, radio } = renderSelectedMergeExample(example);
       fireEvent.click(within(card).getByRole('switch', { name: 'Only show differences' }));
-      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+      expect(radio).toBeChecked();
+      const finalCell = radio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(example.finalValue)).toBeInTheDocument();
+    },
+  );
 
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through global-search visibility',
+    (example) => {
+      const { card } = renderSelectedMergeExample(example);
       const globalSearch = within(card).getByLabelText('Search comparison');
       fireEvent.change(globalSearch, { target: { value: '__no_matching_property__' } });
-      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: example.radioName }),
+      ).not.toBeInTheDocument();
       fireEvent.change(globalSearch, { target: { value: '' } });
-      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+      const restoredRadio = within(card).getByRole('radio', { name: example.radioName });
+      expect(restoredRadio).toBeChecked();
+      const finalCell = restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(example.finalValue)).toBeInTheDocument();
+    },
+  );
 
-      fireEvent.click(within(card).getByRole('button', { name: `Search within ${parentLabel}` }));
-      const nodeSearch = within(card).getByLabelText(`Filter ${parentLabel} children`);
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through node-search visibility',
+    (example) => {
+      const { card } = renderSelectedMergeExample(example);
+      fireEvent.click(
+        within(card).getByRole('button', { name: `Search within ${example.parentLabel}` }),
+      );
+      const nodeSearch = within(card).getByLabelText(`Filter ${example.parentLabel} children`);
       fireEvent.change(nodeSearch, { target: { value: '__no_matching_child__' } });
-      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: example.radioName }),
+      ).not.toBeInTheDocument();
       fireEvent.change(nodeSearch, { target: { value: '' } });
-      expect(within(card).getByRole('radio', { name: radioName })).toBeChecked();
+      const restoredRadio = within(card).getByRole('radio', { name: example.radioName });
+      expect(restoredRadio).toBeChecked();
+      const finalCell = restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement;
+      expect(within(finalCell).getByText(example.finalValue)).toBeInTheDocument();
+    },
+  );
 
-      const parentRow = within(card).getByText(parentLabel).closest('tr') as HTMLElement;
+  it.each(mergeVisibilityExamples)(
+    'keeps the $id Final decision and raw value through collapse and expansion visibility',
+    (example) => {
+      const { card } = renderSelectedMergeExample(example);
+      const parentRow = within(card).getByText(example.parentLabel).closest('tr') as HTMLElement;
       const expandButton = parentRow.querySelector('.ant-table-row-expand-icon') as HTMLElement;
       fireEvent.click(expandButton);
-      expect(within(card).queryByRole('radio', { name: radioName })).not.toBeInTheDocument();
+      expect(
+        within(card).queryByRole('radio', { name: example.radioName }),
+      ).not.toBeInTheDocument();
       fireEvent.click(expandButton);
-      const restoredRadio = within(card).getByRole('radio', { name: radioName });
+      const restoredRadio = within(card).getByRole('radio', { name: example.radioName });
       expect(restoredRadio).toBeChecked();
       expect(
         within(
           restoredRadio.closest('tr')?.querySelector('td:last-child') as HTMLElement,
-        ).getByText(finalValue),
+        ).getByText(example.finalValue),
       ).toBeInTheDocument();
     },
   );
 });
 
 describe('Issue #5 demo directory navigation', () => {
-  it('publishes the thirteen actual examples as stable catalog links in five groups, with Final merge before Advanced last', () => {
-    setExampleHash();
-    render(<App />);
-
-    const directory = navigation();
-    expect(within(directory).getAllByRole('group')).toHaveLength(5);
-    expect(within(directory).getAllByRole('button', { name: /展开|收起/ })).toHaveLength(5);
-
-    for (const [id, title] of navigationExamples) {
-      expect(within(directory).getByRole('link', { name: title })).toHaveAttribute(
-        'href',
-        `#example-${id}`,
-      );
-    }
-    expect(
-      within(directory)
-        .getAllByRole('link')
-        .map((link) => link.textContent),
-    ).toEqual(navigationExamples.map(([, title]) => title));
-    expect(navigationGroups.every((group) => directory.textContent?.includes(group))).toBe(true);
-    expect(within(directory).getAllByRole('link').at(-1)).toHaveTextContent('综合高级配置');
-  });
-
   it.each([
     ['', '基础递归对比', ''],
     ['#example-basic', '基础递归对比', '#example-basic-recursive'],
@@ -676,7 +900,7 @@ describe('Issue #5 demo directory navigation', () => {
     fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
     const advanced = exampleCard('综合高级配置');
     fireEvent.click(within(advanced).getByRole('button', { name: '查看源代码' }));
-    expect(within(advanced).getByLabelText('Recursive comparison table')).toBeInTheDocument();
+    expect(within(advanced).getByLabelText('综合配置对比表')).toBeInTheDocument();
 
     fireEvent.click(within(navigation()).getByRole('link', { name: '基础递归对比' }));
     expect(
@@ -688,7 +912,7 @@ describe('Issue #5 demo directory navigation', () => {
     ).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(within(navigation()).getByRole('link', { name: '综合高级配置' }));
     expect(
-      within(exampleCard('综合高级配置')).getByLabelText('Recursive comparison table'),
+      within(exampleCard('综合高级配置')).getByLabelText('综合配置对比表'),
     ).toBeInTheDocument();
     expect(
       within(exampleCard('综合高级配置')).getByRole('button', { name: '隐藏源代码' }),
@@ -713,12 +937,15 @@ describe('Issue #5 demo directory navigation', () => {
   });
 
   it.each(navigationExamples)(
-    'routes %s through its directory entry and retains source plus copy actions',
-    (_id, title) => {
-      setExampleHash();
+    'cold-starts %s through its stable hash and retains directory, source, and copy actions',
+    (id, title) => {
+      setExampleHash(id);
       render(<App />);
 
-      fireEvent.click(within(navigation()).getByRole('link', { name: title }));
+      expect(within(navigation()).getByRole('link', { name: title })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
       const card = exampleCard(title);
       expect(card).toBeVisible();
       fireEvent.click(within(card).getByRole('button', { name: '查看源代码' }));
@@ -746,7 +973,7 @@ describe('Issue #5 demo directory navigation', () => {
 });
 
 describe('Issue #5 architecture navigation compatibility', () => {
-  it('keeps all thirteen stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
+  it('keeps all fourteen stable IDs, including basic-recursive, without canonicalising an empty hash', () => {
     window.history.replaceState({}, '', '/');
     render(<App />);
 
@@ -772,6 +999,7 @@ describe('Issue #5 architecture navigation compatibility', () => {
       '#example-keyed-array',
       '#example-container-summary',
       '#example-final-merge',
+      '#example-text-overrides',
       '#example-advanced-configuration',
     ]);
   });
