@@ -1,17 +1,29 @@
 import { expect, test } from '@playwright/test';
 
 const examples = [
-  { fragment: '', heading: '基础递归对比', link: '基础递归对比' },
-  { fragment: '#example-keyed-array', heading: '业务键数组对齐', link: '业务键数组对齐' },
+  {
+    fragment: '',
+    heading: '基础递归对比',
+    link: '基础递归对比',
+    region: 'Recursive comparison table',
+  },
+  {
+    fragment: '#example-keyed-array',
+    heading: '业务键数组对齐',
+    link: '业务键数组对齐',
+    region: 'Recursive comparison table',
+  },
   {
     fragment: '#example-container-summary',
     heading: '容器摘要',
     link: '容器摘要',
+    region: 'Recursive comparison table',
   },
   {
     fragment: '#example-advanced-configuration',
     heading: '综合高级配置',
     link: '综合高级配置',
+    region: '综合配置对比表',
   },
 ] as const;
 
@@ -44,7 +56,7 @@ for (const example of examples) {
       'aria-current',
       'page',
     );
-    await expect(page.getByRole('region', { name: 'Recursive comparison table' })).toBeVisible();
+    await expect(page.getByRole('region', { name: example.region })).toBeVisible();
     expect(assetErrors, 'deployed asset requests').toEqual([]);
     expect(runtimeErrors, 'console and pageerror events').toEqual([]);
   });
