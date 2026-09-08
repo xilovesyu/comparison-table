@@ -290,12 +290,18 @@ const comparisonTextKeys = [
   'sourceChoiceLabel',
   'presenceGroupLabel',
   'includeFromLabel',
+  'includeFromText',
   'excludeLabel',
+  'excludeText',
   'clearResolutionLabel',
+  'clearResolutionText',
   'clearEditLabel',
+  'clearEditText',
   'editValueLabel',
   'setNullLabel',
+  'setNullText',
   'deleteValueLabel',
+  'deleteValueText',
   'inheritedSourceStatus',
   'needsSelectionStatus',
   'completeStatus',
@@ -323,6 +329,7 @@ test('public text override types export the complete documented inventory with J
   assert.match(typeSource, /export interface ComparisonTableTexts/);
   assert.match(typeSource, /export type ComparisonTableTextOverrides/);
   assert.match(componentSource, /texts\?: ComparisonTableTextOverrides/);
+  assert.equal(comparisonTextKeys.length, 38);
   for (const key of comparisonTextKeys) {
     assert.match(
       typeSource,
